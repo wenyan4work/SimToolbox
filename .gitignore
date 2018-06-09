@@ -1,32 +1,21 @@
-# Prerequisites
-*.d
+**.o
+**.d
+**.o-*
+**.dylib
+**.log
 
-# Compiled Object files
-*.slo
-*.lo
-*.o
-*.obj
+**.X
 
-# Precompiled Headers
-*.gch
-*.pch
+**.vtk
+**.vtp
+**.vtu
+**.vtr
+**.pvtk
+**.pvtp
+**.pvtu
+**.pvtr
 
-# Compiled Dynamic libraries
-*.so
-*.dylib
-*.dll
+**.xyz
+**.mtx
 
-# Fortran module files
-*.mod
-*.smod
-
-# Compiled Static libraries
-*.lai
-*.la
-*.a
-*.lib
-
-# Executables
-*.exe
-*.out
-*.app
+.vscode/
