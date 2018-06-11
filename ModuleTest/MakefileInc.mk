@@ -1,8 +1,4 @@
-# CCB014
-SFTPATH=/mnt/home/wyan/local
-
-# Mac 
-# SFTPATH=/Users/wyan/local
+SFTPATH:=$(HOME)/local
 
 # inherit flags, includes and libs from Trilinos and pvfmm
 include $(SFTPATH)/include/Makefile.export.Trilinos
