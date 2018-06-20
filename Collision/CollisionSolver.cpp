@@ -1,31 +1,49 @@
 #include "CollisionSolver.hpp"
 
+// The number of collision blocks can be zero on one, several or all nodes
+// be careful about this special case.
+
 void CollisionSolver::setup(CollisionBlockPool &collision_, Teuchos::RCP<TMAP> &objMobMapRcp_, double dt_,
                             double bufferGap_) {
     reset();
+    objMobMapRcp = objMobMapRcp_;
+    forceColRcp = Teuchos::rcp(new TV(objMobMapRcp, true));
+    velocityColRcp = Teuchos::rcp(new TV(objMobMapRcp, true));
+
+    // check global empty
+    // bool emptyFlagLocal = collisionLocalIsEmpty(collision_);
+    // bool emptyFlagGlobal = true;
+    // MPI_Allreduce(&emptyFlagLocal, &emptyFlagGlobal, 1, MPI_CXX_BOOL, MPI_LAND, MPI_COMM_WORLD);
+    // if (emptyFlagGlobal) {
+    //     // TMAP seems does not allow 0 global size. Add a manual fix
+    // }
 
     setupCollisionBlockQueThreadIndex(collision_);
 
     // step 1 setup maps
-    objMobMapRcp = objMobMapRcp_; // domainmap = rangemap for mobility matrix
     auto commRcp = objMobMapRcp->getComm();
     gammaMapRcp = getTMAPFromLocalSize(queueThreadIndex.back(), commRcp);
 
-    const int nObjLocal = objMobMapRcp->getNodeNumElements() / 6;
-    const int nObjGlobal = objMobMapRcp->getGlobalNumElements() / 6;
-    assert(nObjLocal * 6 == objMobMapRcp->getNodeNumElements());
-    assert(nObjGlobal * 6 == objMobMapRcp->getGlobalNumElements());
+    // const int nObjLocal = objMobMapRcp->getNodeNumElements() / 6;
+    // const int nObjGlobal = objMobMapRcp->getGlobalNumElements() / 6;
+    // TEUCHOS_ASSERT(nObjLocal * 6 == objMobMapRcp->getNodeNumElements());
+    // TEUCHOS_ASSERT(nObjGlobal * 6 == objMobMapRcp->getGlobalNumElements());
 
-    // setup vecs
-    gammaRcp = Teuchos::rcp(new TV(gammaMapRcp, true));
+    if (gammaMapRcp->getGlobalNumElements() == 0) {
+        if (commRcp->getRank() == 0)
+            std::cout << "No collision detected, will set forceCol and velCol to zero" << std::endl;
+    } else {
+        // setup vecs
+        gammaRcp = Teuchos::rcp(new TV(gammaMapRcp, true));
 
-    // step 2 setup FcTrans
-    // assert(velocity.size() == nObjLocal * 6);
-    // setupVnVec(collision, velocity);
-    setupFcTrans(collision_);
+        // step 2 setup FcTrans
+        // assert(velocity.size() == nObjLocal * 6);
+        // setupVnVec(collision, velocity);
+        setupFcTrans(collision_);
 
-    // step 3 setup the const b in LCP, stored in phi0. need FcTrans and Vn
-    setupPhi0Vec(collision_, dt_, bufferGap_);
+        // step 3 setup the const b in LCP, stored in phi0. need FcTrans and Vn
+        setupPhi0Vec(collision_, dt_, bufferGap_);
+    }
 }
 
 void CollisionSolver::solveCollision(Teuchos::RCP<TOP> &matMobilityRcp_, Teuchos::RCP<TV> &velocityKnownRcp_) {
@@ -33,17 +51,15 @@ void CollisionSolver::solveCollision(Teuchos::RCP<TOP> &matMobilityRcp_, Teuchos
     this->matMobilityRcp = matMobilityRcp_;
     this->vnRcp = velocityKnownRcp_;
 
-    // set the const b
-    setupBVec();
-
-    if (matFcTransRcp->getGlobalNumEntries() == 0) {
-        // no entry in FcTrans Mat means no collision. set all as zero
-        forceColRcp = Teuchos::rcp(new TV(objMobMapRcp, true));
-        velocityColRcp = Teuchos::rcp(new TV(objMobMapRcp, true));
-        gammaRcp->putScalar(0);
-        objMobMapRcp->getComm()->barrier();
+    if (gammaMapRcp->getGlobalNumElements() == 0) {
+        // global no collision.
+        forceColRcp->putScalar(0);
+        velocityColRcp->putScalar(0);
         return;
     }
+
+    // set the const b
+    setupBVec();
 
     // create the solver
     IteHistory history;
@@ -77,8 +93,8 @@ void CollisionSolver::solveCollision(Teuchos::RCP<TOP> &matMobilityRcp_, Teuchos
             std::cout << p[0] << " " << p[1] << " " << p[2] << " " << p[3] << " " << p[4] << std::endl;
         }
     }
-    dumpTV(forceColRcp, "forceCol.mtx");
-    dumpTV(gammaRcp, "gammaSolLCP.mtx");
+    dumpTV(forceColRcp, "forceCol");
+    dumpTV(gammaRcp, "gammaSolLCP");
 #endif
 }
 
@@ -216,7 +232,7 @@ void CollisionSolver::setupFcTrans(CollisionBlockPool &collision_) {
 
 #ifdef DEBUGLCPCOL
     std::cout << "FcTransConstructed: " << matFcTransRcp->description() << std::endl;
-    dumpTCMAT(matFcTransRcp, "matFcTrans.mtx");
+    dumpTCMAT(matFcTransRcp, "matFcTrans");
 #endif
 
     return;
@@ -268,7 +284,7 @@ void CollisionSolver::setupPhi0Vec(CollisionBlockPool &collision_, double dt_, d
 
 #ifdef DEBUGLCPCOL
     std::cout << "phi0 vector Constructed: " << phi0Rcp->description() << std::endl;
-    dumpTV(phi0Rcp, "phi0Vec.mtx");
+    dumpTV(phi0Rcp, "phi0Vec");
 #endif
 }
 
@@ -294,7 +310,7 @@ void CollisionSolver::setupGammaVec(CollisionBlockPool &collision_) {
 
 #ifdef DEBUGLCPCOL
     std::cout << "gamma vector Constructed: " << gammaRcp->description() << std::endl;
-    dumpTV(gammaRcp, "gammaVec.mtx");
+    dumpTV(gammaRcp, "gammaVec");
 #endif
 }
 
@@ -304,7 +320,7 @@ void CollisionSolver::setupVnVec(CollisionBlockPool &collision_, std::vector<dou
     vnRcp = getTVFromVector(velocity_, commRcp);
 #ifdef DEBUGLCPCOL
     std::cout << "Vn vector Constructed: " << vnRcp->description() << std::endl;
-    dumpTV(vnRcp, "VnVec.mtx");
+    dumpTV(vnRcp, "VnVec");
 #endif
 }
 

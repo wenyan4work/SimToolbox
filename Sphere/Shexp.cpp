@@ -18,7 +18,7 @@ Shexp::Shexp(const KIND kind_, const std::string &name_, const int order_, const
              const Equatn orientation_)
     : kind(kind_), order(order_), name(name_), radius(radius_),
       orientation(orientation_) { // the dimension , =1 for LAPSL, LAPDL, =3 for STKSL and STKDL
-    gridValue.resize(getGridDOF());
+    gridValue.resize(getGridDOF(), 0);
 }
 
 // move constructor
@@ -325,11 +325,8 @@ void Shexp::getGridWithPoleCellConnect(std::vector<int32_t> &gridCellConnect, st
 
 // excluding the poles
 // if valPtr=nullptr, directly fill the gridValues
+// spectralCoeff pointed by coeffPtr is not modified
 void Shexp::calcGridValue(double *coeffPtr, double *valPtr) {
-
-    if (valPtr == nullptr) {
-        valPtr = gridValue.data();
-    }
 
     typedef double Real;
     // ROW_MAJOR = (order+1)(order+2)/2 complex numbers, need (order+1)(order+2) doubles per component
@@ -338,6 +335,11 @@ void Shexp::calcGridValue(double *coeffPtr, double *valPtr) {
     const int Ngrid = (order + 1) * (2 * order + 2);
 
     const int dimension = getDimension();
+
+    if (valPtr == nullptr) {
+        gridValue.resize(dimension * Ngrid);
+        valPtr = gridValue.data();
+    }
 
     const sctl::Vector<Real> coeff(Ncoeff * dimension,
                                    sctl::Ptr2Itr<Real>(coeffPtr ? coeffPtr : nullptr, Ncoeff * dimension), false);
@@ -363,6 +365,7 @@ void Shexp::calcGridValue(double *coeffPtr, double *valPtr) {
     }
 }
 
+// spectralCoeff pointed by coeffPtr is not modified
 void Shexp::calcPoleValue(double *coeffPtr, double *valPtr) const {
 
     typedef double Real;
@@ -388,7 +391,8 @@ void Shexp::calcPoleValue(double *coeffPtr, double *valPtr) const {
     }
 }
 
-void Shexp::calcSpectralCoeff(double *coeffPtr, double *valPtr) const {
+// gridValue pointed by valPtr is not modified
+void Shexp::calcSpectralCoeff(double *coeffPtr, const double *valPtr) const {
 
     typedef double Real;
     const int Ncoeff = (order + 1) * (order + 2);
@@ -399,29 +403,30 @@ void Shexp::calcSpectralCoeff(double *coeffPtr, double *valPtr) const {
                              false);
     sctl::Vector<Real> val(Ngrid * dimension);
 
-    std::vector<double> gridValueBuffer;
-    if (valPtr == nullptr) {
-        val = gridValue;
-        gridValueBuffer = gridValue;
-        valPtr = gridValueBuffer.data();
-    } else {
-        for (int i = 0; i < Ngrid * dimension; i++) {
-            val[i] = valPtr[i];
-        }
-    }
     // at this point, val and valPtr always have same values
 
     if (kind == KIND::LAP) {
+        if (valPtr == nullptr) {
+            val = gridValue;
+        } else {
+            std::copy(valPtr, valPtr + Ngrid, val.begin());
+        }
         sctl::SphericalHarmonics<Real>::Grid2SHC(val, order + 1, 2 * order + 2, order, coeff,
                                                  sctl::SHCArrange::ROW_MAJOR);
     } else {
+        std::vector<double> gridValueBuffer; // temporary space for rotation
+        if (valPtr == nullptr) {
+            gridValueBuffer = gridValue;
+        } else {
+            gridValueBuffer.resize(Ngrid * dimension);
+            std::copy(valPtr, valPtr + Ngrid * dimension, gridValueBuffer.begin());
+        }
+        invrotGridValue(gridValueBuffer.data(), Ngrid);
         // rearrange the grid data from (x0,y0,z0,x1,y1,z1...) to  (x0,x1,...y0,y1,...z0,z1...)
-        // use pointer valPtr as buffer
-        invrotGridValue(valPtr, Ngrid);
         for (int i = 0; i < Ngrid; i++) {
-            val[i] = valPtr[3 * i];
-            val[Ngrid + i] = valPtr[3 * i + 1];
-            val[2 * Ngrid + i] = valPtr[3 * i + 2];
+            val[i] = gridValueBuffer[3 * i];
+            val[Ngrid + i] = gridValueBuffer[3 * i + 1];
+            val[2 * Ngrid + i] = gridValueBuffer[3 * i + 2];
         }
         sctl::SphericalHarmonics<Real>::Grid2VecSHC(val, order + 1, 2 * order + 2, order, coeff,
                                                     sctl::SHCArrange::ROW_MAJOR);
