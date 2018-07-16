@@ -1,4 +1,5 @@
 #include <omp.h>
+
 template <class Real, int DIM>
 template <class SrcObj, class TrgObj>
 void NearInteraction<Real, DIM>::SetupRepartition(const std::vector<SrcObj> &src_vec,
@@ -31,11 +32,12 @@ void NearInteraction<Real, DIM>::SetupRepartition(const std::vector<SrcObj> &src
 
     //---------------------------------------------------------------------
 
-    struct {
-        Real L;
-        sctl::StaticArray<Real, DIM> X;
+    struct BBox {
+        Real L;                         // max edge length
+        sctl::StaticArray<Real, DIM> X; // lower corner
         // Bounding box : [X, X+L)
-    } BBox;
+    };
+
     { // Determine bounding box: BBox.X, BBox.L
         sctl::StaticArray<Real, DIM> X0;
         sctl::StaticArray<Real, DIM> X1;
@@ -106,13 +108,14 @@ void NearInteraction<Real, DIM>::SetupRepartition(const std::vector<SrcObj> &src
             determine_bbox(TCoord, X0, X1);
         }
 
-        BBox.L = 0;
+        BBox.L = 0; // This is global BBox
         auto &X0glb = BBox.X;
         sctl::StaticArray<Real, DIM> X1glb;
         { // determine global bounding box
             comm_.Allreduce<Real>(X0, X0glb, DIM, sctl::Comm::CommOp::MIN);
             comm_.Allreduce<Real>(X1, X1glb, DIM, sctl::Comm::CommOp::MAX);
-            for (sctl::Integer k = 0; k < DIM; k++) { // Set BBox.L = bbox length
+            // Set BBox.L = bbox length
+            for (sctl::Integer k = 0; k < DIM; k++) {
                 BBox.L = std::max(BBox.L, X1glb[k] - X0glb[k]);
             }
             BBox.L *= 1.01; // so that points are in [0,L) instead of [0,L]
