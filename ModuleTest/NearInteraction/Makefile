@@ -1,7 +1,7 @@
 include ../MakefileInc.mk
 
 SRC =   testInteractionManager.cpp
-INC =  ../../sctl/sctl.hpp ../../MPI/InteractionManager.hpp
+INC =  ../../sctl/sctl.hpp ../../MPI/InteractionManager.hpp ../../MPI/NearInteraction.hpp ../../MPI/NearInteraction.txx
          
 # Definitions
 
@@ -15,7 +15,7 @@ $(EXE):	$(OBJ)
 
 # Compilation rules
 %.o: %.cpp
-	$(CXX) $(CXXFLAGS) $(INCLUDE_DIRS) -c $*.cpp -o $*.o -DDEBUGVTU
+	$(CXX) $(CXXFLAGS) $(INCLUDE_DIRS) -c $*.cpp -o $*.o # -DDEBUGVTU -DDEBUGINTERACT
 
 
 all: $(EXE)

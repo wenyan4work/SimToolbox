@@ -11,6 +11,19 @@
 // optional:  void CopyFromFull(const FullType &) ;
 
 template <class Real, int DIM>
+struct Pair {
+    using Long = sctl::Long;
+
+    Long trg_idx, src_idx;
+    Real srcShift[DIM];
+    // the shift added to src.coord() where the pair is detected
+
+    int operator<(const Pair<Real, DIM> &p1) const {
+        return std::pair<Long, Long>(trg_idx, src_idx) < std::pair<Long, Long>(p1.trg_idx, p1.src_idx);
+    }
+};
+
+template <class Real, int DIM>
 class NearInteraction {
     typedef sctl::Morton<DIM> MID;
     typedef sctl::Long Long;
@@ -23,20 +36,6 @@ class NearInteraction {
         Real rad;
         Real coord[DIM]; // coord supplied, not necessarily in the original box
         // sctl::StaticArray<Real,DIM> coord; // not trivially copyable
-    };
-
-    struct Pair {
-        Long trgid, srcid;
-        Real srcShift[DIM];
-        // the shift added to src.coord() where the pair is detected
-
-        int operator<(const ObjData &p1) const {
-            if (trgid < p1.trgid) {
-                return 1;
-            } else {
-                return srcid < p1.srcid;
-            }
-        }
     };
 
   public:
@@ -55,7 +54,7 @@ class NearInteraction {
     template <class SrcObj, class TrgObj>
     void SetupNearInterac(const std::vector<SrcObj> &src_vec, const std::vector<TrgObj> &trg_vec);
 
-    const std::vector<std::pair<Long, Long>> &GetInteractionList() const { return trg_src_pair; }
+    const std::vector<Pair<Real, DIM>> &GetInteractionList() const { return trg_src_pair; }
 
     template <class ObjType>
     void ForwardScatterSrc(const std::vector<ObjType> &in, std::vector<ObjType> &out) const;
@@ -92,8 +91,8 @@ class NearInteraction {
     // sctl::Vector<std::pair<Long, Long>> TSPair;
     // std::vector<std::pair<Long, Long>> trg_src_pair;
 
-    sctl::Vector<Pair> TSPair;
-    std::vector<Pair> trg_src_pair;
+    sctl::Vector<Pair<Real, DIM>> TSPair;
+    std::vector<Pair<Real, DIM>> trg_src_pair;
 
     sctl::StaticArray<Real, DIM> period_length, period_length0;
     // Real s = sctl::pow<Real>(2, depth);

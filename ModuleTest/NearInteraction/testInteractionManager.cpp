@@ -2,12 +2,15 @@
 // Test 1 species, partition, multiple interaction & multiple essential types
 // Test 2 species, partition, multiple interaction & multiple essential types
 
-#include "Util/Buffer.hpp"
 #include "MPI/InteractionManager.hpp"
+#include "Util/Buffer.hpp"
 
 #include <random>
 
 constexpr int DIM = 3;
+
+constexpr int NPAR = 3000;
+constexpr double radiusFrac = 0.05;
 
 class FullParticle {
   public:
@@ -148,15 +151,17 @@ class EssElec {
 
 class Gravity {
   public:
-    inline void operator()(EssGrav &t, const EssGrav &s) {
-        // std::cout << t.gid << " " << s.gid << std::endl;
-        // std::cout << t.coord[0] << " " << s.coord[0] << std::endl;
-        // std::cout << t.coord[1] << " " << s.coord[1] << std::endl;
-        // std::cout << t.coord[2] << " " << s.coord[2] << std::endl;
+    inline void operator()(EssGrav &t, const EssGrav &s, const std::array<double, DIM> &srcShift) {
+#ifdef DEBUGINTERACT
+        std::cout << t.gid << " " << s.gid << std::endl;
+        std::cout << t.coord[0] << " " << s.coord[0] << " " << srcShift[0] << std::endl;
+        std::cout << t.coord[1] << " " << s.coord[1] << " " << srcShift[1] << std::endl;
+        std::cout << t.coord[2] << " " << s.coord[2] << " " << srcShift[2] << std::endl;
+#endif
         double dr[DIM];
         double rnorm = 0;
         for (int i = 0; i < DIM; i++) {
-            dr[i] = t.coord[i] - s.coord[i];
+            dr[i] = t.coord[i] - (s.coord[i] + srcShift[i]);
             rnorm += dr[i] * dr[i];
         }
         rnorm += 0.001; // avoid div0 error
@@ -169,13 +174,17 @@ class Gravity {
 
 class Elec {
   public:
-    inline void operator()(EssElec &t, const EssElec &s) {
-        // std::cout << t.gid << " " << s.gid << std::endl;
-        // std::cout << t.charge << " " << s.charge << std::endl;
+    inline void operator()(EssElec &t, const EssElec &s, const std::array<double, DIM> &srcShift) {
+#ifdef DEBUGINTERACT
+        std::cout << t.gid << " " << s.gid << std::endl;
+        std::cout << t.coord[0] << " " << s.coord[0] << " " << srcShift[0] << std::endl;
+        std::cout << t.coord[1] << " " << s.coord[1] << " " << srcShift[1] << std::endl;
+        std::cout << t.coord[2] << " " << s.coord[2] << " " << srcShift[2] << std::endl;
+#endif
         double dr[DIM];
         double rnorm = 0;
         for (int i = 0; i < DIM; i++) {
-            dr[i] = t.coord[i] - s.coord[i];
+            dr[i] = t.coord[i] - (s.coord[i] + srcShift[i]);
             rnorm += dr[i] * dr[i];
         }
         rnorm += 0.001; // avoid div0 error
@@ -192,7 +201,7 @@ void testOneSpecies(const int NPAR) {
     // initialize to random
     std::vector<FullParticle> particle;
 
-    std::random_device rd;
+    // std::random_device rd;
     std::mt19937 gen(0);
     std::uniform_real_distribution<double> dis(0, 1);
 
@@ -214,7 +223,7 @@ void testOneSpecies(const int NPAR) {
             }
             p.mass = 1;
             p.charge = 1;
-            p.radius = 0.05 * box[0];
+            p.radius = radiusFrac * box[0];
             for (int j = 0; j < DIM; j++) {
                 p.vel[j] = 0;
                 p.velGrav[j] = 0;
@@ -265,6 +274,7 @@ void testOneSpecies(const int NPAR) {
     Elec elec;
     interactManager.setupEssVec(srcEssElec, trgEssElec);
     fprintf(stderr, "setupEssVec complete\n");
+    nearInteractPtr = interactManager.getNewNearInteraction();
     interactManager.setupNearInteractor(nearInteractPtr, srcEssElec, trgEssElec);
     fprintf(stderr, "setupNearInteractor complete\n");
     interactManager.calcNearInteraction<EssElec, EssElec, Elec>(nearInteractPtr, srcEssElec, trgEssElec, elec);
@@ -327,7 +337,7 @@ void testOneSpeciesPBCX(const int NPAR) {
     // initialize to random
     std::vector<FullParticle> particle;
 
-    std::random_device rd;
+    // std::random_device rd;
     std::mt19937 gen(0);
     std::uniform_real_distribution<double> dis(0, 1);
 
@@ -350,7 +360,7 @@ void testOneSpeciesPBCX(const int NPAR) {
             }
             p.mass = 1;
             p.charge = 1;
-            p.radius = 0.05 * box[0];
+            p.radius = radiusFrac * box[0];
             for (int j = 0; j < DIM; j++) {
                 p.vel[j] = 0;
                 p.velGrav[j] = 0;
@@ -402,6 +412,7 @@ void testOneSpeciesPBCX(const int NPAR) {
     Elec elec;
     interactManager.setupEssVec(srcEssElec, trgEssElec);
     fprintf(stderr, "setupEssVec complete\n");
+    nearInteractPtr = interactManager.getNewNearInteraction();
     interactManager.setupNearInteractor(nearInteractPtr, srcEssElec, trgEssElec);
     fprintf(stderr, "setupNearInteractor complete\n");
     interactManager.calcNearInteraction<EssElec, EssElec, Elec>(nearInteractPtr, srcEssElec, trgEssElec, elec);
@@ -464,7 +475,7 @@ void testOneSpeciesPBCYZ(const int NPAR) {
     // initialize to random
     std::vector<FullParticle> particle;
 
-    std::random_device rd;
+    // std::random_device rd;
     std::mt19937 gen(0);
     std::uniform_real_distribution<double> dis(0, 1);
 
@@ -487,7 +498,7 @@ void testOneSpeciesPBCYZ(const int NPAR) {
             }
             p.mass = 1;
             p.charge = 1;
-            p.radius = 0.05 * box[0];
+            p.radius = radiusFrac * box[0];
             for (int j = 0; j < DIM; j++) {
                 p.vel[j] = 0;
                 p.velGrav[j] = 0;
@@ -539,6 +550,7 @@ void testOneSpeciesPBCYZ(const int NPAR) {
     Elec elec;
     interactManager.setupEssVec(srcEssElec, trgEssElec);
     fprintf(stderr, "setupEssVec complete\n");
+    nearInteractPtr = interactManager.getNewNearInteraction();
     interactManager.setupNearInteractor(nearInteractPtr, srcEssElec, trgEssElec);
     fprintf(stderr, "setupNearInteractor complete\n");
     interactManager.calcNearInteraction<EssElec, EssElec, Elec>(nearInteractPtr, srcEssElec, trgEssElec, elec);
@@ -596,9 +608,10 @@ void testOneSpeciesPBCYZ(const int NPAR) {
 }
 
 int main(int argc, char **argv) {
+    // omp_set_num_threads(1);
+
     MPI_Init(&argc, &argv);
 
-    int NPAR=30000;
     printf("testing free space BC\n");
     testOneSpecies(NPAR);
 

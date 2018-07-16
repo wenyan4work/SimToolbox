@@ -32,11 +32,11 @@ void NearInteraction<Real, DIM>::SetupRepartition(const std::vector<SrcObj> &src
 
     //---------------------------------------------------------------------
 
-    struct BBox {
+    struct {
         Real L;                         // max edge length
         sctl::StaticArray<Real, DIM> X; // lower corner
         // Bounding box : [X, X+L)
-    };
+    } BBox;
 
     { // Determine bounding box: BBox.X, BBox.L
         sctl::StaticArray<Real, DIM> X0;
@@ -410,17 +410,26 @@ void NearInteraction<Real, DIM>::SetupNearInterac(const std::vector<SrcObj> &src
                 for (sctl::Long t = t0; t < t1; t++) {
                     for (sctl::Long s = s0; s < s1; s++) {
                         Real r2 = 0, Rnear = SData__[s].rad + TData_[t].rad;
+                        Real srcShift[DIM];
                         for (sctl::Integer k = 0; k < DIM; k++) {
+                            srcShift[k] = 0;
                             Real dx = SData__[s].coord[k] - TData_[t].coord[k];
                             if (period_length[k] > 0 && fabs(dx) > 0.5 * period_length[k]) {
-                                dx -= round(dx / period_length[k]) * period_length[k];
+                                srcShift[k] = -round(dx / period_length[k]) * period_length[k];
+                                dx += srcShift[k];
                             }
                             r2 += dx * dx;
                         }
                         if (r2 > 0 && r2 < Rnear * Rnear) {
                             Long trg_idx = TData_[t].Rglb;
                             Long src_idx = SData__[s].Rglb;
-                            TSPairThread.PushBack(std::pair<Long, Long>(trg_idx, src_idx));
+                            Pair<Real, DIM> pair;
+                            pair.trg_idx = trg_idx;
+                            pair.src_idx = src_idx;
+                            for (int k = 0; k < DIM; k++) {
+                                pair.srcShift[k] = srcShift[k];
+                            }
+                            TSPairThread.PushBack(pair);
                         }
                     }
                 }
@@ -450,11 +459,11 @@ void NearInteraction<Real, DIM>::SetupNearInterac(const std::vector<SrcObj> &src
     {
 #pragma omp section
         { // one thread for TRglb
-            auto lastValue = TSPair[0].first;
+            auto lastValue = TSPair[0].trg_idx;
             TRglb.PushBack(lastValue);
             for (sctl::Long i = 0; i < TSPair.Dim(); i++) {
-                if (TSPair[i].first != lastValue) {
-                    lastValue = TSPair[i].first;
+                if (TSPair[i].trg_idx != lastValue) {
+                    lastValue = TSPair[i].trg_idx;
                     TRglb.PushBack(lastValue);
                 }
             }
@@ -462,11 +471,11 @@ void NearInteraction<Real, DIM>::SetupNearInterac(const std::vector<SrcObj> &src
 
 #pragma omp section
         { // one thread for SRglb
-            auto lastValue = TSPair[0].second;
+            auto lastValue = TSPair[0].src_idx;
             SRglb.PushBack(lastValue);
             for (sctl::Long i = 0; i < TSPair.Dim(); i++) {
-                if (TSPair[i].second != lastValue) {
-                    lastValue = TSPair[i].second;
+                if (TSPair[i].src_idx != lastValue) {
+                    lastValue = TSPair[i].src_idx;
                     SRglb.PushBack(lastValue);
                 }
             }
@@ -481,18 +490,23 @@ void NearInteraction<Real, DIM>::SetupNearInterac(const std::vector<SrcObj> &src
 #pragma omp parallel for
     for (sctl::Long i = 0; i < TSPairSize; i++) { // Set trg_src_pair
         const auto &TS = TSPair[i];
-        auto trg_idx = TS.first;
-        auto src_idx = TS.second;
+        const auto &trg_idx = TS.trg_idx;
+        const auto &src_idx = TS.src_idx;
         Long t = std::lower_bound(TRglb.begin(), TRglb.end(), trg_idx) - TRglb.begin();
         Long s = std::lower_bound(SRglb.begin(), SRglb.end(), src_idx) - SRglb.begin();
         SCTL_ASSERT(t < TRglb.Dim() && TRglb[t] == trg_idx);
         SCTL_ASSERT(s < SRglb.Dim() && SRglb[s] == src_idx);
-        trg_src_pair[i] = std::pair<Long, Long>(t, s);
+        // trg_src_pair[i] = std::pair<Long, Long>(t, s);
+        trg_src_pair[i] = TS;
+        trg_src_pair[i].trg_idx = t;
+        trg_src_pair[i].src_idx = s;
 
         // Real r2 = 0;
         // for (sctl::Integer k = 0; k < DIM; k++) r2 += (Svec[s].Coord()[k] - Tvec[t].Coord()[k]) * (Svec[s].Coord()[k]
         // - Tvec[t].Coord()[k]); SCTL_ASSERT(sqrt(r2) <= Svec[s].Rad() + Tvec[t].Rad());
     }
+
+    sctl::omp_par::merge_sort(trg_src_pair.begin(), trg_src_pair.end());
 
     // fprintf(stderr,"setup near complete\n");
 }

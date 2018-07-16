@@ -183,15 +183,6 @@ class InteractionManager {
 
         const auto &trg_src_interac = nearInteracPtr->GetInteractionList(); // Get interaction list
 
-        // Debug
-#ifdef DEBUGINTERACT
-        std::cout << "-----------" << std::endl;
-        for (auto &v : trg_src_interac) {
-            std::cout << v.first << " " << v.second << std::endl;
-        }
-        std::cout << "-----------" << std::endl;
-#endif
-
         const long N = trg_src_interac.size();
 
         if (N == 0) {
@@ -199,38 +190,21 @@ class InteractionManager {
             // do nothing
         } else {
             // printf("calc work division start\n");
-            std::vector<std::pair<int, int>> trgIdIndex;
-            trgIdIndex.reserve(trg_src_interac.size());
-            trgIdIndex.emplace_back(std::pair<int, size_t>(trg_src_interac[0].first, 0));
+            std::vector<std::pair<size_t, size_t>> trgIdIndex;
+            trgIdIndex.reserve(trgNear.size());
+            trgIdIndex.emplace_back(std::pair<int, size_t>(trg_src_interac[0].trg_idx, 0));
             for (size_t i = 1; i < N; i++) {
-                if (trg_src_interac[i].first != trg_src_interac[i - 1].first) {
+                if (trg_src_interac[i].trg_idx != trg_src_interac[i - 1].trg_idx) {
                     // the index within N of a new trg ID.
-                    trgIdIndex.emplace_back(std::pair<int, size_t>(trg_src_interac[i].first, i));
-                }
-            }
-            trgIdIndex.emplace_back(
-                std::pair<int, size_t>(static_cast<int>(UINTMAX_MAX), N)); // a tail to simplify index
-
-            // printf("calc work division complete\n");
-            const int ntrg = trgIdIndex.size() - 1; // the last element is only for index bound
-#pragma omp parallel for
-            for (size_t k = 0; k < ntrg; k++) {
-                size_t lb = trgIdIndex[k].second;     // start index
-                size_t ub = trgIdIndex[k + 1].second; // end index
-                for (size_t i = lb; i < ub; i++) {
-                    // real work
-                    TrgEssType &t = trgNear[trg_src_interac[i].first];
-                    SrcEssType &s = srcNear[trg_src_interac[i].second];
-                    // ( compute interaction between t and s )
-                    // potentially define this as #pragma omp declare simd
-                    interactor(t, s);
+                    trgIdIndex.emplace_back(std::pair<size_t, size_t>(trg_src_interac[i].trg_idx, i));
                 }
             }
 
 #ifdef DEBUGINTERACT
+            std::cout << "---------------" << std::endl;
             std::cout << "show pair" << std::endl;
             for (auto &pair : trg_src_interac) {
-                std::cout << trgNear[pair.first].gid << " " << srcNear[pair.second].gid << std::endl;
+                std::cout << pair.trg_idx << " " << pair.src_idx << std::endl;
             }
 
             std::cout << "show index" << std::endl;
@@ -238,7 +212,33 @@ class InteractionManager {
 
                 std::cout << p.first << " " << p.second << std::endl;
             }
+            std::cout << "---------------" << std::endl;
 #endif
+
+            // printf("calc work division complete\n");
+            const int ntrg = trgIdIndex.size(); // the last element is only for index bound
+#pragma omp parallel for
+            for (size_t k = 0; k < ntrg; k++) {
+                size_t lb = trgIdIndex[k].second;                                             // start index
+                size_t ub = k < ntrg - 1 ? trgIdIndex[k + 1].second : trg_src_interac.size(); // end index
+                for (size_t i = lb; i < ub; i++) {
+                    // real work
+                    const auto &trg_idx = trg_src_interac[i].trg_idx;
+                    const auto &src_idx = trg_src_interac[i].src_idx;
+                    SCTL_ASSERT(trg_idx < trgNear.size());
+                    SCTL_ASSERT(src_idx < srcNear.size());
+                    TrgEssType &t = trgNear[trg_idx];
+                    SrcEssType &s = srcNear[src_idx];
+                    std::array<Real, DIM> srcShift;
+                    for (int k = 0; k < DIM; k++) {
+                        srcShift[k] = trg_src_interac[i].srcShift[k];
+                    }
+                    // ( compute interaction between t and s )
+                    // potentially define this as #pragma omp declare simd
+                    std::cout << trg_idx << " " << src_idx << std::endl;
+                    interactor(t, s, srcShift);
+                }
+            }
         }
         // std::cout << "pair interactor complete" << std::endl;
 
