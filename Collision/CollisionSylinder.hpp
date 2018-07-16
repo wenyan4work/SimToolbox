@@ -66,7 +66,7 @@ class CollisionSylinder {
         mybuff.unpack(direction[2], buff);
     }
 
-    inline bool collide(const CollisionSylinder &sJ, CollisionBlock &block) {
+    inline bool collide(const CollisionSylinder &sJ, CollisionBlock &block, const std::array<double, 3> &srcShift) {
         if (gid >= sJ.gid) {
             // no self collisio
             // do not record gid > J.gidn
@@ -75,6 +75,9 @@ class CollisionSylinder {
         const auto &sI = *this;
         EAvec3 posI = sI.pos;
         EAvec3 posJ = sJ.pos;
+        posJ[0] += srcShift[0];
+        posJ[1] += srcShift[1];
+        posJ[2] += srcShift[2];
 
         const EAvec3 Pm = posI - (0.5 * sI.lengthCollision) * sI.direction;
         const EAvec3 Pp = posI + (0.5 * sI.lengthCollision) * sI.direction;

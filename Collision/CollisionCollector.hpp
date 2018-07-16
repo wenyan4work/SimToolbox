@@ -88,12 +88,12 @@ class CollisionCollector {
     }
 
     template <class Trg, class Src>
-    void operator()(Trg &trg, Src &src) {
+    void operator()(Trg &trg, const Src &src, const std::array<double, 3> &srcShift) {
         const int threadId = omp_get_thread_num();
         auto &colque = (*collisionPoolPtr)[threadId];
         // construct a collision block to threadId
         CollisionBlock block;
-        bool collide = trg.collide(src, block);
+        bool collide = trg.collide(src, block, srcShift);
         if (collide) {
             colque.push_back(block);
         }

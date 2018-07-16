@@ -46,7 +46,7 @@ class CollisionSphere {
         mybuff.unpack(pos[2], buff);
     }
 
-    inline bool collide(const CollisionSphere &sphereJ, CollisionBlock &block) {
+    inline bool collide(const CollisionSphere &sphereJ, CollisionBlock &block, const std::array<double, 3> &srcShift) {
         if (gid >= sphereJ.gid) {
             // no self collision
             // do not record gid > J.gid
@@ -54,6 +54,9 @@ class CollisionSphere {
         }
         EAvec3 posI(pos[0], pos[1], pos[2]);
         EAvec3 posJ(sphereJ.pos[0], sphereJ.pos[1], sphereJ.pos[2]);
+        posJ[0] += srcShift[0];
+        posJ[1] += srcShift[1];
+        posJ[2] += srcShift[2];
         EAvec3 rIJ = posJ - posI;
         const double rIJNorm = rIJ.norm();
         const double sep = rIJNorm - radiusCollision - sphereJ.radiusCollision;
