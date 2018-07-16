@@ -235,7 +235,9 @@ class InteractionManager {
                     }
                     // ( compute interaction between t and s )
                     // potentially define this as #pragma omp declare simd
+#ifdef DEBUGINTERACT
                     std::cout << trg_idx << " " << src_idx << std::endl;
+#endif
                     interactor(t, s, srcShift);
                 }
             }
