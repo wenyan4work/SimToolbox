@@ -199,22 +199,30 @@ void NearInteraction<Real, DIM>::SetupRepartition(const std::vector<SrcObj> &src
         comm_.HyperQuickSort(SData, SData_);
         SCTL_ASSERT(TData_.Dim());
         auto m0 = TData_[0];
-        comm_.PartitionS(SData_, m0);
+        comm_.PartitionS(SData_, m0); // split according to the MID of TData_[0];
         comm_.PartitionS(TData_, m0);
     }
 
     { // Set TRglb, SRglb
         TRglb.ReInit(TData_.Dim());
         SRglb.ReInit(SData_.Dim());
+        const auto &Tsize = TData_.Dim();
+        const auto &Ssize = SData_.Dim();
 #pragma omp parallel for
-        for (Long i = 0; i < TData_.Dim(); i++)
+        for (Long i = 0; i < Tsize; i++)
             TRglb[i] = TData_[i].Rglb;
 #pragma omp parallel for
-        for (Long i = 0; i < SData_.Dim(); i++)
+        for (Long i = 0; i < Ssize; i++)
             SRglb[i] = SData_[i].Rglb;
     }
     sctl::omp_par::merge_sort(TRglb.begin(), TRglb.end());
     sctl::omp_par::merge_sort(SRglb.begin(), SRglb.end());
+
+    /***************************
+     * At this point, TRglb and SRglb contain the Rglb of source and target that
+     * every process should receive.
+     * The actual data migration happens in the following ForwardScatter operation
+     */
 }
 
 template <class Real, sctl::Integer DIM>
@@ -259,6 +267,17 @@ void NearInteraction<Real, DIM>::SetupNearInterac(const std::vector<SrcObj> &src
                                                   const std::vector<TrgObj> &trg_vec) {
     SetupRepartition<SrcObj, TrgObj>(src_vec, trg_vec);
     // printf("repartition setup in nearinterac\n");
+
+    /***************************
+     * After SetupRepartition, TRglb and SRglb contain the Rglb of source and target that
+     * every process should receive.
+     * TData_ and SData_ contains the sorted and partitioned obj data
+     * Now find for each SData_, all the TData_s that in a neighboring leaf octant
+     * Each SData_ could be possibly sent to multiple processors, thus the arrays usr_cnt, usr_dsp, usr_proc.
+     * After this step, each SData_ are sent to all usr_proc, and each proc puts them in SData__
+     * SData__ is the 'ghost sources'
+     * Then, each TData_ checks SData__ to find actual neighbors
+     */
 
     sctl::Vector<ObjData> SData__; // With ghost sources
     {                              // sctl::Communicate ghost source data
@@ -382,7 +401,6 @@ void NearInteraction<Real, DIM>::SetupNearInterac(const std::vector<SrcObj> &src
         const int threadId = omp_get_thread_num();
         const int threadNumber = omp_get_num_threads();
         auto TSPairThread = TSPair; // fill each local TSPair for each thread
-        // WARNING: in this loop several threads may work on the same target index
         // the range is [lb,ub)
         const auto lb = (threadId + 0) * TSize / threadNumber;
         const auto ub = std::min((threadId + 1) * TSize / threadNumber, TSize);
@@ -514,21 +532,21 @@ void NearInteraction<Real, DIM>::SetupNearInterac(const std::vector<SrcObj> &src
 template <class Real, int DIM>
 template <class ObjType>
 void NearInteraction<Real, DIM>::ForwardScatterSrc(const std::vector<ObjType> &in, std::vector<ObjType> &out) const {
-    const auto &trg_src_interac = GetInteractionList();
+    // const auto &trg_src_interac = GetInteractionList();
     ForwardScatter<ObjType>(in, out, SRglb);
 }
 
 template <class Real, int DIM>
 template <class ObjType>
 void NearInteraction<Real, DIM>::ForwardScatterTrg(const std::vector<ObjType> &in, std::vector<ObjType> &out) const {
-    const auto &trg_src_interac = GetInteractionList();
+    // const auto &trg_src_interac = GetInteractionList();
     ForwardScatter<ObjType>(in, out, TRglb);
 }
 
 template <class Real, int DIM>
 template <class ObjType>
 void NearInteraction<Real, DIM>::ReverseScatterTrg(const std::vector<ObjType> &in, std::vector<ObjType> &out) const {
-    const auto &trg_src_interac = GetInteractionList();
+    // const auto &trg_src_interac = GetInteractionList();
     ReverseScatter<ObjType>(in, out, TRglb);
 }
 

@@ -1,3 +1,9 @@
+/*
+    Created by Dhairya Malhotra
+    Modified by Wen Yan
+    2017-2018
+*/
+
 #ifndef _NEAR_INTERAC_HPP_
 #define _NEAR_INTERAC_HPP_
 
@@ -14,9 +20,8 @@ template <class Real, int DIM>
 struct Pair {
     using Long = sctl::Long;
 
-    Long trg_idx, src_idx;
-    Real srcShift[DIM];
-    // the shift added to src.coord() where the pair is detected
+    Long trg_idx, src_idx; // the ID in the local trgNear and srcNear containers, not the global ID
+    Real srcShift[DIM];    // the shift added to src.coord() where the pair is detected
 
     int operator<(const Pair<Real, DIM> &p1) const {
         return std::pair<Long, Long>(trg_idx, src_idx) < std::pair<Long, Long>(p1.trg_idx, p1.src_idx);
@@ -25,9 +30,10 @@ struct Pair {
 
 template <class Real, int DIM>
 class NearInteraction {
-    typedef sctl::Morton<DIM> MID;
-    typedef sctl::Long Long;
+    using MID = sctl::Morton<DIM>;
+    using Long = sctl::Long;
 
+    // internal data for each object, trivially copyable
     struct ObjData {
         int operator<(const ObjData &p1) const { return mid < p1.mid; }
         MID mid;   // Morton ID
@@ -35,7 +41,6 @@ class NearInteraction {
 
         Real rad;
         Real coord[DIM]; // coord supplied, not necessarily in the original box
-        // sctl::StaticArray<Real,DIM> coord; // not trivially copyable
     };
 
   public:
@@ -69,6 +74,7 @@ class NearInteraction {
 
   private:
     void Init() {
+        // default is non-periodic
         for (sctl::Integer i = 0; i < DIM; i++) {
             period_length[i] = 0;
             period_length0[i] = 0;
@@ -84,21 +90,25 @@ class NearInteraction {
                         const sctl::Vector<Long> &send_idx) const;
 
     sctl::Comm comm_;
-    sctl::Integer depth;
 
-    sctl::Vector<Long> TRglb, SRglb; // globally sorted sequential internal ID
+    /***********************************
+     * These are set in SetupPartition()
+     ***********************************/
+    sctl::Integer depth;  // the depth is set such that a src-trg pair must appear within two neighboring leaf octants
 
-    // sctl::Vector<std::pair<Long, Long>> TSPair;
-    // std::vector<std::pair<Long, Long>> trg_src_pair;
+    sctl::Vector<Long> TRglb, SRglb;      // globally ordered, locally sorted sequential internal ID
+    sctl::Vector<ObjData> SData_, TData_; // Globally sorted ObjData
 
-    sctl::Vector<Pair<Real, DIM>> TSPair;
-    std::vector<Pair<Real, DIM>> trg_src_pair;
-
-    sctl::StaticArray<Real, DIM> period_length, period_length0;
+    Real period_length[DIM];
+    Real period_length0[DIM]; // peroidic length and scaled periodic length
     // Real s = sctl::pow<Real>(2, depth);
     // period_length0[i] = std::floor((period_length[i] / BBox.L) * s) / s;
 
-    sctl::Vector<ObjData> SData_, TData_; // Globally sorted
+    /***********************************
+     * These are set in SetupNearInterac()
+     ***********************************/
+    sctl::Vector<Pair<Real, DIM>> TSPair;
+    std::vector<Pair<Real, DIM>> trg_src_pair;
 };
 
 #include "NearInteraction.txx"
