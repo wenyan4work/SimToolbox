@@ -66,7 +66,8 @@ class CollisionSylinder {
         mybuff.unpack(direction[2], buff);
     }
 
-    inline bool collide(const CollisionSylinder &sJ, CollisionBlock &block, const std::array<double, 3> &srcShift) {
+    inline bool collide(const CollisionSylinder &sJ, CollisionBlock &block,
+                        const std::array<double, 3> &srcShift = std::array<double, 3>{0.0, 0.0, 0.0}) {
         if (gid >= sJ.gid) {
             // no self collisio
             // do not record gid > J.gidn

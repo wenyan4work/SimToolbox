@@ -1,5 +1,5 @@
-#ifndef COLLISIONSPHERE_HPP
-#define COLLISIONSPHERE_HPP
+#ifndef COLLISIONSPHERE_HPP_
+#define COLLISIONSPHERE_HPP_
 
 #include "CollisionCollector.hpp"
 #include "Sphere/Sphere.hpp"
@@ -46,7 +46,8 @@ class CollisionSphere {
         mybuff.unpack(pos[2], buff);
     }
 
-    inline bool collide(const CollisionSphere &sphereJ, CollisionBlock &block, const std::array<double, 3> &srcShift) {
+    inline bool collide(const CollisionSphere &sphereJ, CollisionBlock &block,
+                        const std::array<double, 3> &srcShift = std::array<double, 3>{0.0, 0.0, 0.0}) {
         if (gid >= sphereJ.gid) {
             // no self collision
             // do not record gid > J.gid
