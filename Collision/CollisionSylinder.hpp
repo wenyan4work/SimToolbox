@@ -1,5 +1,5 @@
-#ifndef COLLISIONSPHERE_HPP
-#define COLLISIONSPHERE_HPP
+#ifndef COLLISIONSYLINDER_HPP_
+#define COLLISIONSYLINDER_HPP_
 
 #include "CollisionCollector.hpp"
 #include "DCPQuery.hpp"
