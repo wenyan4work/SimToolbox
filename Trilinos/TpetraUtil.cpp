@@ -4,25 +4,59 @@
 
 void dumpTCMAT(const Teuchos::RCP<const TCMAT> &A, std::string filename) {
     filename = filename + std::string("_TCMAT.mtx");
-    std::cout << "dumping" << filename << std::endl;
+    if (A->getComm()->getRank() == 0) {
+        std::cout << "dumping" << filename << std::endl;
+        A->print(std::cout);
+    }
+
     Tpetra::MatrixMarket::Writer<TCMAT> matDumper;
     matDumper.writeSparseFile(filename, A, filename, filename, true);
 }
 
 void dumpTMV(const Teuchos::RCP<const TMV> &A, std::string filename) {
     filename = filename + std::string("_TMV.mtx");
-    std::cout << "dumping" << filename << std::endl;
-    A->print(std::cout);
+    if (A->getMap()->getComm()->getRank() == 0) {
+        std::cout << "dumping" << filename << std::endl;
+        A->print(std::cout);
+    }
+
     Tpetra::MatrixMarket::Writer<TMV> matDumper;
     matDumper.writeDenseFile(filename, A, filename, filename);
 }
 
 void dumpTV(const Teuchos::RCP<const TV> &A, std::string filename) {
     filename = filename + std::string("_TV.mtx");
-    std::cout << "dumping" << filename << std::endl;
-    A->print(std::cout);
+    if (A->getMap()->getComm()->getRank() == 0) {
+        std::cout << "dumping" << filename << std::endl;
+        A->print(std::cout);
+    }
+
     Tpetra::MatrixMarket::Writer<TV> matDumper;
     matDumper.writeDenseFile(filename, A, filename, filename);
+}
+
+void dumpTOP(const Teuchos::RCP<const TOP> &A, std::string filename) {
+    filename = filename + std::string("_TOP.mtx");
+
+    auto domainMapRcp = A->getDomainMap();
+    auto rangeMapRcp = A->getRangeMap();
+    if (domainMapRcp->getComm()->getRank() == 0) {
+        std::cout << "dumping" << filename << std::endl;
+        std::cout << A->description() << std::endl;
+    }
+    Teuchos::RCP<TMV> eyeRcp = Teuchos::rcp(new TMV(domainMapRcp, domainMapRcp->getGlobalNumElements(), true));
+    Teuchos::RCP<TMV> resultRcp = Teuchos::rcp(new TMV(rangeMapRcp, domainMapRcp->getGlobalNumElements(), true));
+
+    // fill eyeRcp as identity
+    for (int c = 0; c < eyeRcp->getNumVectors(); c++) {
+        eyeRcp->replaceGlobalValue(c, c, 1.0);
+    }
+
+    domainMapRcp->getComm()->barrier();
+    A->apply(*eyeRcp, *resultRcp);
+
+    Tpetra::MatrixMarket::Writer<TMV> matDumper;
+    matDumper.writeDenseFile(filename, resultRcp, filename, filename);
 }
 
 Teuchos::RCP<const TCOMM> getMPIWORLDTCOMM() { return Teuchos::rcp(new Teuchos::MpiComm<int>(MPI_COMM_WORLD)); }
