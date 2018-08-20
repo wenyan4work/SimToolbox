@@ -74,7 +74,11 @@ void CollisionSolver::solveCollision(Teuchos::RCP<TOP> &matMobilityRcp_, Teuchos
 
     if (commRcp->getRank() == 0 && history.size() > 0) {
         auto &p = history.back();
-        std::cout << "LCP residue: " << p[0] << " " << p[1] << " " << p[2] << " " << p[3] << " " << p[4] << std::endl;
+        std::cout << "RECORD: LCP residue: ";
+        for (auto &v : p) {
+            std::cout << " " << v;
+        }
+        std::cout << std::endl;
     }
 
     if (newton) {
