@@ -71,7 +71,8 @@ class CollisionSolver {
     // for implicit solver:
     // for explicit solver: pass the background velocity
     void solveCollision(Teuchos::RCP<TOP> &matMobilityRcp_, Teuchos::RCP<TV> &velocityKnownRcp_);
-
+    // write the result back to the collision blocks
+    void writebackGamma(CollisionBlockPool &collision_);
     // TODO: implement this in the future
     void solveCollisionSplit(Teuchos::RCP<TOP> &matMobilityMajorRcp, Teuchos::RCP<TOP> &matMobilityOtherRcp);
 
@@ -116,8 +117,6 @@ class CollisionSolver {
     void setupPhi0Vec(CollisionBlockPool &collision_, double dt_, double bufferGap_);
     // initial guess of unknown gamma
     void setupGammaVec(CollisionBlockPool &collision_);
-    // write the result back to the collision blocks
-    void writebackGamma(CollisionBlockPool &collision_);
     // known velocity
     void setupVnVec(CollisionBlockPool &collision_, std::vector<double> &velocity_);
 
