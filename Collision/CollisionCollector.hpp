@@ -21,6 +21,7 @@ struct CollisionBlock { // the information for each collision
                           // appear in the mobility matrix
     Evec3 normI, normJ;   // norm vector for each particle. gvecJ = - gvecI
     Evec3 posI, posJ;     // the collision position on I and J. useless for spheres.
+    Emat3 stress;
 
     CollisionBlock() : gidI(0), gidJ(0), globalIndexI(0), globalIndexJ(0), phi0(0), gamma(0) {
         // default constructor
@@ -29,6 +30,7 @@ struct CollisionBlock { // the information for each collision
         posI.setZero();
         posJ.setZero();
         oneSide = false;
+        stress.setZero();
     }
 
     CollisionBlock(double phi0_, double gamma_, int gidI_, int gidJ_, int globalIndexI_, int globalIndexJ_,
@@ -37,6 +39,7 @@ struct CollisionBlock { // the information for each collision
         : phi0(phi0_), gamma(gamma_), gidI(gidI_), gidJ(gidJ_), globalIndexI(globalIndexI_),
           globalIndexJ(globalIndexJ_), normI(normI_), normJ(normJ_), posI(posI_), posJ(posJ_), oneSide(oneSide_) {
         // if oneside = true, the gidJ, globalIndexJ, normJ, posJ will be ignored
+        stress.setZero();
     }
 };
 
@@ -85,6 +88,27 @@ class CollisionCollector {
             sum += (*collisionPoolPtr)[i].size();
         }
         return sum;
+    }
+
+    void computeCollisionStress(Emat3 &stress) {
+        const auto &colPool = *collisionPoolPtr;
+        const int poolSize = colPool.size();
+        std::vector<Emat3> stressPool(poolSize);
+// reduction of stress
+#pragma omp parallel for schedule(static, 1)
+        for (int que = 0; que < poolSize; que++) {
+            Emat3 stress = Emat3::Zero();
+            for (const auto &col : colPool[que]) {
+                stress = stress + (col.stress * col.gamma);
+            }
+            stressPool[que] = stress * (1.0 / colPool.size());
+        }
+
+        stress = Emat3::Zero();
+        for (int i = 0; i < poolSize; i++) {
+            stress = stress + stressPool[i];
+        }
+        stress = stress * (1.0 / poolSize);
     }
 
     template <class Trg, class Src>

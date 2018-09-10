@@ -116,6 +116,8 @@ class CollisionSolver {
     void setupPhi0Vec(CollisionBlockPool &collision_, double dt_, double bufferGap_);
     // initial guess of unknown gamma
     void setupGammaVec(CollisionBlockPool &collision_);
+    // write the result back to the collision blocks
+    void writebackGamma(CollisionBlockPool &collision_);
     // known velocity
     void setupVnVec(CollisionBlockPool &collision_, std::vector<double> &velocity_);
 
