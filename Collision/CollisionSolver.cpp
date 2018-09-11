@@ -321,9 +321,8 @@ void CollisionSolver::setupGammaVec(CollisionBlockPool &collision_) {
 // write the result back to the collision blocks
 void CollisionSolver::writebackGamma(CollisionBlockPool &collision_) {
     auto gamma_2d = gammaRcp->getLocalView<Kokkos::HostSpace>(); // LeftLayout
-    gammaRcp->modify<Kokkos::HostSpace>();
-
     const int nThreads = collision_.size();
+    setupCollisionBlockQueThreadIndex(collision_);
 
 #pragma omp parallel for num_threads(nThreads)
     for (int threadId = 0; threadId < nThreads; threadId++) {

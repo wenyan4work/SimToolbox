@@ -142,6 +142,9 @@ class CollisionSylinder {
         GAMMAI = GAMMAI * M_PI * r * r * r * r * r * rho;
     }
 
+    // void surfPoint(Evec3 &xsurf, const double r, const double L, const Evec3 &pos, const Evec3 &dir, const Evec3 &PQ)
+    // {}
+
     void collideStress(const Equatn &qI, const Equatn &qJ, const Evec3 &posI, const Evec3 &posJ, double hI, double hJ,
                        const double rI, const double rJ, const double rho, const Evec3 &Ploc, const Evec3 &Qloc,
                        Emat3 &StressIJ) {
@@ -152,26 +155,8 @@ class CollisionSylinder {
         InitializeSyN(NJ, rJ, hJ, rho);
         InitializeSyGA(GAMMAJ, rJ, hJ, rho);
 
-        Emat3 strIJ;
-
-        Emat3 RI = qI.toRotationMatrix();
-        Emat3 RJ = qJ.toRotationMatrix();
         Evec3 dirI = qI * Evec3(0, 0, 1);
         Evec3 dirJ = qJ * Evec3(0, 0, 1);
-
-        // compute xsurP and xsurQ
-
-        Evec3 PlocQloc = (Qloc - Ploc).normalized();
-        double Ploc2surf = dirI.dot(PlocQloc);
-        Evec3 xsurP = Ploc + PlocQloc * rI / sqrt(1 - Ploc2surf * Ploc2surf);
-
-        double Qloc2surf = dirJ.dot(PlocQloc);
-        Evec3 xsurQ = Qloc - PlocQloc * rJ / sqrt(1 - Qloc2surf * Qloc2surf);
-
-        Evec3 xcI = xsurP - posI;
-        Evec3 xcJ = xsurQ - posJ;
-
-        Evec3 F1 = (xsurP - xsurQ).normalized();
 
         double aI = NI(0, 0), bI = NI(2, 2), aJ = NJ(0, 0), bJ = NJ(2, 2);
 
@@ -186,15 +171,14 @@ class CollisionSylinder {
         InvGAMMAI = aI * Emat3::Identity() + (bI - aI) * (dirI * dirI.transpose());
         InvGAMMAJ = aJ * Emat3::Identity() + (bJ - aJ) * (dirJ * dirJ.transpose());
 
-        auto rIf = (posI) * (F1.transpose());
-        auto rJf = -(posJ) * (F1.transpose());
-        auto xICf = (xcI).cross(F1);
-        auto xJCf = (F1).cross(xcJ);
+        Evec3 F1 = (Qloc - Ploc).normalized();
+        Emat3 rIf = (posI) * (-F1.transpose()); // Newton's law
+        Emat3 rJf = (posJ) * (F1.transpose());
+        Evec3 xICf = (Ploc - posI).cross(-F1); // Newton's law
+        Evec3 xJCf = (Qloc - posJ).cross(F1);
 
         // Levi-Civita symbol epsilon
-
         double epsilon[3][3][3];
-
         for (int i = 0; i < 3; i++) {
             for (int j = 0; j < 3; j++) {
                 for (int k = 0; k < 3; k++) {
@@ -202,7 +186,6 @@ class CollisionSylinder {
                 }
             }
         }
-
         epsilon[0][1][2] = 1.0;
         epsilon[1][2][0] = 1.0;
         epsilon[2][0][1] = 1.0;
@@ -218,8 +201,8 @@ class CollisionSylinder {
                 for (int k = 0; k < 3; k++) {
                     for (int l = 0; l < 3; l++) {
                         for (int r = 0; r < 3; r++) {
-                            SGI(i, j) += NI(i, l) * epsilon[j][k][l] * InvGAMMAI(k, r) * xICf(r);
-                            SGJ(i, j) += NJ(i, l) * epsilon[j][k][l] * InvGAMMAJ(k, r) * xJCf(r);
+                            SGI(i, j) = SGI(i, j) + NI(i, l) * epsilon[j][k][l] * InvGAMMAI(k, r) * xICf(r);
+                            SGJ(i, j) = SGJ(i, j) + NJ(i, l) * epsilon[j][k][l] * InvGAMMAJ(k, r) * xJCf(r);
                         }
                     }
                 }
