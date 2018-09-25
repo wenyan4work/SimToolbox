@@ -320,6 +320,9 @@ void CollisionSolver::setupGammaVec(CollisionBlockPool &collision_) {
 
 // write the result back to the collision blocks
 void CollisionSolver::writebackGamma(CollisionBlockPool &collision_) {
+    if (gammaMapRcp->getGlobalNumElements() == 0) {
+        return;
+    }
     auto gamma_2d = gammaRcp->getLocalView<Kokkos::HostSpace>(); // LeftLayout
     const int nThreads = collision_.size();
     setupCollisionBlockQueThreadIndex(collision_);
