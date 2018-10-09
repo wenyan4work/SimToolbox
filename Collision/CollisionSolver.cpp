@@ -318,6 +318,27 @@ void CollisionSolver::setupGammaVec(CollisionBlockPool &collision_) {
 #endif
 }
 
+// write the result back to the collision blocks
+void CollisionSolver::writebackGamma(CollisionBlockPool &collision_) {
+    if (gammaMapRcp->getGlobalNumElements() == 0) {
+        return;
+    }
+    auto gamma_2d = gammaRcp->getLocalView<Kokkos::HostSpace>(); // LeftLayout
+    const int nThreads = collision_.size();
+    setupCollisionBlockQueThreadIndex(collision_);
+
+#pragma omp parallel for num_threads(nThreads)
+    for (int threadId = 0; threadId < nThreads; threadId++) {
+        // each thread process a queue
+        auto &colBlockQue = collision_[threadId];
+        const int colBlockNum = colBlockQue.size();
+        const int colBlockIndexBase = queueThreadIndex[threadId];
+        for (int j = 0; j < colBlockNum; j++) {
+            colBlockQue[j].gamma = gamma_2d(colBlockIndexBase + j, 0);
+        }
+    }
+}
+
 // known velocity
 void CollisionSolver::setupVnVec(CollisionBlockPool &collision_, std::vector<double> &velocity_) {
     auto commRcp = objMobMapRcp->getComm();
