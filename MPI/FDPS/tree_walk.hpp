@@ -1,6 +1,6 @@
 #pragma once
 
-#include<particle_simulator.hpp>
+#include"particle_simulator.hpp"
 
 namespace ParticleSimulator{
 
