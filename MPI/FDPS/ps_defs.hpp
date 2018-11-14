@@ -915,7 +915,10 @@ namespace ParticleSimulator{
                                   char **&argv,
                                   const S64 mpool_size=100000000){
 #ifdef PARTICLE_SIMULATOR_MPI_PARALLEL
-        MPI_Init(&argc, &argv);
+        int mpiInitFlag=0;
+        MPI_Initialized(&mpiInitFlag);
+        if(!mpiInitFlag)
+            MPI_Init(&argc, &argv);
 #endif
         MemoryPool::initialize(mpool_size);
 #ifdef MONAR
@@ -983,9 +986,6 @@ namespace ParticleSimulator{
     }
 
     static inline void Finalize(){
-#ifdef PARTICLE_SIMULATOR_MPI_PARALLEL
-        MPI_Finalize();
-#endif
         bool flag_monar = false;
         if(Comm::getRank() == 0) {
             if(flag_monar){
@@ -994,6 +994,12 @@ namespace ParticleSimulator{
                 fprintf(stderr, "******** FDPS has successfully finished. ********\n");
             }
         }
+// #ifdef PARTICLE_SIMULATOR_MPI_PARALLEL
+//         int mpiFinalFlag=0;
+//         MPI_Finalized(&mpiFinalFlag);
+//         if(!mpiFinalFlag)
+//             MPI_Finalize();
+// #endif
     }
 
 
