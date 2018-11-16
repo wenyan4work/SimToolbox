@@ -3,10 +3,6 @@
 #include<iostream>
 #include<iomanip>
 
-#ifdef PARTICLE_SIMULATOR_MPI_PARALLEL
-#include "mpi.h"
-#endif
-
 namespace ParticleSimulator{
     template<class T>
     class Vector3{
@@ -188,19 +184,6 @@ namespace ParticleSimulator{
             T dz = z - u.z;
             return dx*dx + dy*dy + dz*dz;
         }
-
-        T getNormSQ() const {
-            return x*x+y*y+z*z;
-        }
-
-        void normalize(){
-            const double norm2 = this->getNormSQ();
-            const double scale = 1/sqrt(norm2);
-            x*=scale;
-            y*=scale;
-            z*=scale;
-        }
-
         bool operator == (const Vector3 & u) const {
             return ( (x==u.x) && (y==u.y) && (z==u.z) );
         }
