@@ -58,9 +58,13 @@ class Buffer {
     // interface to mimic stringstream
     inline void write(const char *ptr, size_t length) {
         assert(contentPtr != nullptr);
-        for (int i = 0; i < length; i++) {
-            contentPtr->push_back(*(ptr + i));
-        }
+        // for (int i = 0; i < length; i++) {
+        //     contentPtr->push_back(*(ptr + i));
+        // }
+        auto &content = *contentPtr;
+        const int currentSize = content.size();
+        content.resize(currentSize + length);
+        std::copy(ptr, ptr + length, content.end() - length);
     }
 
     // pack data routines.

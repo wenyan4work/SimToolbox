@@ -4,11 +4,12 @@
 
 #include <vector>
 
-#include "mpi.h"
+#include <mpi.h>
 #include <zoltan_dd_cpp.h>
 #include <zoltan_types.h>
 
-template <class DATA_TYPE> class ZDD {
+template <class DATA_TYPE>
+class ZDD {
   public:
     typedef ZOLTAN_ID_TYPE ID_TYPE;
 

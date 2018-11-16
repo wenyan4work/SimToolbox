@@ -1,6 +1,10 @@
 /*
  Tempalte class to manage particles distributed on mpi ranks
 */
+
+#ifndef PARTICLEMANAGER_HPP_
+#define PARTICLEMANAGER_HPP_
+
 #define PARTICLE_SIMULATOR_THREAD_PARALLEL
 #define PARTICLE_SIMULATOR_MPI_PARALLEL
 #include "FDPS/particle_simulator.hpp"
@@ -22,15 +26,17 @@
  */
 
 /**
- * A trgEss type should define the following (inline) member functions:
+ * A trgEP type should define the following (inline) member functions:
  * int getGid();
  * int getKind();
  * double* getPos();
  */
 
+
+
 /* ParticleManager Class
  * holds information for near neighbor interaction
- * User holds information for particle vector, TrgEss/SrcEss vector, and interactor
+ * User holds information for particle vector, TrgEP/SrcEP vector, and interactor
  * */
 template <class... Species>
 class ParticleManager {
@@ -43,7 +49,7 @@ class ParticleManager {
 
   public:
     ParticleManager(int argc, char **argv) { PS::Initialize(argc, argv); }; // constructor
-    ~ParticleManager() { PS::Finalize(); };                                  // destructor
+    ~ParticleManager() { PS::Finalize(); };                                 // destructor
 
     // init pointer in tuple
     template <int N, class ParType>
@@ -53,22 +59,22 @@ class ParticleManager {
     template <int N>
     void showKind();
 
-    // update Essential Information for one interaction
-    // pairList stores the index in srcEssVec for each target in trgEssVec
-    // by default, the pairList is reused unless it is empty or size does not match trgEssVec
+    // update EPential Information for one interaction
+    // pairList stores the index in srcEPVec for each target in trgEPVec
+    // by default, the pairList is reused unless it is empty or size does not match trgEPVec
     // if maxGlobalRSearch=0, a mpi collective operation is called to find the maximum RSearch globally
-    // trgEssVec matches exactly the order and information of locally owned particles
-    // the first part of srcEssVec matches exactly the order and information of locally owned particles
-    // the second part of srcEssVec contains particles received and unpacked from other ranks.
-    template <int Trg, class TrgEss, int Src, class SrcEss>
-    void buildInteractionEss(std::vector<std::vector<size_t>> &pairList, std::vector<TrgEss> &trgEssVec,
-                             std::vector<SrcEss> &srcEssVec, bool updateList = false, double maxGlobalRSearch = 0);
+    // trgEPVec matches exactly the order and information of locally owned particles
+    // the first part of srcEPVec matches exactly the order and information of locally owned particles
+    // the second part of srcEPVec contains particles received and unpacked from other ranks.
+    template <int Trg, class TrgEP, int Src, class SrcEP>
+    void buildInteractionEP(std::vector<std::vector<size_t>> &pairList, std::vector<TrgEP> &trgEPVec,
+                            std::vector<SrcEP> &srcEPVec, bool updateList = false, double maxGlobalRSearch = 0);
 
     // evaluate interaction with known interaction list
     // interactor has a function defined as
-    // interact(TrgEss& trg, const std::vector<int> & srcEssIndex, const std::vector<SrcEss> & src)
-    template <int Trg, class TrgEss, int Src, class SrcEss, class Interactor>
-    void evaluateInteraction(std::vector<TrgEss> &trgEssVec, std::vector<SrcEss> &srcEssVec, Interactor &interactor);
+    // interact(TrgEP& trg, const std::vector<int> & srcEPIndex, const std::vector<SrcEP> & src)
+    template <int Trg, class TrgEP, int Src, class SrcEP, class Interactor>
+    void evaluateInteraction(std::vector<TrgEP> &trgEPVec, std::vector<SrcEP> &srcEPVec, Interactor &interactor);
 
     // update the internal particle list according to the modified std::vector<ParType> *particleVector
     template <int N>
@@ -104,9 +110,9 @@ class ParticleManager {
     };
 
     // internal FDPS stuff
-    PS::ParticleSystem<ParData> sysParData;
-    PS::DomainInfo domainInfo;
-    PS::TreeForForceShort<recordNeighbor, ParData, ParData> treeNeighbor;
+    // PS::ParticleSystem<ParData> sysParData;
+    // PS::DomainInfo domainInfo;
+    // PS::TreeForForceShort<recordNeighbor, ParData, ParData> treeNeighbor;
 
     // MPI Comm stuff
     template <class ParType>
@@ -143,16 +149,18 @@ void ParticleManager<Species...>::showKind() {
 }
 
 template <class... Species>
-template <int Trg, class TrgEss, int Src, class SrcEss>
-void ParticleManager<Species...>::buildInteractionEss(std::vector<std::vector<size_t>> &pairList,
-                                                      std::vector<TrgEss> &trgEssVec, std::vector<SrcEss> &srcEssVec,
-                                                      bool updateList, double maxGlobalRSearch) {
+template <int Trg, class TrgEP, int Src, class SrcEP>
+void ParticleManager<Species...>::buildInteractionEP(std::vector<std::vector<size_t>> &pairList,
+                                                     std::vector<TrgEP> &trgEPVec, std::vector<SrcEP> &srcEPVec,
+                                                     bool updateList, double maxGlobalRSearch) {
     return;
 }
 
 template <class... Species>
-template <int Trg, class TrgEss, int Src, class SrcEss, class Interactor>
-void ParticleManager<Species...>::evaluateInteraction(std::vector<TrgEss> &trgEssVec, std::vector<SrcEss> &srcEssVec,
+template <int Trg, class TrgEP, int Src, class SrcEP, class Interactor>
+void ParticleManager<Species...>::evaluateInteraction(std::vector<TrgEP> &trgEPVec, std::vector<SrcEP> &srcEPVec,
                                                       Interactor &interactor) {
     return;
 }
+
+#endif

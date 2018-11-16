@@ -29,6 +29,11 @@ int main(int argc, char **argv) {
     {
         constexpr int npar = 10;
         ParticleManager<Tubule, Motor> parManager(argc, argv);
+
+        int flag;
+        MPI_Initialized(&flag);
+        std::cout << "MPI Initialized? " << flag << std::endl;
+
         std::vector<Tubule> tubuleVec(npar);
         std::vector<Motor> motorVec(npar);
 
