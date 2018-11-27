@@ -1,11 +1,11 @@
 include ../MakefileInc.mk
 
-SRC =   main.cpp
-INC =   ../../MPI/ParticleManager.hpp
+SRC =   testMsgBuffer.cpp 
+INC =   ../../MPI/MsgBuffer.hpp
          
 # Definitions
 
-EXE =   TestParticleManager.X
+EXE =   TestMsgBuffer.X
 OBJ :=   $(SRC:.cpp=.o)
 
 
@@ -15,11 +15,11 @@ $(EXE):	$(OBJ)
 
 # Compilation rules
 %.o: %.cpp
-	$(CXX) $(CXXFLAGS) $(INCLUDE_DIRS) -c $*.cpp -o $*.o # -DDEBUGVTU -DDEBUGINTERACT
+	$(CXX) $(CXXFLAGS) $(INCLUDE_DIRS) -c $*.cpp -o $*.o
 
 
 all: $(EXE)
 
 clean: 
-	rm -f ./$(OBJ)
-	rm -f ./$(EXE)
+	rm ./$(OBJ)
+	rm ./$(EXE)

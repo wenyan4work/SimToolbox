@@ -6,7 +6,7 @@
 #ifndef PAIRINTERACTION_HPP_
 #define PAIRINTERACTION_HPP_
 
-#include "Util/Buffer.hpp"
+#include "MsgBuffer.hpp"
 
 #include <cassert>
 #include <memory>
@@ -62,8 +62,8 @@ class PairInteraction {
 
     std::unordered_map<int, int> srcEPGidIndex;
 
-    std::vector<char> sendBuf;
-    std::vector<char> recvBuf;
+    MsgBuffer sendBuf;
+    MsgBuffer recvBuf;
 
     std::vector<int> sendBufByteCnt;
     std::vector<int> sendBufByteDispls;
@@ -168,6 +168,7 @@ class PairInteraction {
 
     void calcSendInfo() {
         // update srcEPDestRank with known srcEPGhostHomeRank
+
         const int srcEPGhostSize = srcGhostSendInfo.size();
 
         // sanity check
