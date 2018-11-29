@@ -250,7 +250,7 @@ void MixPairInteraction<FPT, FPS, EPT, EPS, Force>::updateTree() {
         treeMixPtr = std::make_unique<TreeType>();
     }
     // build tree
-    treeMixPtr->initialize(2 * nParGlobal, 0.7, 32, 64);
+    treeMixPtr->initialize(2 * nParGlobal);
     numberParticleInTree = nParGlobal;
 }
 
