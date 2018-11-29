@@ -22,83 +22,68 @@
 
 template <class EPT, class EPS, class Force>
 struct MixFP {
-    EPT epTrg; // results will be write back to this struct
+    bool trgFlag;
+    double maxRSearch;
+    EPT epTrg;
     EPS epSrc;
+
     Force force;
 
-    bool trgFlag; //
-    double pos[3];
+    PS::F64vec3 getPos() const { return trgFlag ? epTrg.getPos() : epSrc.getPos(); }
+    void setPos(const PS::F64vec3 &newPos) { trgFlag ? epTrg.setPos(newPos) : epSrc.setPos(newPos); }
 
-    PS::F64vec3 getPos() const { return PS::F64vec3(pos[0], pos[1], pos[2]); }
-    void setPos(const PS::F64vec3 &newPos) {
-        pos[0] = newPos.x;
-        pos[1] = newPos.y;
-        pos[2] = newPos.z;
-    }
-
+    int getGid() { return trgFlag ? epTrg.getGid() : epSrc.getGid(); }
     void copyFromForce(Force &f) { force = f; }
 };
 
 template <class EPT>
 struct MixEPI {
+    bool trgFlag;
+    double maxRSearch; // same for all EPI and EPJ
     EPT epTrg;
 
-    bool trgFlag;
-    double pos[3];
+    double getRSearch() const { return maxRSearch; }
 
-    double getRSearch() const { return trgFlag ? epTrg.getRSearch() : 0; }
-
-    PS::F64vec3 getPos() const { return PS::F64vec3(pos[0], pos[1], pos[2]); }
-    void setPos(const PS::F64vec3 &newPos) {
-        pos[0] = newPos.x;
-        pos[1] = newPos.y;
-        pos[2] = newPos.z;
-    }
+    PS::F64vec3 getPos() const { return epTrg.getPos(); }
+    void setPos(const PS::F64vec3 &newPos) { epTrg.setPos(newPos); }
 
     template <class EPS, class Force>
     void copyFromFP(const MixFP<EPT, EPS, Force> &fp) {
         trgFlag = fp.trgFlag;
-        for (int i = 0; i < 3; i++) {
-            pos[i] = fp.pos[i];
-        }
+        maxRSearch = fp.maxRSearch;
         if (trgFlag) {
             epTrg = fp.epTrg;
         }
+        setPos(fp.getPos());
     }
 };
 
 template <class EPS>
 struct MixEPJ {
+    bool srcFlag;
+    double maxRSearch; // same for all EPI and EPJ
     EPS epSrc;
 
-    bool srcFlag;
-    double pos[3];
+    double getRSearch() const { return maxRSearch; }
 
-    double getRSearch() const { return srcFlag ? epSrc.getRSearch() : 0; }
-
-    PS::F64vec3 getPos() const { return PS::F64vec3(pos[0], pos[1], pos[2]); }
-    void setPos(const PS::F64vec3 &newPos) {
-        pos[0] = newPos.x;
-        pos[1] = newPos.y;
-        pos[2] = newPos.z;
-    }
+    PS::F64vec3 getPos() const { return epSrc.getPos(); }
+    void setPos(const PS::F64vec3 &newPos) { epSrc.setPos(newPos); }
 
     template <class EPT, class Force>
     void copyFromFP(const MixFP<EPT, EPS, Force> &fp) {
         srcFlag = !fp.trgFlag;
-        for (int i = 0; i < 3; i++) {
-            pos[i] = fp.pos[i];
-        }
+        maxRSearch = fp.maxRSearch;
         if (srcFlag) {
             epSrc = fp.epSrc;
         }
+        epSrc.setPos(fp.getPos());
     }
 };
 
 // user should define something like this
 // this is an example
 template <class EPT, class EPS, class Force>
-class CalcMixPairForce {
+class CalcMixPairForceExample {
 
   public:
     void operator()(const MixEPI<EPT> *const trgPtr, const PS::S32 nTrg, const MixEPJ<EPS> *const srcPtr,
@@ -154,8 +139,16 @@ class MixPairInteraction {
     using EPJType = MixEPJ<EPS>;
     using FPType = MixFP<EPT, EPS, Force>;
 
+    static_assert(std::is_trivially_copyable<EPIType>::value);
+    static_assert(std::is_trivially_copyable<EPJType>::value);
+    static_assert(std::is_trivially_copyable<FPType>::value);
+    static_assert(std::is_default_constructible<EPIType>::value);
+    static_assert(std::is_default_constructible<EPJType>::value);
+    static_assert(std::is_default_constructible<FPType>::value);
+
     using SystemType = typename PS::ParticleSystem<FPType>;
     using TreeType = typename PS::TreeForForceShort<Force, EPIType, EPJType>::Scatter;
+    // gather mode, search radius determined by EPI
     // scatter mode, search radius determined by EPJ
 
     SystemType systemMix;
@@ -176,6 +169,10 @@ class MixPairInteraction {
 
     void updateTree();
 
+    void setMaxRSearch();
+
+    void dumpSystem();
+
     template <class CalcMixForce>
     void computeForce(CalcMixForce &calcMixForceFtr);
 
@@ -187,6 +184,7 @@ void MixPairInteraction<FPT, FPS, EPT, EPS, Force>::updateSystem() {
     const int nLocalTrg = systemTrg.getNumberOfParticleLocal();
     const int nLocalSrc = systemSrc.getNumberOfParticleLocal();
     systemMix.setNumberOfParticleLocal(nLocalTrg + nLocalSrc);
+
 #pragma omp parallel for
     for (size_t i = 0; i < nLocalTrg; i++) {
         systemMix[i].epTrg.copyFromFP(systemTrg[i]);
@@ -195,11 +193,53 @@ void MixPairInteraction<FPT, FPS, EPT, EPS, Force>::updateSystem() {
     }
 #pragma omp parallel for
     for (size_t i = 0; i < nLocalSrc; i++) {
-        systemMix[i + nLocalTrg].epSrc.copyFromFP(systemSrc[i]);
-        systemMix[i].trgFlag = false;
-        systemMix[i].setPos(systemSrc[i].getPos());
+        const int mixIndex = i + nLocalTrg;
+        systemMix[mixIndex].epSrc.copyFromFP(systemSrc[i]);
+        systemMix[mixIndex].trgFlag = false;
+        systemMix[mixIndex].setPos(systemSrc[i].getPos());
     }
+
     systemMix.adjustPositionIntoRootDomain(dinfo);
+    setMaxRSearch();
+}
+
+template <class FPT, class FPS, class EPT, class EPS, class Force>
+void MixPairInteraction<FPT, FPS, EPT, EPS, Force>::dumpSystem() {
+    const int nLocalMix = systemMix.getNumberOfParticleLocal();
+
+    for (int i = 0; i < nLocalMix; i++) {
+        const auto &pos = systemMix[i].getPos();
+        printf("%d,%d,%lf,%lf,%lf\n", systemMix[i].trgFlag, systemMix[i].getGid(), pos.x, pos.y, pos.z);
+    }
+}
+
+template <class FPT, class FPS, class EPT, class EPS, class Force>
+void MixPairInteraction<FPT, FPS, EPT, EPS, Force>::setMaxRSearch() {
+    const int nLocalTrg = systemTrg.getNumberOfParticleLocal();
+    const int nLocalSrc = systemSrc.getNumberOfParticleLocal();
+    const int nLocalMix = systemMix.getNumberOfParticleLocal();
+
+    double maxRSearchTrg = 0;
+    double maxRSearchSrc = 0;
+
+#pragma omp parallel for reduction(max : maxRSearchTrg)
+    for (int i = 0; i < nLocalTrg; i++) {
+        maxRSearchTrg = std::max(maxRSearchTrg, systemTrg[i].getRSearch());
+    }
+#pragma omp parallel for reduction(max : maxRSearchSrc)
+    for (int i = 0; i < nLocalSrc; i++) {
+        maxRSearchSrc = std::max(maxRSearchSrc, systemSrc[i].getRSearch());
+    }
+    double maxRSearchSrcAll;
+    double maxRSearchTrgAll;
+    MPI_Allreduce(&maxRSearchSrc, &maxRSearchSrcAll, 1, MPI_DOUBLE, MPI_MAX, MPI_COMM_WORLD);
+    MPI_Allreduce(&maxRSearchTrg, &maxRSearchTrgAll, 1, MPI_DOUBLE, MPI_MAX, MPI_COMM_WORLD);
+    const double maxRSearch = maxRSearchSrcAll + maxRSearchTrgAll;
+    // printf("%lf\n", maxRSearch);
+#pragma omp parallel for
+    for (int i = 0; i < nLocalMix; i++) {
+        systemMix[i].maxRSearch = maxRSearch;
+    }
 }
 
 template <class FPT, class FPS, class EPT, class EPS, class Force>
@@ -217,6 +257,7 @@ void MixPairInteraction<FPT, FPS, EPT, EPS, Force>::updateTree() {
 template <class FPT, class FPS, class EPT, class EPS, class Force>
 template <class CalcMixForce>
 void MixPairInteraction<FPT, FPS, EPT, EPS, Force>::computeForce(CalcMixForce &calcMixForceFtr) {
+    dumpSystem();
     treeMixPtr->calcForceAllAndWriteBack(calcMixForceFtr, systemMix, dinfo);
 
     forceResult.resize(systemTrg.getNumberOfParticleLocal());

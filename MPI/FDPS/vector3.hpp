@@ -11,17 +11,17 @@ namespace ParticleSimulator{
         Vector3() : x(T(0)), y(T(0)), z(T(0)) {}
         Vector3(const T _x, const T _y, const T _z) : x(_x), y(_y), z(_z) {}
         Vector3(const T s) : x(s), y(s), z(s) {}
-        Vector3(const Vector3 & src) : x(src.x), y(src.y), z(src.z) {}
 
         typedef T DataType;
         static const int DIM = 3;
 
-        const Vector3 & operator = (const Vector3 & rhs){
-            x = rhs.x;
-            y = rhs.y;
-            z = rhs.z;
-            return (*this);
-        }
+        // Vector3(const Vector3 & src) : x(src.x), y(src.y), z(src.z) {}
+        // const Vector3 & operator = (const Vector3 & rhs){
+        //     x = rhs.x;
+        //     y = rhs.y;
+        //     z = rhs.z;
+        //     return (*this);
+        // }
 
         const Vector3 & operator = (const T s){
             x = y = z = s;

@@ -4,12 +4,17 @@
 
 struct Tubule {
     int gid;
-    double RSearch = 1;
+    double RSearch;
     double pos[3];
 
-    // inline int getGid() const { return gid; }
+    inline int getGid() const { return gid; }
     inline double getRSearch() const { return RSearch; }
     inline const PS::F64vec3 getPos() const { return PS::F64vec3(pos[0], pos[1], pos[2]); }
+    inline void setPos(const PS::F64vec3 &newPos) {
+        pos[0] = newPos.x;
+        pos[1] = newPos.y;
+        pos[2] = newPos.z;
+    }
     inline void copyFromFP(const Tubule &other) { *this = other; }
 };
 
@@ -18,9 +23,14 @@ struct Motor {
     double RSearch;
     double pos[3];
 
-    // inline int getGid() const { return gid; }
+    inline int getGid() const { return gid; }
     inline double getRSearch() const { return RSearch; }
     inline const PS::F64vec3 getPos() const { return PS::F64vec3(pos[0], pos[1], pos[2]); }
+    inline void setPos(const PS::F64vec3 &newPos) {
+        pos[0] = newPos.x;
+        pos[1] = newPos.y;
+        pos[2] = newPos.z;
+    }
     inline void copyFromFP(const Motor &other) { *this = other; }
 };
 
@@ -39,11 +49,15 @@ class CountMixNeighbor {
             auto &trg = trgPtr[t];
             auto &force = mixForcePtr[t];
             force.clear();
+
+            auto RSearchTrg = trg.getRSearch();
+            const auto &trgPos = trg.getPos();
+            printf("%d,%d,%lf,%lf,%lf\n", trg.trgFlag, trg.epTrg.gid, trgPos.x, trgPos.y, trgPos.z);
+
             if (!trg.trgFlag) {
                 continue;
             }
-            auto RSearchTrg = trg.getRSearch();
-            const auto &trgPos = trg.getPos();
+
             for (int s = 0; s < nSrc; s++) {
                 auto &src = srcPtr[s];
                 if (!src.srcFlag) {
@@ -54,6 +68,7 @@ class CountMixNeighbor {
                 auto RSearchSrc = src.getRSearch();
                 const PS::F64vec3 &vecTS = srcPos - trgPos;
                 double r2 = trgPos.getDistanceSQ(srcPos);
+                printf("%lf\n", r2);
                 if (r2 < pow(RSearchSrc + RSearchTrg, 2)) {
                     force.nbCount++;
                 }
@@ -67,11 +82,11 @@ void initTubule(PS::ParticleSystem<Tubule> &tubule) {
     tubule.initialize();
     tubule.setNumberOfParticleLocal(nT);
 
-    TRngPool rngPool(nT);
+    TRngPool rngPool(PS::Comm::getRank() + 5);
 
 #pragma omp parallel for
     for (int i = 0; i < nT; i++) {
-        tubule[i].gid = i;
+        tubule[i].gid = i + nT * PS::Comm::getRank();
 
         tubule[i].RSearch = 0.1;
         tubule[i].pos[0] = rngPool.getU01();
@@ -81,15 +96,15 @@ void initTubule(PS::ParticleSystem<Tubule> &tubule) {
 }
 
 void initMotor(PS::ParticleSystem<Motor> &motor) {
-    const int nM = 10000;
+    const int nM = 12;
     motor.initialize();
     motor.setNumberOfParticleLocal(nM);
 
-    TRngPool rngPool(nM);
+    TRngPool rngPool(PS::Comm::getRank() + 50000);
 
 #pragma omp parallel for
     for (int i = 0; i < nM; i++) {
-        motor[i].gid = i;
+        motor[i].gid = i + nM * PS::Comm::getRank() + 50000;
 
         motor[i].RSearch = 0.1;
         motor[i].pos[0] = rngPool.getU01();
@@ -107,6 +122,8 @@ int main(int argc, char **argv) {
     PS::ParticleSystem<Motor> sysMotor;
     initTubule(sysTubule);
     initMotor(sysMotor);
+    PS::Comm::barrier();
+    printf("initialized\n");
 
     PS::DomainInfo dinfo;
 
@@ -115,16 +132,21 @@ int main(int argc, char **argv) {
     dinfo.setPosRootDomain(PS::F64vec3(0, 0, 0), PS::F64vec3(1, 1, 1)); // rootdomain must be specified after PBC
 
     dinfo.decomposeDomainAll(sysTubule);
+    printf("decomposed\n");
     sysTubule.exchangeParticle(dinfo);
     sysMotor.exchangeParticle(dinfo);
+    printf("exchanged\n");
 
     MixPairInteraction<Tubule, Motor, Tubule, Motor, ForceTest> mixSystem(sysTubule, sysMotor, dinfo);
 
     mixSystem.updateSystem();
+    printf("mixSystemUpdated\n");
     mixSystem.updateTree();
+    printf("mixTreeUpdated\n");
 
     CountMixNeighbor<Tubule, Motor> countMixNbFtr;
     mixSystem.computeForce<CountMixNeighbor<Tubule, Motor>>(countMixNbFtr);
+    printf("forceComputed\n");
 
     const auto &forceResult = mixSystem.getForceResult();
 

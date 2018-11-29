@@ -12,15 +12,15 @@ namespace ParticleSimulator{
         Vector2() : x(T(0)), y(T(0)) {}
         Vector2(const T _x, const T _y) : x(_x), y(_y) {}
         Vector2(const T s) : x(s), y(s) {}
-        Vector2(const Vector2 & src) : x(src.x), y(src.y) {}
 
         static const int DIM = 2;
 	
-        const Vector2 & operator = (const Vector2 & rhs){
-            x = rhs.x;
-            y = rhs.y;
-            return (*this);
-        }
+        // Vector2(const Vector2 & src) : x(src.x), y(src.y) {}
+        // const Vector2 & operator = (const Vector2 & rhs){
+        //     x = rhs.x;
+        //     y = rhs.y;
+        //     return (*this);
+        // }
 
         const Vector2 & operator = (const T s){
             x = y = s;
