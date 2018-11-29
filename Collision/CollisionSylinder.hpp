@@ -16,24 +16,25 @@ class CollisionSylinder {
     double radiusCollision;
     double lengthCollision;
     double radiusSearch;
-    Evec3 pos;
-    Equatn orientation;
+    double pos[3];
+    double orientation[4];
+
     // Evec3 direction;
 
     DCPQuery<3, double, EAvec3> DistSegSeg3; // not transferred over mpi
 
+    // necessary interface for InteractionManager
     void CopyFromFull(const Sylinder &s) {
         gid = s.gid;
         globalIndex = s.globalIndex;
         radiusCollision = s.radiusCollision;
         lengthCollision = s.lengthCollision;
         radiusSearch = s.radiusSearch;
-        pos = s.pos;
-        orientation = s.orientation;
+        std::copy(s.pos, s.pos + 3, pos);
+        std::copy(s.orientation, s.orientation + 4, orientation);
     }
 
-    // necessary interface for Near Interaction
-    const double *Coord() const { return pos.data(); }
+    const double *Coord() const { return pos; }
 
     double Rad() const { return radiusSearch; }
 
@@ -47,10 +48,10 @@ class CollisionSylinder {
         mybuff.pack(pos[0]);
         mybuff.pack(pos[1]);
         mybuff.pack(pos[2]);
-        mybuff.pack(orientation.w());
-        mybuff.pack(orientation.x());
-        mybuff.pack(orientation.y());
-        mybuff.pack(orientation.z());
+        mybuff.pack(orientation[0]);
+        mybuff.pack(orientation[1]);
+        mybuff.pack(orientation[2]);
+        mybuff.pack(orientation[3]);
     }
 
     void Unpack(const std::vector<char> &buff) {
@@ -63,10 +64,10 @@ class CollisionSylinder {
         mybuff.unpack(pos[0], buff);
         mybuff.unpack(pos[1], buff);
         mybuff.unpack(pos[2], buff);
-        mybuff.unpack(orientation.w(), buff);
-        mybuff.unpack(orientation.x(), buff);
-        mybuff.unpack(orientation.y(), buff);
-        mybuff.unpack(orientation.z(), buff);
+        mybuff.unpack(orientation[0], buff);
+        mybuff.unpack(orientation[1], buff);
+        mybuff.unpack(orientation[2], buff);
+        mybuff.unpack(orientation[3], buff);
     }
 
     inline bool collide(const CollisionSylinder &sJ, CollisionBlock &block,
@@ -77,13 +78,13 @@ class CollisionSylinder {
             return false;
         }
         const auto &sI = *this;
-        EAvec3 posI = sI.pos;
-        EAvec3 posJ = sJ.pos;
+        EAvec3 posI = ECmap3(sI.pos);
+        EAvec3 posJ = ECmap3(sJ.pos);
         posJ[0] += srcShift[0];
         posJ[1] += srcShift[1];
         posJ[2] += srcShift[2];
-        EAvec3 dirI = orientation * EAvec3(0, 0, 1);
-        EAvec3 dirJ = sJ.orientation * EAvec3(0, 0, 1);
+        EAvec3 dirI = ECmapq(orientation) * EAvec3(0, 0, 1);
+        EAvec3 dirJ = ECmapq(sJ.orientation) * EAvec3(0, 0, 1);
 
         const EAvec3 Pm = posI - (0.5 * sI.lengthCollision) * dirI;
         const EAvec3 Pp = posI + (0.5 * sI.lengthCollision) * dirI;
@@ -114,8 +115,8 @@ class CollisionSylinder {
             block.posJ = Qloc - posJ;
             block.gamma = sep < 0 ? -sep : 0; // a crude initial guess
 
-            collideStress(orientation, sJ.orientation, posI, posJ, lengthCollision, sJ.lengthCollision, radiusCollision,
-                          sJ.radiusCollision, 1.0, Ploc, Qloc, block.stress);
+            collideStress(ECmapq(orientation), ECmapq(sJ.orientation), posI, posJ, lengthCollision, sJ.lengthCollision,
+                          radiusCollision, sJ.radiusCollision, 1.0, Ploc, Qloc, block.stress);
 
             return true;
         } else {

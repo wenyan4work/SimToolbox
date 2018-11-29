@@ -20,7 +20,10 @@ int main(int argc, char **argv) {
     std::vector<Sylinder> sylinder;
 
     for (int i = 0; i < 10; i++) {
-        sylinder.emplace_back(i, 1.0, 1.0, 5.0, 5.0, 50 * Evec3::Random(), Equatn::UnitRandom());
+        Evec3 pos;
+        pos.setRandom();
+        pos *= 50;
+        sylinder.emplace_back(i, 1.0, 1.0, 5.0, 5.0, pos.data());
     }
 
     writeVTK(sylinder, "./");

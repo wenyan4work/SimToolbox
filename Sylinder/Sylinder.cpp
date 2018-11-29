@@ -1,46 +1,53 @@
-
-#include <cstdio>
-#include <vector>
-
 #include "Sylinder.hpp"
+
 #include "Util/Base64.hpp"
-#include "Util/EquatnHelper.hpp"
-#include "Util/IOHelper.hpp"
 
 /*****************************************************
  *  Sphero-cylinder
  ******************************************************/
 
 Sylinder::Sylinder(const int &gid_, const double &radius_, const double &radiusCollision_, const double &length_,
-                   const double &lengthCollision_, const Evec3 &pos_, const Equatn &orientation_) {
+                   const double &lengthCollision_, const double pos_[3], const double orientation_[4]) {
     gid = gid_;
     radius = radius_;
     radiusCollision = radiusCollision_;
     length = length_;
     lengthCollision = lengthCollision_;
-    pos = pos_;
-    orientation = orientation_;
+    if (pos_ == nullptr) {
+        Emap3(pos).setZero();
+    } else {
+        for (int i = 0; i < 3; i++) {
+            pos[i] = pos_[i];
+        }
+    }
+    if (orientation_ == nullptr) {
+        Emapq(orientation).setIdentity();
+    } else {
+        for (int i = 0; i < 4; i++) {
+            orientation[i] = orientation_[i];
+        }
+    }
 
     clear();
     return;
 }
 
 void Sylinder::clear() {
-    vel.setZero();
-    omega.setZero();
-    velCol.setZero();
-    omegaCol.setZero();
-    velBrown.setZero();
-    omegaBrown.setZero();
-    velHydro.setZero();
-    omegaHydro.setZero();
+    Emap3(vel).setZero();
+    Emap3(omega).setZero();
+    Emap3(velCol).setZero();
+    Emap3(omegaCol).setZero();
+    Emap3(velBrown).setZero();
+    Emap3(omegaBrown).setZero();
+    Emap3(velNonB).setZero();
+    Emap3(omegaNonB).setZero();
 }
 
 void Sylinder::dumpSylinder() const {
     printf("gid %8d, r %8f, rCol %8f, l %8f, lCol %8f, pos %8f, %8f, %8f\n", gid, radius, radiusCollision, length,
            lengthCollision, pos[0], pos[1], pos[2]);
     printf("vel %8f, %8f, %8f; omega %8f, %8f, %8f\n", vel[0], vel[1], vel[2], omega[0], omega[1], omega[2]);
-    printf("orient %8f, %8f, %8f, %8f\n", orientation.w(), orientation.x(), orientation.y(), orientation.z());
+    printf("orient %8f, %8f, %8f, %8f\n", orientation[0], orientation[1], orientation[2], orientation[3]);
 }
 
 void Sylinder::Pack(std::vector<char> &buff) const {
@@ -58,8 +65,7 @@ void Sylinder::Pack(std::vector<char> &buff) const {
     buffer.pack(std::array<double, 3>{pos[0], pos[1], pos[2]});       // Evec3 pos;
     buffer.pack(std::array<double, 3>{vel[0], vel[1], vel[2]});       // Evec3 vel;
     buffer.pack(std::array<double, 3>{omega[0], omega[1], omega[2]}); // Evec3 omega;
-    buffer.pack(std::array<double, 4>{orientation.w(), orientation.x(), orientation.y(),
-                                      orientation.z()}); // Equatn orientation;
+    buffer.pack(std::array<double, 4>{orientation[0], orientation[1], orientation[2], orientation[3]});
 }
 
 void Sylinder::Unpack(const std::vector<char> &buff) {
@@ -91,10 +97,10 @@ void Sylinder::Unpack(const std::vector<char> &buff) {
     omega[2] = array3[2];
     std::array<double, 4> array4;
     buffer.unpack(array4, buff); // Equatn orientation;
-    orientation.w() = array4[0];
-    orientation.x() = array4[1];
-    orientation.y() = array4[2];
-    orientation.z() = array4[3];
+    orientation[0] = array4[0];
+    orientation[1] = array4[1];
+    orientation[2] = array4[2];
+    orientation[3] = array4[3];
 }
 
 void Sylinder::writeVTP(const std::vector<Sylinder> &sylinder, const std::string &prefix, const std::string &postfix,
@@ -140,9 +146,9 @@ void Sylinder::writeVTP(const std::vector<Sylinder> &sylinder, const std::string
     for (int i = 0; i < sylinderNumber; i++) {
         const auto &sy = sylinder[i];
         // point and point data
-        Evec3 direction = sy.orientation * Evec3(0, 0, 1);
-        Evec3 end0 = sy.pos - direction * (sy.length * 0.5);
-        Evec3 end1 = sy.pos + direction * (sy.length * 0.5);
+        Evec3 direction = ECmapq(sy.orientation) * Evec3(0, 0, 1);
+        Evec3 end0 = ECmap3(sy.pos) - direction * (sy.length * 0.5);
+        Evec3 end1 = ECmap3(sy.pos) + direction * (sy.length * 0.5);
         pos[6 * i] = end0[0];
         pos[6 * i + 1] = end0[1];
         pos[6 * i + 2] = end0[2];
@@ -164,8 +170,8 @@ void Sylinder::writeVTP(const std::vector<Sylinder> &sylinder, const std::string
         length[i] = sy.length;
         lengthCollision[i] = sy.lengthCollision;
 
-        Evec3 nx = sy.orientation * Evec3(1, 0, 0);
-        Evec3 nz = sy.orientation * Evec3(0, 0, 1);
+        Evec3 nx = ECmapq(sy.orientation) * Evec3(1, 0, 0);
+        Evec3 nz = ECmapq(sy.orientation) * Evec3(0, 0, 1);
         for (int j = 0; j < 3; j++) {
             vel[3 * i + j] = sy.vel[j];
             omega[3 * i + j] = sy.omega[j];
@@ -173,8 +179,8 @@ void Sylinder::writeVTP(const std::vector<Sylinder> &sylinder, const std::string
             omegaBrown[3 * i + j] = sy.omegaBrown[j];
             velCol[3 * i + j] = sy.velCol[j];
             omegaCol[3 * i + j] = sy.omegaCol[j];
-            velHydro[3 * i + j] = sy.velHydro[j];
-            omegaHydro[3 * i + j] = sy.omegaHydro[j];
+            velHydro[3 * i + j] = sy.velNonB[j];
+            omegaHydro[3 * i + j] = sy.omegaNonB[j];
 
             xnorm[3 * i + j] = nx[j];
             znorm[3 * i + j] = nz[j];
@@ -257,6 +263,11 @@ void Sylinder::writePVTP(const std::string &prefix, const std::string &postfix, 
 }
 
 void Sylinder::stepEuler(double dt) {
-    pos += vel * dt;
-    EquatnHelper::rotateEquatn(orientation, omega, dt);
+    Emap3(pos) += Emap3(vel) * dt;
+    Equatn currOrient = Emapq(orientation);
+    EquatnHelper::rotateEquatn(currOrient, Emap3(omega), dt);
+    Emapq(orientation).x() = currOrient.x();
+    Emapq(orientation).y() = currOrient.y();
+    Emapq(orientation).z() = currOrient.z();
+    Emapq(orientation).w() = currOrient.w();
 }

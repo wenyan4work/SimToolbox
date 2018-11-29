@@ -58,6 +58,9 @@ using EAquatn = Eigen::Quaterniond;
 
 // map from raw pointer to fixed size type
 using Emap3 = Eigen::Map<Evec3>;
+using ECmap3 = Eigen::Map<const Evec3>;
+using Emapq = Eigen::Map<Eigen::Quaternion<double>, Eigen::DontAlign>;
+using ECmapq = Eigen::Map<const Eigen::Quaternion<double>, Eigen::DontAlign>;
 
 // dynamic size types
 using Evec = Eigen::VectorXd;
