@@ -50,10 +50,8 @@ class CountMixNeighbor {
             auto &force = mixForcePtr[t];
             force.clear();
 
-            auto RSearchTrg = trg.getRSearch();
+            auto RSearchTrg = trg.epTrg.getRSearch();
             const auto &trgPos = trg.getPos();
-            printf("%d,%d,%lf,%lf,%lf\n", trg.trgFlag, trg.epTrg.gid, trgPos.x, trgPos.y, trgPos.z);
-
             if (!trg.trgFlag) {
                 continue;
             }
@@ -65,11 +63,12 @@ class CountMixNeighbor {
                 }
                 // actual interaction
                 const auto &srcPos = src.getPos();
-                auto RSearchSrc = src.getRSearch();
+                auto RSearchSrc = src.epSrc.getRSearch();
                 const PS::F64vec3 &vecTS = srcPos - trgPos;
                 double r2 = trgPos.getDistanceSQ(srcPos);
-                printf("%lf\n", r2);
                 if (r2 < pow(RSearchSrc + RSearchTrg, 2)) {
+                    printf("trg %d,%lf,%lf,%lf\t;", trg.epTrg.getGid(), trgPos.x, trgPos.y, trgPos.z);
+                    printf("src %d,%lf,%lf,%lf\n", src.epSrc.getGid(), srcPos.x, srcPos.y, srcPos.z);
                     force.nbCount++;
                 }
             }
@@ -88,7 +87,7 @@ void initTubule(PS::ParticleSystem<Tubule> &tubule) {
     for (int i = 0; i < nT; i++) {
         tubule[i].gid = i + nT * PS::Comm::getRank();
 
-        tubule[i].RSearch = 0.1;
+        tubule[i].RSearch = rngPool.getU01() / 4;
         tubule[i].pos[0] = rngPool.getU01();
         tubule[i].pos[1] = rngPool.getU01();
         tubule[i].pos[2] = rngPool.getU01();
@@ -106,7 +105,7 @@ void initMotor(PS::ParticleSystem<Motor> &motor) {
     for (int i = 0; i < nM; i++) {
         motor[i].gid = i + nM * PS::Comm::getRank() + 50000;
 
-        motor[i].RSearch = 0.1;
+        motor[i].RSearch = rngPool.getU01() / 4;
         motor[i].pos[0] = rngPool.getU01();
         motor[i].pos[1] = rngPool.getU01();
         motor[i].pos[2] = rngPool.getU01();

@@ -20,37 +20,31 @@
 // epTrg/epSrc data is valid only when the corresponding flag is set true
 // check before return
 
-template <class EPT, class EPS, class Force>
+template <class EPT, class EPS>
 struct MixFP {
     bool trgFlag;
     double maxRSearch;
     EPT epTrg;
     EPS epSrc;
 
-    Force force;
-
     PS::F64vec3 getPos() const { return trgFlag ? epTrg.getPos() : epSrc.getPos(); }
     void setPos(const PS::F64vec3 &newPos) { trgFlag ? epTrg.setPos(newPos) : epSrc.setPos(newPos); }
 
     int getGid() { return trgFlag ? epTrg.getGid() : epSrc.getGid(); }
-    void copyFromForce(Force &f) { force = f; }
+    // void copyFromForce(Force &f) { force = f; }
 };
 
 template <class EPT>
 struct MixEPI {
     bool trgFlag;
-    double maxRSearch; // same for all EPI and EPJ
     EPT epTrg;
-
-    double getRSearch() const { return maxRSearch; }
 
     PS::F64vec3 getPos() const { return epTrg.getPos(); }
     void setPos(const PS::F64vec3 &newPos) { epTrg.setPos(newPos); }
 
-    template <class EPS, class Force>
-    void copyFromFP(const MixFP<EPT, EPS, Force> &fp) {
+    template <class EPS>
+    void copyFromFP(const MixFP<EPT, EPS> &fp) {
         trgFlag = fp.trgFlag;
-        maxRSearch = fp.maxRSearch;
         if (trgFlag) {
             epTrg = fp.epTrg;
         }
@@ -69,8 +63,8 @@ struct MixEPJ {
     PS::F64vec3 getPos() const { return epSrc.getPos(); }
     void setPos(const PS::F64vec3 &newPos) { epSrc.setPos(newPos); }
 
-    template <class EPT, class Force>
-    void copyFromFP(const MixFP<EPT, EPS, Force> &fp) {
+    template <class EPT>
+    void copyFromFP(const MixFP<EPT, EPS> &fp) {
         srcFlag = !fp.trgFlag;
         maxRSearch = fp.maxRSearch;
         if (srcFlag) {
@@ -114,17 +108,17 @@ class CalcMixPairForceExample {
 template <class FPT, class FPS, class EPT, class EPS, class Force>
 class MixPairInteraction {
 
-    static_assert(std::is_trivially_copyable<FPT>::value);
-    static_assert(std::is_trivially_copyable<FPS>::value);
-    static_assert(std::is_trivially_copyable<EPT>::value);
-    static_assert(std::is_trivially_copyable<EPS>::value);
-    static_assert(std::is_trivially_copyable<Force>::value);
+    static_assert(std::is_trivially_copyable<FPT>::value, "FPT is potentially unsafe for memcpy\n");
+    static_assert(std::is_trivially_copyable<FPS>::value, "FPS is potentially unsafe for memcpy\n");
+    static_assert(std::is_trivially_copyable<EPT>::value, "EPT is potentially unsafe for memcpy\n");
+    static_assert(std::is_trivially_copyable<EPS>::value, "EPS is potentially unsafe for memcpy\n");
+    static_assert(std::is_trivially_copyable<Force>::value, "Force is potentially unsafe for memcpy\n");
 
-    static_assert(std::is_default_constructible<FPT>::value);
-    static_assert(std::is_default_constructible<FPS>::value);
-    static_assert(std::is_default_constructible<EPT>::value);
-    static_assert(std::is_default_constructible<EPS>::value);
-    static_assert(std::is_default_constructible<Force>::value);
+    static_assert(std::is_default_constructible<FPT>::value, "FPT is not defalut constructible\n");
+    static_assert(std::is_default_constructible<FPS>::value, "FPS is not defalut constructible\n");
+    static_assert(std::is_default_constructible<EPT>::value, "EPT is not defalut constructible\n");
+    static_assert(std::is_default_constructible<EPS>::value, "EPS is not defalut constructible\n");
+    static_assert(std::is_default_constructible<Force>::value, "Force is not defalut constructible\n");
 
     // hold information
     const PS::ParticleSystem<FPT> &systemTrg;
@@ -137,14 +131,14 @@ class MixPairInteraction {
     // internal FDPS stuff
     using EPIType = MixEPI<EPT>;
     using EPJType = MixEPJ<EPS>;
-    using FPType = MixFP<EPT, EPS, Force>;
+    using FPType = MixFP<EPT, EPS>;
 
-    static_assert(std::is_trivially_copyable<EPIType>::value);
-    static_assert(std::is_trivially_copyable<EPJType>::value);
-    static_assert(std::is_trivially_copyable<FPType>::value);
-    static_assert(std::is_default_constructible<EPIType>::value);
-    static_assert(std::is_default_constructible<EPJType>::value);
-    static_assert(std::is_default_constructible<FPType>::value);
+    static_assert(std::is_trivially_copyable<EPIType>::value, "");
+    static_assert(std::is_trivially_copyable<EPJType>::value, "");
+    static_assert(std::is_trivially_copyable<FPType>::value, "");
+    static_assert(std::is_default_constructible<EPIType>::value, "");
+    static_assert(std::is_default_constructible<EPJType>::value, "");
+    static_assert(std::is_default_constructible<FPType>::value, "");
 
     using SystemType = typename PS::ParticleSystem<FPType>;
     using TreeType = typename PS::TreeForForceShort<Force, EPIType, EPJType>::Scatter;
@@ -230,12 +224,15 @@ void MixPairInteraction<FPT, FPS, EPT, EPS, Force>::setMaxRSearch() {
     for (int i = 0; i < nLocalSrc; i++) {
         maxRSearchSrc = std::max(maxRSearchSrc, systemSrc[i].getRSearch());
     }
-    double maxRSearchSrcAll;
-    double maxRSearchTrgAll;
-    MPI_Allreduce(&maxRSearchSrc, &maxRSearchSrcAll, 1, MPI_DOUBLE, MPI_MAX, MPI_COMM_WORLD);
-    MPI_Allreduce(&maxRSearchTrg, &maxRSearchTrgAll, 1, MPI_DOUBLE, MPI_MAX, MPI_COMM_WORLD);
-    const double maxRSearch = maxRSearchSrcAll + maxRSearchTrgAll;
-    // printf("%lf\n", maxRSearch);
+
+    double maxRSearchAll[2] = {maxRSearchTrg, maxRSearchSrc};
+    MPI_Allreduce(MPI_IN_PLACE, maxRSearchAll, 2, MPI_DOUBLE, MPI_MAX, MPI_COMM_WORLD);
+    const double maxRSearch = maxRSearchAll[0] + maxRSearchAll[1];
+
+#ifndef DNDEBUG
+    printf("maxRSearch %lf\n", maxRSearch);
+#endif
+
 #pragma omp parallel for
     for (int i = 0; i < nLocalMix; i++) {
         systemMix[i].maxRSearch = maxRSearch;
@@ -250,6 +247,7 @@ void MixPairInteraction<FPT, FPS, EPT, EPS, Force>::updateTree() {
         treeMixPtr = std::make_unique<TreeType>();
     }
     // build tree
+    // be careful if tuning the tree default parameters
     treeMixPtr->initialize(2 * nParGlobal);
     numberParticleInTree = nParGlobal;
 }
@@ -257,14 +255,16 @@ void MixPairInteraction<FPT, FPS, EPT, EPS, Force>::updateTree() {
 template <class FPT, class FPS, class EPT, class EPS, class Force>
 template <class CalcMixForce>
 void MixPairInteraction<FPT, FPS, EPT, EPS, Force>::computeForce(CalcMixForce &calcMixForceFtr) {
+#ifndef DNDEBUG
     dumpSystem();
-    treeMixPtr->calcForceAllAndWriteBack(calcMixForceFtr, systemMix, dinfo);
+#endif
+    treeMixPtr->calcForceAll(calcMixForceFtr, systemMix, dinfo);
 
     forceResult.resize(systemTrg.getNumberOfParticleLocal());
     const int nTrg = forceResult.size();
 #pragma omp parallel for
     for (int i = 0; i < nTrg; i++) {
-        forceResult[i] = systemMix[i].force;
+        forceResult[i] = treeMixPtr->getForce(i);
     }
 }
 
