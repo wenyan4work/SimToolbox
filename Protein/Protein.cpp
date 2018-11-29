@@ -31,8 +31,8 @@ void Protein::writeVTP(const std::vector<Protein> &protein, const std::string &p
     for (int i = 0; i < proteinNumber; i++) {
         const auto &p = protein[i];
         // point and point data
-        const Evec3 &end0 = p.posEnd[0];
-        const Evec3 &end1 = p.posEnd[1];
+        const Evec3 end0 = ECmap3(p.posEnd[0]);
+        const Evec3 end1 = ECmap3(p.posEnd[1]);
         pos[6 * i] = end0[0];
         pos[6 * i + 1] = end0[1];
         pos[6 * i + 2] = end0[2];

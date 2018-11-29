@@ -24,6 +24,7 @@ class Sylinder {
     double length;
     double lengthCollision;
     double radiusSearch;
+    double sepmin;
 
     double pos[3];
     double vel[3];
