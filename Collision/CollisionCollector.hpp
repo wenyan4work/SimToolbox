@@ -77,6 +77,7 @@ class CollisionCollector {
     }
 
     void clear() {
+        assert(collisionPoolPtr);
         for (int i = 0; i < collisionPoolPtr->size(); i++) {
             (*collisionPoolPtr)[i].clear();
         }

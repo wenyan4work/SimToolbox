@@ -87,7 +87,7 @@ class CalcSylinderNearForce {
     CalcSylinderNearForce() {}
 
     CalcSylinderNearForce(std::shared_ptr<CollisionBlockPool> &colPoolPtr_) {
-        assert(!colPoolPtr_);
+        assert(colPoolPtr_);
 
         int totalThreads = omp_get_max_threads();
         colPoolPtr = colPoolPtr_;

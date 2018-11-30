@@ -242,6 +242,7 @@ void MixPairInteraction<FPT, FPS, EPT, EPS, Force>::updateTree() {
     const int nParGlobal = systemMix.getNumberOfParticleGlobal();
     // make a large enough tree
     if (!treeMixPtr || (nParGlobal > numberParticleInTree * 1.5)) {
+        treeMixPtr.reset();
         treeMixPtr = std::make_unique<TreeType>();
     }
     // build tree
