@@ -5,8 +5,6 @@
 #ifndef MIXPAIRINTERACTION_HPP_
 #define MIXPAIRINTERACTION_HPP_
 
-#define PARTICLE_SIMULATOR_THREAD_PARALLEL
-#define PARTICLE_SIMULATOR_MPI_PARALLEL
 #include "FDPS/particle_simulator.hpp"
 
 #include <memory>
