@@ -34,6 +34,7 @@ struct SylinderNearEP {
     double pos[3];
     double direction[3];
 
+    // interface for FDPS
     void copyFromFP(const Sylinder &fp) {
         gid = fp.gid;
         globalIndex = fp.globalIndex;
@@ -47,14 +48,6 @@ struct SylinderNearEP {
         direction[0] = q[0];
         direction[1] = q[1];
         direction[2] = q[2];
-
-        //		output for debug
-        //		std::cout<<"WCAEP info:"<<this->myType<<std::endl;
-        //		std::cout<<"WCAEP info:"<<this->length<<std::endl;
-        //		std::cout<<"WCAEP info:"<<this->directionTubule<<std::endl;
-        //		std::cout<<"FP info:"<<fp.myType<<std::endl;
-        //		std::cout<<"FP info:"<<fp.myTubuleData.length<<std::endl;
-        //		std::cout<<"FP info:"<<fp.myTubuleData.direction<<std::endl;
     }
 
     PS::F64vec getPos() const { return PS::F64vec3(pos[0], pos[1], pos[2]); }
@@ -87,32 +80,29 @@ static_assert(std::is_trivially_copyable<NearForce>::value, "");
 static_assert(std::is_default_constructible<NearForce>::value, "");
 
 class CalcSylinderNearForce {
-
   public:
     std::shared_ptr<CollisionBlockPool> colPoolPtr;
-    bool recordNeighbor = false;
 
     // constructor
-    CalcSylinderNearForce(bool recordNeighbor_) : recordNeighbor(recordNeighbor_) {}
+    CalcSylinderNearForce() {}
 
-    CalcSylinderNearForce(std::shared_ptr<CollisionBlockPool> &colPoolPtr_, bool recordNeighbor_)
-        : recordNeighbor(recordNeighbor_) {
+    CalcSylinderNearForce(std::shared_ptr<CollisionBlockPool> &colPoolPtr_) {
+        assert(!colPoolPtr_);
 
         int totalThreads = omp_get_max_threads();
-        assert(!colPoolPtr_); // must point to a valid pool.
         colPoolPtr = colPoolPtr_;
 #ifdef DEBUGLCPCOL
         std::cout << "stress recoder size:" << colPoolPtr->size() << std::endl;
 #endif
     }
 
-    // copy constructor, copy the shared ptr
-    CalcSylinderNearForce(const CalcSylinderNearForce &obj)
-        : colPoolPtr(obj.colPoolPtr), recordNeighbor(obj.recordNeighbor) {}
+    // use default copy constructor
+    // CalcSylinderNearForce(const CalcSylinderNearForce &obj) : colPoolPtr(obj.colPoolPtr) {}
 
     void operator()(const SylinderNearEP *const ep_i, const PS::S32 Nip, const SylinderNearEP *const ep_j,
                     const PS::S32 Njp, NearForce *const forceNear);
 
+  private:
     void InitializeSyN(Emat3 &NI, double r, double h, double rho) {
         NI.setZero();
         double beta = h / 2.0 / r;
@@ -146,15 +136,12 @@ void CalcSylinderNearForce::operator()(const SylinderNearEP *const ep_i, const P
     for (PS::S32 i = 0; i < Nip; ++i) {
         auto &forceI = forceNear[i];
         forceI.clear();
-        auto &syI = ep_i[i];
 
+        auto &syI = ep_i[i];
         const Evec3 centerI = ECmap3(syI.pos);
         const Evec3 directionI = ECmap3(syI.direction);
         const Evec3 Pm = centerI - directionI * (0.5 * syI.length); // minus end
         const Evec3 Pp = centerI + directionI * (0.5 * syI.length); // plus end
-        Evec3 Ploc = Evec3::Zero();
-        Evec3 Qloc = Evec3::Zero();
-        double s, t = 0;
 
         for (PS::S32 j = 0; j < Njp; ++j) {
             auto &syJ = ep_j[j];
@@ -163,6 +150,9 @@ void CalcSylinderNearForce::operator()(const SylinderNearEP *const ep_i, const P
             const Evec3 Qm = centerJ - directionJ * (0.5 * syJ.length); // minus end
             const Evec3 Qp = centerJ + directionJ * (0.5 * syJ.length); // plus end
 
+            Evec3 Ploc = Evec3::Zero();
+            Evec3 Qloc = Evec3::Zero();
+            double s, t = 0;
             const double distMin = DistSegSeg3(Pm, Pp, Qm, Qp, Ploc, Qloc, s, t);
             forceI.sepmin = std::min(forceI.sepmin, distMin);
 
@@ -180,20 +170,16 @@ void CalcSylinderNearForce::operator()(const SylinderNearEP *const ep_i, const P
                 const Evec3 QlocEvec(Qloc[0], Qloc[1], Qloc[2]);
                 const Evec3 normI = (PlocEvec - QlocEvec).normalized();
                 const Evec3 normJ = -normI;
-                const auto &posI = Ploc - centerI;
-                const auto &posJ = Qloc - centerJ;
-                const Evec3 posIEvec(posI[0], posI[1], posI[2]);
-                const Evec3 posJEvec(posJ[0], posJ[1], posJ[2]);
+                const Evec3 posI = Ploc - centerI;
+                const Evec3 posJ = Qloc - centerJ;
                 (*colPoolPtr)[myThreadId].emplace_back(phi0, gamma, syI.gid, syJ.gid, syI.globalIndex, syJ.globalIndex,
-                                                       normI, normJ, posIEvec, posJEvec, false);
-                Emat3 &stressIJ = (*colPoolPtr)[myThreadId].back().stress;
-                Evec3 dirI = ECmap3(syI.direction);
-                Evec3 dirJ = ECmap3(syJ.direction);
-                collideStress(dirI, dirJ, centerI, centerJ, syI.length, syJ.length, syI.radiusCollision,
-                              syJ.radiusCollision, 1.0, PlocEvec, QlocEvec, stressIJ);
+                                                       normI, normJ, posI, posJ, false);
                 //    double phi0_, double gamma_, int gidI_, int gidJ_, int globalIndexI_, int globalIndexJ_,
                 //    const Evec3 &normI_, const Evec3 &normJ_, const Evec3 &posI_, const Evec3 &posJ_,
                 //    bool oneSide_ = false
+                Emat3 &stressIJ = (*colPoolPtr)[myThreadId].back().stress;
+                collideStress(directionI, directionJ, centerI, centerJ, syI.length, syJ.length, syI.radiusCollision,
+                              syJ.radiusCollision, 1.0, PlocEvec, QlocEvec, stressIJ);
             }
         }
     }
@@ -207,9 +193,6 @@ void CalcSylinderNearForce::collideStress(const Evec3 &dirI, const Evec3 &dirJ, 
     InitializeSyGA(GAMMAI, rI, hI, rho);
     InitializeSyN(NJ, rJ, hJ, rho);
     InitializeSyGA(GAMMAJ, rJ, hJ, rho);
-
-    // Evec3 dirI = qI * Evec3(0, 0, 1);
-    // Evec3 dirJ = qJ * Evec3(0, 0, 1);
 
     double aI = NI(0, 0), bI = NI(2, 2), aJ = NJ(0, 0), bJ = NJ(2, 2);
 
