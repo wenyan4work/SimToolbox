@@ -13,15 +13,8 @@
 class Protein {
   public:
     int gid = GEO_INVALID_INDEX;
-    // bool walkOff;
-    // bool bindAntiParallel;
-    // bool fixedEnd0;
-    // double fixedLocation;
-    // double lenMP0; // original length
-
     // time varying status
     int idBind[2]; // = INVALID if not bind
-                   // 0 at MT center, positive toward plus end
     double posEnd[2][3];
 
     static void writeVTP(const std::vector<Protein> &protein, const std::string &prefix, const std::string &postfix,

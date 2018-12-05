@@ -1,12 +1,12 @@
 
 #include "Protein.hpp"
 
-#include <cstdio>
-#include <vector>
-
 #include "Util/Base64.hpp"
 #include "Util/EquatnHelper.hpp"
 #include "Util/IOHelper.hpp"
+
+#include <cstdio>
+#include <vector>
 
 void Protein::writeVTP(const std::vector<Protein> &protein, const std::string &prefix, const std::string &postfix,
                        int rank) {
