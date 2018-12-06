@@ -9,6 +9,7 @@
 #include "Util/IOHelper.hpp"
 
 #include <cstdio>
+#include <cstdlib>
 #include <vector>
 
 #include <type_traits>
@@ -75,9 +76,10 @@ class Sylinder {
         pos[1] = newPos.y;
         pos[2] = newPos.z;
     }
+    // FDPS IO interface
+    void writeAscii(FILE *fptr) const;
 
     // Output to VTK
-
     // PVTP Header file from rank 0
     static void writePVTP(const std::string &prefix, const std::string &postfix, const int nProcs);
 
@@ -209,6 +211,14 @@ class Sylinder {
         IOHelper::writeTailVTP(file);
         file.close();
     }
+};
+
+// for FDPS writeAscii file header
+class SylinderAsciiHeader {
+  public:
+    int nparticle;
+    double time;
+    void writeAscii(FILE *fp) const { fprintf(fp, "%d \n %lf\n", nparticle, time); }
 };
 
 static_assert(std::is_trivially_copyable<Sylinder>::value, "");

@@ -40,6 +40,7 @@ void Sylinder::clear() {
     Emap3(omegaBrown).setZero();
     Emap3(velNonB).setZero();
     Emap3(omegaNonB).setZero();
+    sepmin = std::numeric_limits<double>::max();
 }
 
 void Sylinder::dumpSylinder() const {
@@ -142,3 +143,11 @@ void Sylinder::stepEuler(double dt) {
     Emapq(orientation).z() = currOrient.z();
     Emapq(orientation).w() = currOrient.w();
 }
+
+void Sylinder::writeAscii(FILE *fptr) const {
+    Evec3 direction = ECmapq(orientation) * Evec3(0, 0, 1);
+    Evec3 minus = ECmap3(pos) - 0.5 * length * direction;
+    Evec3 plus = ECmap3(pos) + 0.5 * length * direction;
+    fprintf(fptr, "C %d %g %g %g %g %g %g %g\n", gid, radius, minus[0], minus[1], minus[2], plus[0], plus[1], plus[2]);
+}
+
