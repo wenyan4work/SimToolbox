@@ -12,10 +12,11 @@ SIMTOOLBOX := ${CURDIR}/../../
 TRNG = $(SFTPATH)/include/trng
 EIGEN= $(SFTPATH)/include/eigen3
 PVFMM= $(SFTPATH)/include/pvfmm
+YAML= $(SFTPATH)/include/yaml-cpp
 
 USERINCLUDE = -I$(TRNG)/include -I$(EIGEN) -I$(SCTL) -I$(SIMTOOLBOX)
 USERLIB_DIRS = -L$(SFTPATH)/lib
-USERLIBS = -ltrng4
+USERLIBS = -ltrng4 -lyaml-cpp
 
 INCLUDE_DIRS = $(Trilinos_INCLUDE_DIRS) $(Trilinos_TPL_INCLUDE_DIRS) $(USERINCLUDE)
 LIBRARY_DIRS = $(Trilinos_LIBRARY_DIRS) $(Trilinos_TPL_LIBRARY_DIRS) $(USERLIB_DIRS)
