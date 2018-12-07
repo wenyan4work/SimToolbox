@@ -42,6 +42,11 @@ class IOHelper {
         return name;
     }
 
+    static bool fileExist(const std::string &name) {
+        std::ifstream f(name.c_str());
+        return f.good();
+    }
+
     static void makeSubFolder(const std::string folder) {
 
         // boost::filesystem::create_directories(folder);

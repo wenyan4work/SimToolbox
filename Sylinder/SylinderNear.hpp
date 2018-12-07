@@ -1,10 +1,11 @@
 #ifndef SylinderNear_HPP_
 #define SylinderNear_HPP_
 
-#include "CollisionCollector.hpp"
-#include "DCPQuery.hpp"
+#include "Sylinder.hpp"
+
+#include "Collision/CollisionCollector.hpp"
+#include "Collision/DCPQuery.hpp"
 #include "MPI/FDPS/particle_simulator.hpp"
-#include "Sylinder/Sylinder.hpp"
 #include "Util/EigenDef.hpp"
 
 #include <cassert>
