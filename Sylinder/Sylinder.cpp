@@ -44,10 +44,10 @@ void Sylinder::clear() {
 }
 
 void Sylinder::dumpSylinder() const {
-    printf("gid %8d, r %8f, rCol %8f, l %8f, lCol %8f, pos %8f, %8f, %8f\n", gid, radius, radiusCollision, length,
+    printf("gid %d, R %g, RCol %g, L %g, LCol %g, pos %g, %g, %g\n", gid, radius, radiusCollision, length,
            lengthCollision, pos[0], pos[1], pos[2]);
-    printf("vel %8f, %8f, %8f; omega %8f, %8f, %8f\n", vel[0], vel[1], vel[2], omega[0], omega[1], omega[2]);
-    printf("orient %8f, %8f, %8f, %8f\n", orientation[0], orientation[1], orientation[2], orientation[3]);
+    printf("vel %g, %g, %g; omega %g, %g, %g\n", vel[0], vel[1], vel[2], omega[0], omega[1], omega[2]);
+    printf("orient %g, %g, %g, %g\n", orientation[0], orientation[1], orientation[2], orientation[3]);
 }
 
 void Sylinder::Pack(std::vector<char> &buff) const {
@@ -150,4 +150,3 @@ void Sylinder::writeAscii(FILE *fptr) const {
     Evec3 plus = ECmap3(pos) + 0.5 * length * direction;
     fprintf(fptr, "C %d %g %g %g %g %g %g %g\n", gid, radius, minus[0], minus[1], minus[2], plus[0], plus[1], plus[2]);
 }
-

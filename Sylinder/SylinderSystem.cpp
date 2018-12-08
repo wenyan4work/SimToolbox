@@ -31,43 +31,46 @@ SylinderSystem::SylinderSystem(const SylinderConfig &runConfig_, const std::stri
     collisionSolverPtr = std::make_shared<CollisionSolver>();
     collisionCollectorPtr = std::make_shared<CollisionCollector>();
 
-    // init FDPS system
-    PS::Initialize(argc, argv);
-    dinfo.initialize();
+    PS::Initialize(argc, argv); // init FDPS system
+    dinfo.initialize();         // init DomainInfo
     setDomainInfo();
 
     sylinderContainer.initialize();
-    if (commRcp->getRank() == 0) {
-        // prepare the output directory
-        IOHelper::makeSubFolder("./result");
-        // initialize on head rank
-    }
-
     if (IOHelper::fileExist(posFile)) {
         setInitialFromFile(posFile);
     } else {
         setInitialFromConfig();
     }
-    // at this point all sylinders located on rank 0
+    showOnScreenRank0(); // at this point all sylinders located on rank 0
 
-    // initial domain decomposition
-    commRcp->barrier();
-    partition(); // distribute to ranks
+    partition(); // distribute to ranks, initial domain decomposition
 
-    // initialize tree
-    // always keep tree max_glb_num_ptcl to be twice the global actual particle number.
-    const int nGlobal = sylinderContainer.getNumberOfParticleGlobal();
-    treeSylinderNearPtr = std::make_unique<TreeSylinderNear>();
-    treeSylinderNearPtr->initialize(2 * nGlobal);
-    treeSylinderNumber = nGlobal;
+    setTreeSylinder();
 
     setPosWithWall();
-    output();
+
+    if (commRcp->getRank() == 0) {
+        IOHelper::makeSubFolder("./result"); // prepare the output directory
+    }
+    writeResult();
 
     calcVolFrac();
 
     printf("local: %lu sylinders on process %d\n", sylinderContainer.getNumberOfParticleLocal(), commRcp->getRank());
     printf("SylinderSystem initialized on process: %d \n", commRcp->getRank());
+}
+
+void SylinderSystem::setTreeSylinder() {
+    // initialize tree
+    // always keep tree max_glb_num_ptcl to be twice the global actual particle number.
+    const int nGlobal = sylinderContainer.getNumberOfParticleGlobal();
+    if (nGlobal > 1.5 * treeSylinderNumber || !treeSylinderNearPtr) {
+        // a new larger tree
+        treeSylinderNearPtr.reset();
+        treeSylinderNearPtr = std::make_unique<TreeSylinderNear>();
+        treeSylinderNearPtr->initialize(2 * nGlobal);
+        treeSylinderNumber = nGlobal;
+    }
 }
 
 void SylinderSystem::genOrient(Equatn &orient, const double px, const double py, const double pz, const int threadId) {
@@ -138,6 +141,7 @@ void SylinderSystem::setInitialFromConfig() {
                 double orientation[4];
                 Emapq(orientation).coeffs() = orientq.coeffs();
                 sylinderContainer[i] = Sylinder(i, radius, radius, length, length, pos, orientation);
+                sylinderContainer[i].clear();
             }
         }
     }
@@ -146,30 +150,28 @@ void SylinderSystem::setInitialFromConfig() {
 void SylinderSystem::calcVolFrac() {
     // calc volume fraction of sphero cylinders
     // step 1, calc local total volume
-    double volCell = 0;
+    double volLocal = 0;
     const int nLocal = sylinderContainer.getNumberOfParticleLocal();
-#pragma omp parallel for reduction(+ : volCell)
+#pragma omp parallel for reduction(+ : volLocal)
     for (int i = 0; i < nLocal; i++) {
-        auto &cell = sylinderContainer[i];
-        volCell += 3.1415926535 * (0.25 * cell.length * pow(cell.radius * 2, 2) + pow(cell.radius * 2, 3) / 6);
+        auto &sy = sylinderContainer[i];
+        volLocal += 3.1415926535 * (0.25 * sy.length * pow(sy.radius * 2, 2) + pow(sy.radius * 2, 3) / 6);
     }
-    double volCellGlobal = 0;
+    double volGlobal = 0;
 
-    // MPI_Allreduce(&volCell, &volCellGlobal, 1, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
-    Teuchos::reduceAll(*commRcp, Teuchos::SumValueReductionOp<int, double>(), 1, &volCell, &volCellGlobal);
+    Teuchos::reduceAll(*commRcp, Teuchos::SumValueReductionOp<int, double>(), 1, &volLocal, &volGlobal);
 
     // step 2, reduce to root and compute total volume
     if (commRcp->getRank() == 0) {
         double boxVolume = (runConfig.simBoxHigh[0] - runConfig.simBoxLow[0]) *
                            (runConfig.simBoxHigh[1] - runConfig.simBoxLow[1]) *
                            (runConfig.simBoxHigh[2] - runConfig.simBoxLow[2]);
-        std::cout << "volume Cell= " << volCellGlobal << std::endl;
-        std::cout << "volume fraction: " << volCellGlobal / boxVolume << std::endl;
+        std::cout << "Volume Sylinder = " << volGlobal << std::endl;
+        std::cout << "Volume fraction = " << volGlobal / boxVolume << std::endl;
     }
 }
 
 void SylinderSystem::setInitialFromFile(const std::string &filename) {
-
     if (commRcp->getRank() != 0) {
         sylinderContainer.setNumberOfParticleLocal(0);
     } else {
@@ -206,7 +208,7 @@ void SylinderSystem::setInitialFromFile(const std::string &filename) {
         myfile.close();
 
         // sort body, gid ascending;
-        std::cout << "cell number in file" << sylinderReadFromFile.size() << std::endl;
+        std::cout << "Sylinder number in file: " << sylinderReadFromFile.size() << std::endl;
         std::sort(sylinderReadFromFile.begin(), sylinderReadFromFile.end(),
                   [](const Sylinder &t1, const Sylinder &t2) { return t1.gid < t2.gid; });
 
@@ -216,11 +218,12 @@ void SylinderSystem::setInitialFromFile(const std::string &filename) {
 #pragma omp parallel for
         for (int i = 0; i < nRead; i++) {
             sylinderContainer[i] = sylinderReadFromFile[i];
+            sylinderContainer[i].clear();
         }
     }
 }
 
-std::string SylinderSystem::getCurrentOutputFolder() {
+std::string SylinderSystem::getCurrentResultFolder() {
     const int num = std::max(400 / commRcp->getSize(), 1); // limit max number of files per folder
     int k = snapID / num;
     int low = k * num, high = k * num + num - 1;
@@ -237,7 +240,7 @@ void SylinderSystem::writeXYZ(const std::string &baseFolder) {
         MPI_Allreduce(&nLocal, &nGlobal, 1, MPI_INT, MPI_SUM, MPI_COMM_WORLD);
     }
 
-    std::string name = baseFolder + std::string("SylinderXYZ_") + std::to_string(snapID) + ".dat";
+    std::string name = baseFolder + std::string("SylinderAscii_") + std::to_string(snapID) + ".dat";
     SylinderAsciiHeader header;
     header.nparticle = nGlobal;
     header.time = stepCount * runConfig.dt;
@@ -247,18 +250,31 @@ void SylinderSystem::writeXYZ(const std::string &baseFolder) {
 void SylinderSystem::writeVTK(const std::string &baseFolder) {
     Sylinder::writeVTP<PS::ParticleSystem<Sylinder>>(sylinderContainer, sylinderContainer.getNumberOfParticleLocal(),
                                                      baseFolder, std::to_string(snapID), commRcp->getRank());
-    // write parallel head
     if (commRcp->getRank() == 0) {
-        Sylinder::writePVTP(baseFolder, std::to_string(snapID), commRcp->getSize());
+        Sylinder::writePVTP(baseFolder, std::to_string(snapID), commRcp->getSize()); // write parallel head
     }
 }
 
-void SylinderSystem::output() {
-    std::string baseFolder = getCurrentOutputFolder();
+void SylinderSystem::writeResult() {
+    std::string baseFolder = getCurrentResultFolder();
     IOHelper::makeSubFolder(baseFolder);
     writeXYZ(baseFolder);
     writeVTK(baseFolder);
     snapID++;
+}
+
+void SylinderSystem::showOnScreenRank0() {
+    if (commRcp->getRank() == 0) {
+        printf("-----------SylinderSystem Settings-----------\n");
+        runConfig.dump();
+        printf("-----------Sylinder Configurations-----------\n");
+
+        const int nLocal = sylinderContainer.getNumberOfParticleLocal();
+        for (int i = 0; i < nLocal; i++) {
+            sylinderContainer[i].dumpSylinder();
+        }
+    }
+    commRcp->barrier();
 }
 
 void SylinderSystem::setDomainInfo() {
@@ -315,9 +331,9 @@ void SylinderSystem::calcMobMatrix() {
     const double Pi = 3.14159265358979323846;
     const double mu = runConfig.viscosity;
 
-    const int nCellLocal = sylinderMapRcp->getNodeNumElements();
-    TEUCHOS_ASSERT(nCellLocal == sylinderContainer.getNumberOfParticleLocal());
-    const int localSize = nCellLocal * 6; // local row number
+    const int nLocal = sylinderMapRcp->getNodeNumElements();
+    TEUCHOS_ASSERT(nLocal == sylinderContainer.getNumberOfParticleLocal());
+    const int localSize = nLocal * 6; // local row number
 
     Kokkos::View<size_t *> rowPointers("rowPointers", localSize + 1);
     rowPointers[0] = 0;
@@ -328,23 +344,23 @@ void SylinderSystem::calcMobMatrix() {
     Kokkos::View<double *> values("values", rowPointers[localSize]);
 
 #pragma omp parallel for
-    for (int i = 0; i < nCellLocal; i++) {
-        const auto &cell = sylinderContainer[i];
+    for (int i = 0; i < nLocal; i++) {
+        const auto &sy = sylinderContainer[i];
 
         // calculate the Mob Trans and MobRot
         Emat3 MobTrans; //            double MobTrans[3][3];
         Emat3 MobRot;   //            double MobRot[3][3];
         Emat3 qq;
         Emat3 Imqq;
-        Evec3 q = ECmapq(cell.orientation) * Evec3(0, 0, 1);
+        Evec3 q = ECmapq(sy.orientation) * Evec3(0, 0, 1);
         qq = q * q.transpose();
         Imqq = Emat3::Identity() - qq;
         // std::cout << cell.orientation.w() << std::endl;
         // std::cout << qq << std::endl;
         // std::cout << Imqq << std::endl;
 
-        const double length = cell.length;
-        const double diameter = cell.radius * 2;
+        const double length = sy.length;
+        const double diameter = sy.radius * 2;
         const double b = -(1 + 2 * log(diameter * 0.5 / (length)));
         const double dragPara = 8 * Pi * length * mu / (2 * b);
         const double dragPerp = 8 * Pi * length * mu / (b + 2);
@@ -415,151 +431,77 @@ void SylinderSystem::calcMobOperator() {
     mobilityOperatorRcp = mobilityMatrixRcp;
 }
 
-Teuchos::RCP<TV> SylinderSystem::getVelocityKnown(Teuchos::RCP<TCMAT> &mobilityOpRcp,
-                                                  Teuchos::RCP<TV> &forceRcp) const {
-    // velocity from known forcing
-    Teuchos::RCP<TV> velocityKnownRcp = Teuchos::rcp<TV>(new TV(sylinderMobilityMapRcp, true));
-    mobilityOpRcp->apply(*forceRcp, *velocityKnownRcp);
+void SylinderSystem::calcVelocityKnown() {
+    // allocate and zero out
+    // velocityKnown = velocityBrown + velocityNonBrown + mobility * forceNonBrown
+    velocityKnownRcp = Teuchos::rcp<TV>(new TV(sylinderMobilityMapRcp, true));
 
-    // extra velocity, e.g., Brownian noise
-    if (runConfig.KBT > 0) {
-        Teuchos::RCP<TV> velocityBrownRcp = getVelocityBrown();
-        velocityKnownRcp->update(1.0, *velocityBrownRcp, 1.0);
+    if (!forceNonBrownRcp.is_null()) {
+        TEUCHOS_ASSERT(!mobilityOperatorRcp.is_null());
+        mobilityOperatorRcp->apply(*forceNonBrownRcp, *velocityKnownRcp);
     }
 
-    // cell self swim velocity
-    // fluid motion from FMM results
+    if (!velocityNonBrownRcp.is_null()) {
+        velocityKnownRcp->update(1.0, *velocityNonBrownRcp, 1.0);
+    }
+
+    // write back total non Brownian velocity
     auto velPtr = velocityKnownRcp->getLocalView<Kokkos::HostSpace>();
-    velocityKnownRcp->modify<Kokkos::HostSpace>();
     const int nLocal = sylinderContainer.getNumberOfParticleLocal();
     TEUCHOS_ASSERT(nLocal * 6 == velocityKnownRcp->getLocalLength());
 
 #pragma omp parallel for
     for (int i = 0; i < nLocal; i++) {
-        const auto &sy = sylinderContainer[i];
-        Evec3 direction = ECmapq(sy.orientation) * Evec3(0, 0, 1);
+        auto &sy = sylinderContainer[i];
         // translational
-        velPtr(6 * i, 0) += sy.velNonB[0];
-        velPtr(6 * i + 1, 0) += sy.velNonB[1];
-        velPtr(6 * i + 2, 0) += sy.velNonB[2];
+        sy.velNonB[0] = velPtr(6 * i + 0, 0);
+        sy.velNonB[1] = velPtr(6 * i + 1, 0);
+        sy.velNonB[2] = velPtr(6 * i + 2, 0);
         // rotational
-        velPtr(6 * i + 3, 0) += sy.omegaNonB[0];
-        velPtr(6 * i + 4, 0) += sy.omegaNonB[1];
-        velPtr(6 * i + 5, 0) += sy.omegaNonB[2];
+        sy.omegaNonB[0] = velPtr(6 * i + 3, 0);
+        sy.omegaNonB[1] = velPtr(6 * i + 4, 0);
+        sy.omegaNonB[2] = velPtr(6 * i + 5, 0);
     }
 
-    return velocityKnownRcp;
-}
-
-Teuchos::RCP<TV> SylinderSystem::getForceKnown() const {
-    // 6 dof per sphere, force+torque
-    Teuchos::RCP<TV> forceKnownRcp = Teuchos::rcp<TV>(new TV(sylinderMobilityMapRcp, true));
-
-    auto forcePtr = forceKnownRcp->getLocalView<Kokkos::HostSpace>();
-    forceKnownRcp->modify<Kokkos::HostSpace>();
-
-    const int sylinderLocalNumber = sylinderContainer.getNumberOfParticleLocal();
-    TEUCHOS_ASSERT(forcePtr.dimension_0() == sylinderLocalNumber * 6);
-    TEUCHOS_ASSERT(forcePtr.dimension_1() == 1);
-
-    for (int c = 0; c < forcePtr.dimension_1(); c++) {
-#pragma omp parallel for
-        for (int i = 0; i < sylinderLocalNumber; i++) {
-            // force
-            forcePtr(6 * i, c) = 0;
-            forcePtr(6 * i + 1, c) = 0;
-            forcePtr(6 * i + 2, c) = 0;
-            // torque
-            forcePtr(6 * i + 3, c) = 0;
-            forcePtr(6 * i + 4, c) = 0;
-            forcePtr(6 * i + 5, c) = 0;
-        }
+    if (!velocityBrownRcp.is_null()) {
+        velocityKnownRcp->update(1.0, *velocityBrownRcp, 1.0);
     }
-    commRcp->barrier();
-
-    return forceKnownRcp;
 }
 
-void SylinderSystem::moveEuler(Teuchos::RCP<TV> &velocityRcp) {
-
-    TEUCHOS_ASSERT(velocityRcp->getMap()->getNodeNumElements() == sylinderContainer.getNumberOfParticleLocal() * 6);
-    auto velocityPtr = velocityRcp->getLocalView<Kokkos::HostSpace>();
-    velocityRcp->modify<Kokkos::HostSpace>();
-
-    const int sylinderLocalNumber = sylinderContainer.getNumberOfParticleLocal();
-    TEUCHOS_ASSERT(velocityPtr.dimension_0() == sylinderLocalNumber * 6);
-    TEUCHOS_ASSERT(velocityPtr.dimension_1() == 1);
-
-    const int c = 0; // only 1 column in the TV
-    const double dt = runConfig.dt;
-
-#pragma omp parallel for
-    for (int i = 0; i < sylinderLocalNumber; i++) {
-        // translation
-        const auto vx = velocityPtr(6 * i, c);
-        const auto vy = velocityPtr(6 * i + 1, c);
-        const auto vz = velocityPtr(6 * i + 2, c);
-        // rotation
-        const auto wx = velocityPtr(6 * i + 3, c);
-        const auto wy = velocityPtr(6 * i + 4, c);
-        const auto wz = velocityPtr(6 * i + 5, c);
-        // update
-        auto &s = sylinderContainer[i];
-        Emap3(s.vel) = Evec3(vx, vy, vz);
-        Emap3(s.omega) = Evec3(wx, wy, wz);
-
-        s.stepEuler(dt);
-    }
-
-    return;
-}
-
-void SylinderSystem::resolveCollision(bool manybody, double buffer) {
-    // positive buffer value means sphere collision radius is effectively smaller
-    // i.e., less likely to collide
-
-    // generate known velocity
-    Teuchos::RCP<TV> forceKnownRcp = getForceKnown();
-    Teuchos::RCP<TCMAT> mobOpRcp = getMobOperator();
-    Teuchos::RCP<TV> velocityKnownRcp = getVelocityKnown(mobOpRcp, forceKnownRcp);
-
-    // Collect collision pair blocks
-    auto &collector = *collisionCollectorPtr;
-    collector.clear();
-
-    CalcSylinderNearForce calcColFtr(collisionCollectorPtr->collisionPoolPtr);
-
-    TEUCHOS_ASSERT(treeSylinderNearPtr);
+void SylinderSystem::stepEuler() {
     const int nLocal = sylinderContainer.getNumberOfParticleLocal();
-    const int nGlobal = sylinderContainer.getNumberOfParticleGlobal();
-    if (nGlobal > 1.5 * treeSylinderNumber) {
-        // a new larger tree
-        treeSylinderNearPtr.reset();
-        treeSylinderNearPtr = std::make_unique<TreeSylinderNear>();
-        treeSylinderNearPtr->initialize(2 * nGlobal);
-        treeSylinderNumber = nGlobal;
-    }
-
-    treeSylinderNearPtr->calcForceAll(calcColFtr, sylinderContainer, dinfo);
-
+    const double dt = runConfig.dt;
 #pragma omp parallel for
     for (int i = 0; i < nLocal; i++) {
-        sylinderContainer[i].sepmin = (treeSylinderNearPtr->getForce(i)).sepmin;
+        auto &sy = sylinderContainer[i];
+        // translation
+        for (int k = 0; k < 3; k++) {
+            sy.vel[k] = sy.velNonB[k] + sy.velBrown[k] + sy.velCol[k];
+            sy.omega[k] = sy.omegaNonB[k] + sy.omegaBrown[k] + sy.omegaCol[k];
+        }
+        sy.stepEuler(dt);
     }
+}
 
-    collectWallCollisionBlocks();
+void SylinderSystem::resolveCollision() {
+    // collect constraints
+    collectPairCollision();
+    collectWallCollision();
 
-    // construct collision stepper
-    collisionSolverPtr->setup(*(collector.collisionPoolPtr), sylinderMobilityMapRcp, runConfig.dt, buffer);
+    // solve collision
+    // positive buffer value means collision radius is effectively smaller
+    // i.e., less likely to collide
+    const double buffer = 0;
+    collisionSolverPtr->setup(*(collisionCollectorPtr->collisionPoolPtr), sylinderMobilityMapRcp, runConfig.dt, buffer);
     collisionSolverPtr->setControlLCP(1e-5, 8000, false); // res, maxIte, NWTN refine
-    Teuchos::RCP<TOP> mob = mobOpRcp;
-    collisionSolverPtr->solveCollision(mob, velocityKnownRcp);
+    collisionSolverPtr->solveCollision(mobilityOperatorRcp, velocityKnownRcp);
+    collisionSolverPtr->writebackGamma(*(collisionCollectorPtr->collisionPoolPtr));
+
+    // save results
+    forceColRcp = collisionSolverPtr->getForceCol();
+    velocityColRcp = collisionSolverPtr->getVelocityCol();
+
     saveVelocityCollision();
-
-    collisionSolverPtr->writebackGamma(*(collector.collisionPoolPtr));
-    statColStress();
-
-    return;
 }
 
 void SylinderSystem::updateSylinderMap() {
@@ -576,32 +518,66 @@ void SylinderSystem::updateSylinderMap() {
     }
 }
 
-void SylinderSystem::step() {
+bool SylinderSystem::writeResultCurrentStep() {
+    return (stepCount % static_cast<int>(runConfig.timeSnap / runConfig.dt) == 0);
+}
 
-    prepareStep();
-
-    if (runConfig.KBT > 0) {
-        calcBrownianMove();
+void SylinderSystem::prepareStep() {
+    const int nLocal = sylinderContainer.getNumberOfParticleLocal();
+#pragma omp parallel for
+    for (int i = 0; i < nLocal; i++) {
+        sylinderContainer[i].radiusCollision = sylinderContainer[i].radius;
+        sylinderContainer[i].lengthCollision = sylinderContainer[i].length;
+        sylinderContainer[i].clear();
     }
 
-    resolveCollision(true, 0);
+    applyBoxBC();
 
-    // move forward, velocity = velCollision + velKnown
-    TEUCHOS_ASSERT(collisionSolverPtr);
-    Teuchos::RCP<TV> velocityRcp = Teuchos::rcp(new TV(*(collisionSolverPtr->getVelocityCol()), Teuchos::Copy));
-    Teuchos::RCP<TV> velocityKnownRcp = collisionSolverPtr->getVelocityKnown();
-    velocityRcp->update(1.0, *velocityKnownRcp, 1.0);
-    moveEuler(velocityRcp);
+    updateSylinderMap();
+
+    calcMobOperator();
+
+    forceNonBrownRcp.reset();
+    velocityNonBrownRcp.reset();
+    velocityBrownRcp.reset();
+}
+
+void SylinderSystem::setForceNonBrown(const std::vector<double> &forceNonBrown) {
+    const int nLocal = sylinderContainer.getNumberOfParticleLocal();
+    TEUCHOS_ASSERT(forceNonBrown.size() == 6 * nLocal);
+    TEUCHOS_ASSERT(sylinderMobilityMapRcp->getNodeNumElements() == 6 * nLocal);
+    forceNonBrownRcp = getTVFromVector(forceNonBrown, commRcp);
+}
+
+void SylinderSystem::setVelocityNonBrown(const std::vector<double> &velNonBrown) {
+    const int nLocal = sylinderContainer.getNumberOfParticleLocal();
+    TEUCHOS_ASSERT(velNonBrown.size() == 6 * nLocal);
+    TEUCHOS_ASSERT(sylinderMobilityMapRcp->getNodeNumElements() == 6 * nLocal);
+    velocityNonBrownRcp = getTVFromVector(velNonBrown, commRcp);
+}
+
+void SylinderSystem::runStep() {
+
+    if (runConfig.KBT > 0) {
+        calcVelocityBrown();
+    }
+
+    calcVelocityKnown();
+
+    resolveCollision();
+
+    stepEuler();
 
     stepCount++;
-    if (stepCount % static_cast<int>(runConfig.timeSnap / runConfig.dt) == 0) {
-        output();
+
+    if (writeResultCurrentStep()) {
+        writeResult();
     }
 }
 
 void SylinderSystem::saveVelocityCollision() {
-
-    auto velocityColRcp = collisionSolverPtr->getVelocityCol();
+    forceColRcp = collisionSolverPtr->getForceCol();
+    velocityColRcp = collisionSolverPtr->getVelocityCol();
     auto velocityPtr = velocityColRcp->getLocalView<Kokkos::HostSpace>();
     velocityColRcp->modify<Kokkos::HostSpace>();
 
@@ -619,8 +595,6 @@ void SylinderSystem::saveVelocityCollision() {
         sy.omegaCol[1] = velocityPtr(6 * i + 4, 0);
         sy.omegaCol[2] = velocityPtr(6 * i + 5, 0);
     }
-
-    return;
 }
 
 void SylinderSystem::calcVelocityBrown() {
@@ -637,17 +611,17 @@ void SylinderSystem::calcVelocityBrown() {
         const int threadId = omp_get_thread_num();
 #pragma omp for
         for (int i = 0; i < nLocal; i++) {
-            auto &cell = sylinderContainer[i];
+            auto &sy = sylinderContainer[i];
             // constants
-            const double length = cell.length;
-            const double diameter = cell.radius * 2;
+            const double length = sy.length;
+            const double diameter = sy.radius * 2;
             const double b = -(1 + 2 * log(diameter * 0.5 / (length)));
             const double invDragPara = 1 / (8 * Pi * length * mu / (2 * b));
             const double invDragPerp = 1 / (8 * Pi * length * mu / (b + 2));
             const double invDragRot = 1 / (2 * Pi * mu * length * length * length / (3 * (b + 2)));
 
             // convert FDPS vec3 to Evec3
-            Evec3 direction = Emapq(cell.orientation) * Evec3(0, 0, 1);
+            Evec3 direction = Emapq(sy.orientation) * Evec3(0, 0, 1);
 
             // RFD from Delong, JCP, 2015
             // slender fiber has 0 rot drag, regularize with identity rot mobility
@@ -662,7 +636,7 @@ void SylinderSystem::calcVelocityBrown() {
             Evec3 Wrfdrot(rngPoolPtr->getN01(threadId), rngPoolPtr->getN01(threadId), rngPoolPtr->getN01(threadId));
             Evec3 Wrfdpos(rngPoolPtr->getN01(threadId), rngPoolPtr->getN01(threadId), rngPoolPtr->getN01(threadId));
 
-            Equatn orientRFD = Emapq(cell.orientation);
+            Equatn orientRFD = Emapq(sy.orientation);
             EquatnHelper::rotateEquatn(orientRFD, Wrfdrot, delta);
             q = orientRFD * Evec3(0, 0, 1);
             Emat3 Nmatrfd = (invDragPara - invDragPerp) * (q * q.transpose()) + (invDragPerp)*Emat3::Identity();
@@ -671,23 +645,20 @@ void SylinderSystem::calcVelocityBrown() {
             vel += (kBT / delta) * ((Nmatrfd - Nmat) * Wrfdpos); // rfd drift. seems no effect in this case
             Evec3 omega = sqrt(invDragRot) * kBTfactor * Wrot;   // regularized identity rotation drag
 
-            Emap3(cell.velBrown) = vel;
-            Emap3(cell.omegaBrown) = omega;
+            Emap3(sy.velBrown) = vel;
+            Emap3(sy.omegaBrown) = omega;
         }
     }
 
     velocityBrownRcp = Teuchos::rcp<TV>(new TV(sylinderMobilityMapRcp, true));
-
-    // extra velocity, e.g., Brownian noise
     auto velocityPtr = velocityBrownRcp->getLocalView<Kokkos::HostSpace>();
     velocityBrownRcp->modify<Kokkos::HostSpace>();
 
-    const int sylinderLocalNumber = sylinderContainer.getNumberOfParticleLocal();
-    TEUCHOS_ASSERT(velocityPtr.dimension_0() == sylinderLocalNumber * 6);
+    TEUCHOS_ASSERT(velocityPtr.dimension_0() == nLocal * 6);
     TEUCHOS_ASSERT(velocityPtr.dimension_1() == 1);
 
 #pragma omp parallel for
-    for (int i = 0; i < sylinderLocalNumber; i++) {
+    for (int i = 0; i < nLocal; i++) {
         const auto &sy = sylinderContainer[i];
         velocityPtr(6 * i, 0) = sy.velBrown[0];
         velocityPtr(6 * i + 1, 0) = sy.velBrown[1];
@@ -698,10 +669,10 @@ void SylinderSystem::calcVelocityBrown() {
     }
 }
 
-void SylinderSystem::collectWallCollisionBlocks() {
+void SylinderSystem::collectWallCollision() {
     auto collisionPoolPtr = collisionCollectorPtr->collisionPoolPtr; // shared_ptr
     const int nThreads = collisionPoolPtr->size();
-    const int nCellLocal = sylinderContainer.getNumberOfParticleLocal();
+    const int nLocal = sylinderContainer.getNumberOfParticleLocal();
 
     if (runConfig.wallLowZ) {
         // process collisions with bottom wall
@@ -710,7 +681,7 @@ void SylinderSystem::collectWallCollisionBlocks() {
         {
             const int threadId = omp_get_thread_num();
 #pragma omp for
-            for (int i = 0; i < nCellLocal; i++) {
+            for (int i = 0; i < nLocal; i++) {
                 const auto &sy = sylinderContainer[i];
                 const Evec3 direction = ECmapq(sy.orientation) * Evec3(0, 0, 1);
                 const Evec3 Pm = ECmap3(sy.pos) - direction * (sy.lengthCollision * 0.5);
@@ -754,7 +725,7 @@ void SylinderSystem::collectWallCollisionBlocks() {
         {
             const int threadId = omp_get_thread_num();
 #pragma omp for
-            for (int i = 0; i < nCellLocal; i++) {
+            for (int i = 0; i < nLocal; i++) {
                 const auto &sy = sylinderContainer[i];
                 const Evec3 direction = ECmapq(sy.orientation) * Evec3(0, 0, 1);
                 const Evec3 Pm = ECmap3(sy.pos) - direction * (sy.lengthCollision * 0.5);
@@ -794,10 +765,27 @@ void SylinderSystem::collectWallCollisionBlocks() {
     return;
 }
 
+void SylinderSystem::collectPairCollision() {
+    auto &collector = *collisionCollectorPtr;
+    collector.clear();
+
+    CalcSylinderNearForce calcColFtr(collisionCollectorPtr->collisionPoolPtr);
+
+    TEUCHOS_ASSERT(treeSylinderNearPtr);
+    const int nLocal = sylinderContainer.getNumberOfParticleLocal();
+    setTreeSylinder();
+    treeSylinderNearPtr->calcForceAll(calcColFtr, sylinderContainer, dinfo);
+
+#pragma omp parallel for
+    for (int i = 0; i < nLocal; i++) {
+        sylinderContainer[i].sepmin = (treeSylinderNearPtr->getForce(i)).sepmin;
+    }
+}
+
 std::pair<int, int> SylinderSystem::getMaxGid() {
     int maxGidLocal = 0;
-    const int nCellLocal = sylinderContainer.getNumberOfParticleLocal();
-    for (int i = 0; i < nCellLocal; i++) {
+    const int nLocal = sylinderContainer.getNumberOfParticleLocal();
+    for (int i = 0; i < nLocal; i++) {
         maxGidLocal = std::max(maxGidLocal, sylinderContainer[i].gid);
     }
 
@@ -807,34 +795,6 @@ std::pair<int, int> SylinderSystem::getMaxGid() {
         printf("rank: %d,maxGidLocal: %d,maxGidGlobal %d\n", commRcp->getRank(), maxGidLocal, maxGidGlobal);
 
     return std::pair<int, int>(maxGidLocal, maxGidGlobal);
-}
-
-void SylinderSystem::prepareStep() {
-    const int nLocal = sylinderContainer.getNumberOfParticleLocal();
-#pragma omp parallel for
-    for (int i = 0; i < nLocal; i++) {
-        sylinderContainer[i].radiusCollision = sylinderContainer[i].radius;
-        sylinderContainer[i].lengthCollision = sylinderContainer[i].length;
-        sylinderContainer[i].clear();
-    }
-
-    applyBoxBC();
-
-    updateSylinderMap();
-    calcMobOperator();
-
-    // allocate space
-    forceKnownRcp = Teuchos::rcp<TV>(new TV(sylinderMobilityMapRcp, true));
-    velocityKnownRcp = Teuchos::rcp<TV>(new TV(sylinderMobilityMapRcp, true));
-    velocityBrownRcp = Teuchos::rcp<TV>(new TV(sylinderMobilityMapRcp, true));
-    velocityNonBrownRcp = Teuchos::rcp<TV>(new TV(sylinderMobilityMapRcp, true));
-}
-
-void SylinderSystem::setForceNonBrown(const std::vector<double> &forceNonBrown) {
-    const int nLocal = sylinderContainer.getNumberOfParticleLocal();
-    TEUCHOS_ASSERT(forceNonBrown.size() == 6 * nLocal);
-    TEUCHOS_ASSERT(sylinderMobilityMapRcp->getNodeNumElements() == 6 * nLocal);
-    // TODO
 }
 
 void SylinderSystem::getBoundingBox(Evec3 &localLow, Evec3 &localHigh, Evec3 &globalLow, Evec3 &globalHigh) {
@@ -951,5 +911,45 @@ void SylinderSystem::setPosWithWall() {
                 Emap3(sy.pos) -= Evec3(0, 0, -distp + buffer);
             }
         }
+    }
+}
+
+void SylinderSystem::addNewSylinder(std::vector<Sylinder> &newSylinder) {
+    // assign unique new gid for old cells on all ranks
+    std::pair<int, int> maxGid = getMaxGid();
+    const int maxGidLocal = maxGid.first;
+    const int maxGidGlobal = maxGid.second;
+    const int newNumberOnLocal = newSylinder.size();
+    const auto &newMapRcp = getTMAPFromLocalSize(newNumberOnLocal, commRcp);
+
+    // a large enough buffer on every rank
+    std::vector<int> newID(newMapRcp->getGlobalNumElements(), 0);
+    std::vector<int> newNumber(commRcp->getSize(), 0);
+    std::vector<int> displ(commRcp->getSize(), 0);
+
+    // assign random id on rank 0
+    if (commRcp->getRank() == 0) {
+        std::iota(newID.begin(), newID.end(), 0);
+        std::random_shuffle(newID.begin(), newID.end());
+    }
+    // collect number of ids from all ranks to rank0
+    MPI_Gather(&newNumberOnLocal, 1, MPI_INT, newNumber.data(), 1, MPI_INT, 0, MPI_COMM_WORLD);
+
+    if (commRcp->getRank() == 0) {
+        std::partial_sum(newNumber.cbegin(), newNumber.cend() - 1, displ.begin() + 1);
+    }
+
+    std::vector<int> newIDRecv(newNumberOnLocal, 0);
+    // scatter from rank 0 to every rank
+    MPI_Scatterv(newID.data(), newNumber.data(), displ.data(), MPI_INT, //
+                 newIDRecv.data(), newNumberOnLocal, MPI_INT, 0, MPI_COMM_WORLD);
+
+    // set new gid
+    for (int i = 0; i < newNumberOnLocal; i++) {
+        newSylinder[i].gid = newIDRecv[i] + 1 + maxGidGlobal;
+    }
+    // add new cell to old cell
+    for (int i = 0; i < newNumberOnLocal; i++) {
+        sylinderContainer.addOneParticle(newSylinder[i]);
     }
 }

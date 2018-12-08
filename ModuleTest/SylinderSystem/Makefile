@@ -23,7 +23,7 @@ SRC = main.cpp \
 	$(SIMTOOLBOX)/Util/Base64.cpp
 
 # Definitions
-EXE :=   TestSylinderSimulator.X
+EXE :=   TestSylinderSystem.X
 OBJ :=   $(SRC:.cpp=.o)
 
 all: $(EXE)
