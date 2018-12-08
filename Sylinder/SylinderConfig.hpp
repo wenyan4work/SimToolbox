@@ -29,6 +29,8 @@ class SylinderConfig {
     double sylinderLength = 2.0;
     double sylinderLengthSigma = 0;
     double sylinderDiameter = 1.0;
+    double sylinderDiameterColRatio = 1.0;
+    double sylinderLengthColRatio = 1.0;
 
     // time stepping
     double dt = 0.01;

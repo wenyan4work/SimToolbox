@@ -16,15 +16,15 @@ SylinderSystem::SylinderSystem(const std::string &configFile, const std::string 
     : SylinderSystem(SylinderConfig(configFile), posFile, argc, argv) {}
 
 SylinderSystem::SylinderSystem(const SylinderConfig &runConfig_, const std::string &posFile, int argc, char **argv)
-    : runConfig(runConfig_) {
+    : runConfig(runConfig_), stepCount(0), snapID(0) {
     int mpiflag;
     MPI_Initialized(&mpiflag);
     TEUCHOS_ASSERT(mpiflag);
-
     commRcp = getMPIWORLDTCOMM();
 
-    stepCount = 0;
-    snapID = 0;
+    if (runConfig.ompThreads > 0) {
+        omp_set_num_threads(runConfig.ompThreads);
+    }
 
     // TRNG pool must be initialized after mpi is initialized
     rngPoolPtr = std::make_shared<TRngPool>(runConfig.rngSeed);
@@ -36,6 +36,7 @@ SylinderSystem::SylinderSystem(const SylinderConfig &runConfig_, const std::stri
     setDomainInfo();
 
     sylinderContainer.initialize();
+    sylinderContainer.setAverageTargetNumberOfSampleParticlePerProcess(200); // more sample for better balance
     if (IOHelper::fileExist(posFile)) {
         setInitialFromFile(posFile);
     } else {
@@ -43,7 +44,8 @@ SylinderSystem::SylinderSystem(const SylinderConfig &runConfig_, const std::stri
     }
     showOnScreenRank0(); // at this point all sylinders located on rank 0
 
-    partition(); // distribute to ranks, initial domain decomposition
+    calcDomainDecomp();
+    exchangeSylinder(); // distribute to ranks, initial domain decomposition
 
     setTreeSylinder();
 
@@ -52,6 +54,7 @@ SylinderSystem::SylinderSystem(const SylinderConfig &runConfig_, const std::stri
     if (commRcp->getRank() == 0) {
         IOHelper::makeSubFolder("./result"); // prepare the output directory
     }
+    commRcp->barrier();
     writeResult();
 
     calcVolFrac();
@@ -232,7 +235,7 @@ std::string SylinderSystem::getCurrentResultFolder() {
     return baseFolder;
 }
 
-void SylinderSystem::writeXYZ(const std::string &baseFolder) {
+void SylinderSystem::writeAscii(const std::string &baseFolder) {
     // write a single ascii .dat file
     const int nLocal = sylinderContainer.getNumberOfParticleLocal();
     int nGlobal = nLocal;
@@ -258,7 +261,7 @@ void SylinderSystem::writeVTK(const std::string &baseFolder) {
 void SylinderSystem::writeResult() {
     std::string baseFolder = getCurrentResultFolder();
     IOHelper::makeSubFolder(baseFolder);
-    writeXYZ(baseFolder);
+    writeAscii(baseFolder);
     writeVTK(baseFolder);
     snapID++;
 }
@@ -268,7 +271,6 @@ void SylinderSystem::showOnScreenRank0() {
         printf("-----------SylinderSystem Settings-----------\n");
         runConfig.dump();
         printf("-----------Sylinder Configurations-----------\n");
-
         const int nLocal = sylinderContainer.getNumberOfParticleLocal();
         for (int i = 0; i < nLocal; i++) {
             sylinderContainer[i].dumpSylinder();
@@ -315,13 +317,12 @@ void SylinderSystem::setDomainInfo() {
     // rootdomain must be specified after PBC
 }
 
-void SylinderSystem::partition() {
+void SylinderSystem::calcDomainDecomp() {
     sylinderContainer.adjustPositionIntoRootDomain(dinfo);
     dinfo.decomposeDomainAll(sylinderContainer);
-    sylinderContainer.exchangeParticle(dinfo);
-    updateSylinderMap();
-    return;
 }
+
+void SylinderSystem::exchangeSylinder() { sylinderContainer.exchangeParticle(dinfo); }
 
 void SylinderSystem::calcMobMatrix() {
     // diagonal hydro mobility operator
@@ -506,7 +507,7 @@ void SylinderSystem::resolveCollision() {
 
 void SylinderSystem::updateSylinderMap() {
     const int nLocal = sylinderContainer.getNumberOfParticleLocal();
-    // setup the new sphereMap
+    // setup the new sylinderMap
     sylinderMapRcp = getTMAPFromLocalSize(nLocal, commRcp);
     sylinderMobilityMapRcp = getTMAPFromLocalSize(nLocal * 6, commRcp);
 
@@ -523,17 +524,23 @@ bool SylinderSystem::writeResultCurrentStep() {
 }
 
 void SylinderSystem::prepareStep() {
+    applyBoxBC();
+
+    if (stepCount % 50 == 0) {
+        calcDomainDecomp();
+    }
+
+    exchangeSylinder();
+
+    updateSylinderMap();
+
     const int nLocal = sylinderContainer.getNumberOfParticleLocal();
 #pragma omp parallel for
     for (int i = 0; i < nLocal; i++) {
-        sylinderContainer[i].radiusCollision = sylinderContainer[i].radius;
-        sylinderContainer[i].lengthCollision = sylinderContainer[i].length;
+        sylinderContainer[i].radiusCollision = sylinderContainer[i].radius * runConfig.sylinderDiameterColRatio;
+        sylinderContainer[i].lengthCollision = sylinderContainer[i].length * runConfig.sylinderLengthColRatio;
         sylinderContainer[i].clear();
     }
-
-    applyBoxBC();
-
-    updateSylinderMap();
 
     calcMobOperator();
 
@@ -562,7 +569,7 @@ void SylinderSystem::runStep() {
         calcVelocityBrown();
     }
 
-    calcVelocityKnown();
+    calcVelocityKnown(); // velocityKnown = velocityBrown + velocityNonBrown + mobility * forceNonBrown
 
     resolveCollision();
 
@@ -952,4 +959,6 @@ void SylinderSystem::addNewSylinder(std::vector<Sylinder> &newSylinder) {
     for (int i = 0; i < newNumberOnLocal; i++) {
         sylinderContainer.addOneParticle(newSylinder[i]);
     }
+
+    calcDomainDecomp();
 }

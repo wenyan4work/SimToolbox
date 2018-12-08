@@ -31,6 +31,7 @@ struct SylinderNearEP {
     double radius;
     double radiusCollision;
     double length;
+    double lengthCollision;
 
     double pos[3];
     double direction[3];
@@ -43,6 +44,7 @@ struct SylinderNearEP {
         radius = fp.radius;
         radiusCollision = fp.radiusCollision;
         length = fp.length;
+        lengthCollision = fp.lengthCollision;
 
         std::copy(fp.pos, fp.pos + 3, pos);
         Evec3 q = ECmapq(fp.orientation) * Evec3(0, 0, 1);
@@ -113,15 +115,15 @@ class CalcSylinderNearForce {
             auto &syI = ep_i[i];
             const Evec3 centerI = ECmap3(syI.pos);
             const Evec3 directionI = ECmap3(syI.direction);
-            const Evec3 Pm = centerI - directionI * (0.5 * syI.length); // minus end
-            const Evec3 Pp = centerI + directionI * (0.5 * syI.length); // plus end
+            const Evec3 Pm = centerI - directionI * (0.5 * syI.lengthCollision); // minus end
+            const Evec3 Pp = centerI + directionI * (0.5 * syI.lengthCollision); // plus end
 
             for (PS::S32 j = 0; j < Njp; ++j) {
                 auto &syJ = ep_j[j];
                 const Evec3 centerJ = ECmap3(syJ.pos);
                 const Evec3 directionJ = ECmap3(syJ.direction);
-                const Evec3 Qm = centerJ - directionJ * (0.5 * syJ.length); // minus end
-                const Evec3 Qp = centerJ + directionJ * (0.5 * syJ.length); // plus end
+                const Evec3 Qm = centerJ - directionJ * (0.5 * syJ.lengthCollision); // minus end
+                const Evec3 Qp = centerJ + directionJ * (0.5 * syJ.lengthCollision); // plus end
 
                 Evec3 Ploc = Evec3::Zero();
                 Evec3 Qloc = Evec3::Zero();
@@ -147,12 +149,9 @@ class CalcSylinderNearForce {
                     const Evec3 posJ = Qloc - centerJ;
                     (*colPoolPtr)[myThreadId].emplace_back(phi0, gamma, syI.gid, syJ.gid, syI.globalIndex,
                                                            syJ.globalIndex, normI, normJ, posI, posJ, false);
-                    //    double phi0_, double gamma_, int gidI_, int gidJ_, int globalIndexI_, int globalIndexJ_,
-                    //    const Evec3 &normI_, const Evec3 &normJ_, const Evec3 &posI_, const Evec3 &posJ_,
-                    //    bool oneSide_ = false
                     Emat3 &stressIJ = (*colPoolPtr)[myThreadId].back().stress;
-                    collideStress(directionI, directionJ, centerI, centerJ, syI.length, syJ.length, syI.radiusCollision,
-                                  syJ.radiusCollision, 1.0, PlocEvec, QlocEvec, stressIJ);
+                    collideStress(directionI, directionJ, centerI, centerJ, syI.lengthCollision, syJ.lengthCollision,
+                                  syI.radiusCollision, syJ.radiusCollision, 1.0, PlocEvec, QlocEvec, stressIJ);
                 }
             }
         }
