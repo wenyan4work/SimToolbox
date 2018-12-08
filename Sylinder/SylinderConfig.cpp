@@ -38,10 +38,8 @@ SylinderConfig::SylinderConfig(std::string filename) {
     for (int i = 0; i < 3; i++) {
         initOrient[i] = seq[i].as<double>();
     }
-    seq = config["initCircularCrossSection"];
-    for (int i = 0; i < 3; i++) {
-        initCircularCrossSection[i] = seq[i].as<bool>();
-    }
+
+    initCircularX = config["initCircularX"].as<bool>();
 
     viscosity = config["viscosity"].as<double>();
     KBT = config["KBT"].as<double>();
@@ -74,8 +72,7 @@ void SylinderConfig::dump() const {
         printf("Initialization box Low: %g,%g,%g\n", initBoxLow[0], initBoxLow[1], initBoxLow[2]);
         printf("Initialization box High: %g,%g,%g\n", initBoxHigh[0], initBoxHigh[1], initBoxHigh[2]);
         printf("Initialization orientation: %g,%g,%g\n", initOrient[0], initOrient[1], initOrient[2]);
-        printf("Initialization circular cross: %d,%d,%d\n", initCircularCrossSection[0], initCircularCrossSection[1],
-               initCircularCrossSection[2]);
+        printf("Initialization circular cross: %d\n", initCircularX);
         printf("Time step size: %g\n", dt);
         printf("Total Time: %g\n", timeTotal);
         printf("Snap Time: %g\n", timeSnap);

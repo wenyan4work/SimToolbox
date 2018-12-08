@@ -19,7 +19,7 @@ class SylinderConfig {
     double initBoxHigh[3] = {1.0, 1.0, 1.0}; // initial size
     double initBoxLow[3] = {0, 0, 0};        // initial size
     double initOrient[3] = {2.0, 2.0, 2.0};  // initial orientation for each sylinder. >1 <-1 means random
-    bool initCircularCrossSection[3] = {false, false, false}; // set the initial cross-section as a circular
+    bool initCircularX = false;              // set the initial cross-section as a circle
 
     // physical constant
     double viscosity = 1.0; // pN/(um^2 s)

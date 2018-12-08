@@ -44,6 +44,7 @@ SylinderSystem::SylinderSystem(const SylinderConfig &runConfig_, const std::stri
     }
     showOnScreenRank0(); // at this point all sylinders located on rank 0
 
+    commRcp->barrier();
     calcDomainDecomp();
     exchangeSylinder(); // distribute to ranks, initial domain decomposition
 
@@ -76,7 +77,7 @@ void SylinderSystem::setTreeSylinder() {
     }
 }
 
-void SylinderSystem::genOrient(Equatn &orient, const double px, const double py, const double pz, const int threadId) {
+void SylinderSystem::getOrient(Equatn &orient, const double px, const double py, const double pz, const int threadId) {
     Evec3 pvec;
     if (px < -1 || px > 1) {
         pvec[0] = rngPoolPtr->getU01(threadId);
@@ -140,12 +141,47 @@ void SylinderSystem::setInitialFromConfig() {
                     pos[k] = rngPoolPtr->getU01(threadId) * boxEdge[k] + runConfig.initBoxLow[0];
                 }
                 Equatn orientq;
-                genOrient(orientq, runConfig.initOrient[0], runConfig.initOrient[1], runConfig.initOrient[2]);
+                getOrient(orientq, runConfig.initOrient[0], runConfig.initOrient[1], runConfig.initOrient[2], threadId);
                 double orientation[4];
                 Emapq(orientation).coeffs() = orientq.coeffs();
                 sylinderContainer[i] = Sylinder(i, radius, radius, length, length, pos, orientation);
                 sylinderContainer[i].clear();
             }
+        }
+    }
+
+    if (runConfig.initCircularX) {
+        setInitialCircularCrossSection();
+    }
+}
+
+void SylinderSystem::getRandPointInCircle(const double &radius, double &x, double &y, const int &threadId) {
+    double theta = 2 * Pi * rngPoolPtr->getU01(threadId);   /* angle is uniform */
+    double r = radius * sqrt(rngPoolPtr->getU01(threadId)); /* radius proportional to sqrt(U), U~U(0,1) */
+    x = r * cos(theta);
+    y = r * sin(theta);
+}
+
+void SylinderSystem::setInitialCircularCrossSection() {
+    const int nLocal = sylinderContainer.getNumberOfParticleLocal();
+    double radiusCrossSec = 0;            // x, y, z, axis radius
+    Evec3 centerCrossSec = Evec3::Zero(); // x, y, z, axis center.
+    // x axis
+    centerCrossSec = Evec3(0, (runConfig.initBoxHigh[1] - runConfig.initBoxLow[1]) * 0.5 + runConfig.initBoxLow[1],
+                           (runConfig.initBoxHigh[2] - runConfig.initBoxLow[2]) * 0.5 + runConfig.initBoxLow[2]);
+    radiusCrossSec = sqrt(pow(runConfig.initBoxHigh[1] - centerCrossSec[1], 2) +
+                          pow(runConfig.initBoxHigh[2] - centerCrossSec[2], 2));
+#pragma omp parallel
+    {
+        const int threadId = omp_get_thread_num();
+#pragma omp for
+        for (int i = 0; i < nLocal; i++) {
+            double y = sylinderContainer[i].pos[1];
+            double z = sylinderContainer[i].pos[2];
+            // replace y,z with position in the circle
+            getRandPointInCircle(radiusCrossSec, y, z, threadId);
+            sylinderContainer[i].pos[1] = y + centerCrossSec[1];
+            sylinderContainer[i].pos[2] = z + centerCrossSec[2];
         }
     }
 }
@@ -318,7 +354,7 @@ void SylinderSystem::setDomainInfo() {
 }
 
 void SylinderSystem::calcDomainDecomp() {
-    sylinderContainer.adjustPositionIntoRootDomain(dinfo);
+    applyBoxBC();
     dinfo.decomposeDomainAll(sylinderContainer);
 }
 
@@ -835,7 +871,29 @@ void SylinderSystem::getBoundingBox(Evec3 &localLow, Evec3 &localHigh, Evec3 &gl
     return;
 }
 
-void SylinderSystem::applyBoxBC() { sylinderContainer.adjustPositionIntoRootDomain(dinfo); }
+void SylinderSystem::fitInPeriodicBound(double &x, const double &lb, const double &ub) const {
+    // put the periodic image of x in [lb,ub)
+    const double L = ub - lb;
+    while (x >= ub) {
+        x -= L;
+    }
+    while (x < lb) {
+        x += L;
+    }
+}
+
+void SylinderSystem::applyBoxBC() {
+    const int nLocal = sylinderContainer.getNumberOfParticleLocal();
+
+#pragma omp parallel for
+    for (int i = 0; i < nLocal; i++) {
+        for (int k = 0; k < 3; k++) {
+            if (runConfig.simBoxPBC[k]) {
+                fitInPeriodicBound(sylinderContainer[i].pos[k], runConfig.simBoxLow[k], runConfig.simBoxHigh[k]);
+            }
+        }
+    }
+}
 
 void SylinderSystem::calcColStress() {
     // average all two-side collisions

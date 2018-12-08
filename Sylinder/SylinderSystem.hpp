@@ -51,12 +51,15 @@ class SylinderSystem {
     // internal utility functions
     void setInitialFromConfig();
     void setInitialFromFile(const std::string &filename);
+    void setInitialCircularCrossSection();
     void showOnScreenRank0();
     void writeVTK(const std::string &baseFolder);
     void writeAscii(const std::string &baseFolder);
     void setPosWithWall(); // directly set the position of sylinders according to wall
     std::pair<int, int> getMaxGid();
-    void genOrient(Equatn &orient, const double px, const double py, const double pz, const int threadId = 0);
+    void getOrient(Equatn &orient, const double px, const double py, const double pz, const int threadId);
+    void getRandPointInCircle(const double &radius, double &x, double &y, const int &threadId);
+    void fitInPeriodicBound(double &x, const double &lb, const double &ub) const;
 
   public:
     const SylinderConfig runConfig;

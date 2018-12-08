@@ -4,14 +4,14 @@ rngSeed: 1234
 # simulation box
 simBoxLow: [0.0,0.0,0.0]
 simBoxHigh: [10.0,10.0,10.0]
-simBoxPBC: [true,true,true]
+simBoxPBC: [true,false,false]
 wallLowZ: false
 wallHighZ: false
 # initialization box
 initBoxLow: [2.0,2.0,2.0]
 initBoxHigh: [8.0,8.0,8.0]
 # initialization inside a circle 
-initCircularCrossSection: [false,false,false]
+initCircularX: true
 # components < -1  or > 1 will be randomly set
 initOrient: [2,2,2]
 # physical settings 
