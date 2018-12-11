@@ -1,7 +1,11 @@
 # SimToolBox
 A toolbox for object-tracking simulation. This toolbox contains a collection of useful tools for different tasks involved in a particle-tracking type simulation.
 
-At the base level the code relies on `sctl` and `Trilinos`. The folder `sctl` contains the Scientific Computing Template Library (`sctl`), developed by Dhairya Malhotra, and publicly available at `http://git.dhairyamalhotra.com/dmalhotra/SCTL`. The version included here is slightly modified. The folder `Trilinos` contains an interface to the huge C++ project for distributed linear algebra and some other stuff.
+At the base level the code relies on `sctl`, `FDPS` and `Trilinos`.
+The folder `sctl` contains the Scientific Computing Template Library (`sctl`), developed by Dhairya Malhotra, and publicly available at `http://git.dhairyamalhotra.com/dmalhotra/SCTL`. 
+The version included here is slightly modified. 
+The folder `FDPS` contains the headers to the `Framework for Developing Particle Simulator` publicly available at `https://github.com/FDPS/FDPS`.
+The folder `Trilinos` contains an interface to the huge C++ project for distributed linear algebra and some other stuff.
 
 The folder `Collision` contains the routines for LCP based collision resolution algorithms, supporting both OpenMP and MPI through `Trilinos`.
 
