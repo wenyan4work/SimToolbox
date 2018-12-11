@@ -63,14 +63,17 @@ class SylinderSystem {
     void fitInPeriodicBound(double &x, const double &lb, const double &ub) const;
 
   public:
-    const SylinderConfig runConfig;
+    SylinderConfig runConfig; // Be careful if this is modified on the fly
 
+    SylinderSystem() = default;
     SylinderSystem(const std::string &configFile, const std::string &posFile, int argc, char **argv);
     SylinderSystem(const SylinderConfig &config, const std::string &posFile, int argc, char **argv);
     ~SylinderSystem() = default;
     // forbid copy
     SylinderSystem(const SylinderSystem &) = delete;
     SylinderSystem &operator=(const SylinderSystem &) = delete;
+
+    void initialize(const SylinderConfig &config, const std::string &posFile, int argc, char **argv);
 
     void calcBoundingBox(double localLow[3], double localHigh[3], double globalLow[3], double globalHigh[3]);
 
@@ -84,6 +87,7 @@ class SylinderSystem {
     PS::ParticleSystem<Sylinder> &getContainer() { return sylinderContainer; }
     PS::DomainInfo &getDomainInfo() { return dinfo; }
     std::shared_ptr<TRngPool> &getRngPoolPtr() { return rngPoolPtr; }
+    Teuchos::RCP<const TCOMM> &getCommRcp() { return commRcp; }
 
     // between prepareStep() and runStep(), sylinders should not be moved, added, or removed
     void prepareStep();
@@ -92,10 +96,9 @@ class SylinderSystem {
     void runStep();
 
     // These should run after runStep()
-    void
-    addNewSylinderAndRepartition(std::vector<Sylinder> &newSylinder); // add new particles and assign new (unique) gid
-    void calcColStress();                                             // calc collision stress
-    void calcVolFrac();                                               // calc volume fraction
+    void addNewSylinder(std::vector<Sylinder> &newSylinder); // add new particles and assign new (unique) gid
+    void calcColStress();                                    // calc collision stress
+    void calcVolFrac();                                      // calc volume fraction
 
     /**
      * detailed low level API
@@ -121,7 +124,8 @@ class SylinderSystem {
     // write results
     std::string getCurrentResultFolder(); // get the current output folder path
     bool getIfWriteResultCurrentStep();   // check if the current step is writing (set by runConfig)
-    void writeResult();                   // write result regardless of runConfig
+    int getSnapID() { return snapID; };
+    void writeResult(); // write result regardless of runConfig
 
     // expose raw vectors and operators
     Teuchos::RCP<TV> getForceNonBrown() const { return forceNonBrownRcp; }

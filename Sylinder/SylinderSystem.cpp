@@ -12,11 +12,19 @@
 #include <mpi.h>
 #include <omp.h>
 
-SylinderSystem::SylinderSystem(const std::string &configFile, const std::string &posFile, int argc, char **argv)
-    : SylinderSystem(SylinderConfig(configFile), posFile, argc, argv) {}
+SylinderSystem::SylinderSystem(const std::string &configFile, const std::string &posFile, int argc, char **argv) {
+    initialize(SylinderConfig(configFile), posFile, argc, argv);
+}
 
-SylinderSystem::SylinderSystem(const SylinderConfig &runConfig_, const std::string &posFile, int argc, char **argv)
-    : runConfig(runConfig_), stepCount(0), snapID(0) {
+SylinderSystem::SylinderSystem(const SylinderConfig &runConfig_, const std::string &posFile, int argc, char **argv) {
+    initialize(runConfig_, posFile, argc, argv);
+}
+
+void SylinderSystem::initialize(const SylinderConfig &runConfig_, const std::string &posFile, int argc, char **argv) {
+    runConfig = runConfig_;
+    stepCount = 0;
+    snapID = 0;
+
     // set MPI
     int mpiflag;
     MPI_Initialized(&mpiflag);
@@ -629,13 +637,14 @@ void SylinderSystem::runStep() {
 
     resolveCollision();
 
+    if (getIfWriteResultCurrentStep()) {
+        // write result before moving. guarantee data written is consistent to geometry
+        writeResult();
+    }
+
     stepEuler();
 
     stepCount++;
-
-    if (getIfWriteResultCurrentStep()) {
-        writeResult();
-    }
 }
 
 void SylinderSystem::saveVelocityCollision() {
@@ -1008,7 +1017,7 @@ void SylinderSystem::setPosWithWall() {
     }
 }
 
-void SylinderSystem::addNewSylinderAndRepartition(std::vector<Sylinder> &newSylinder) {
+void SylinderSystem::addNewSylinder(std::vector<Sylinder> &newSylinder) {
     // assign unique new gid for old cells on all ranks
     std::pair<int, int> maxGid = getMaxGid();
     const int maxGidLocal = maxGid.first;
@@ -1046,7 +1055,4 @@ void SylinderSystem::addNewSylinderAndRepartition(std::vector<Sylinder> &newSyli
     for (int i = 0; i < newNumberOnLocal; i++) {
         sylinderContainer.addOneParticle(newSylinder[i]);
     }
-
-    decomposeDomain();
-    exchangeSylinder();
 }
