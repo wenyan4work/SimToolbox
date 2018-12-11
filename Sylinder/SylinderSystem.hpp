@@ -6,12 +6,13 @@
 #include "SylinderNear.hpp"
 
 #include "Collision/CollisionSolver.hpp"
-#include "MPI/FDPS/particle_simulator.hpp"
+#include "FDPS/particle_simulator.hpp"
 #include "Trilinos/TpetraUtil.hpp"
 #include "Util/TRngPool.hpp"
 
-#include <memory>
-
+/**
+ * A collection of sylinders distributed to multiple MPI ranks.
+ */
 class SylinderSystem {
     int snapID;
     int stepCount; // timestep Count
@@ -71,51 +72,66 @@ class SylinderSystem {
     SylinderSystem(const SylinderSystem &) = delete;
     SylinderSystem &operator=(const SylinderSystem &) = delete;
 
-    void calcDomainDecomp(); // domain decomposition must be triggered when particle distribution significantly changes
+    void calcBoundingBox(double localLow[3], double localHigh[3], double globalLow[3], double globalHigh[3]);
+
+    void decomposeDomain();  // domain decomposition must be triggered when particle distribution significantly changes
     void exchangeSylinder(); // particle exchange must be triggered every timestep:
 
-    void getBoundingBox(Evec3 &localLow, Evec3 &localHigh, Evec3 &globalLow, Evec3 &globalHigh);
-
-    // one-step high level API
+    /**
+     * one-step high level API
+     */
+    // get information
     PS::ParticleSystem<Sylinder> &getContainer() { return sylinderContainer; }
     PS::DomainInfo &getDomainInfo() { return dinfo; }
+    std::shared_ptr<TRngPool> &getRngPoolPtr() { return rngPoolPtr; }
+
     // between prepareStep() and runStep(), sylinders should not be moved, added, or removed
     void prepareStep();
     void setForceNonBrown(const std::vector<double> &forceNonBrown);
     void setVelocityNonBrown(const std::vector<double> &velNonBrown);
     void runStep();
-    // These should run after runStep()
-    void addNewSylinder(std::vector<Sylinder> &newSylinder); // add new particles and assign new (unique) gid
-    void calcColStress();                                    // calc collision stress
-    void calcVolFrac();                                      // calc volume fraction
 
-    // detailed low level API
+    // These should run after runStep()
+    void
+    addNewSylinderAndRepartition(std::vector<Sylinder> &newSylinder); // add new particles and assign new (unique) gid
+    void calcColStress();                                             // calc collision stress
+    void calcVolFrac();                                               // calc volume fraction
+
+    /**
+     * detailed low level API
+     */
+    // apply simBox BC, before each step
     void applyBoxBC();
+
+    // compute non-collision velocity and mobility, before collision resolution
     void calcVelocityBrown(); // write back to sylinder.velBrown
     void calcVelocityKnown(); // write back to sylinder.velNonB before adding velBrown
+    void calcMobMatrix();     // calculate the mobility matrix
+    void calcMobOperator();   // calculate the mobility operator
+
+    // resolve collision
+    void collectWallCollision();  // collect wall collision constraints
+    void collectPairCollision();  // collect pair collision constraints
+    void resolveCollision();      // resolve collision
+    void saveVelocityCollision(); // write back to sylinder.velCol
+
+    // move with both collision and non-collision velocity
+    void stepEuler(); // Euler step update position and orientation, with given velocity
+
+    // write results
+    std::string getCurrentResultFolder(); // get the current output folder path
+    bool getIfWriteResultCurrentStep();   // check if the current step is writing (set by runConfig)
+    void writeResult();                   // write result regardless of runConfig
+
+    // expose raw vectors and operators
     Teuchos::RCP<TV> getForceNonBrown() const { return forceNonBrownRcp; }
     Teuchos::RCP<TV> getVelocityNonBrown() const { return velocityKnownRcp; };
     Teuchos::RCP<TV> getVelocityBrown() const { return velocityBrownRcp; };
     Teuchos::RCP<TV> getVelocityKnown() const { return velocityKnownRcp; };
     Teuchos::RCP<TV> getForceCol() const { return forceColRcp; };
     Teuchos::RCP<TV> getVelocityCol() const { return velocityColRcp; };
-
-    void collectWallCollision();  // collect wall collision constraints
-    void collectPairCollision();  // collect pair collision constraints
-    void resolveCollision();      // resolve collision
-    void saveVelocityCollision(); // write back to sylinder.velCol
-
-    void calcMobMatrix();
-    void calcMobOperator();
     Teuchos::RCP<TCMAT> getMobMatrix() { return mobilityMatrixRcp; };
     Teuchos::RCP<TOP> getMobOperator() { return mobilityOperatorRcp; };
-
-    // IO
-    std::string getCurrentResultFolder();
-    bool writeResultCurrentStep();
-    void writeResult();
-
-    void stepEuler(); // Euler step update position and orientation, with given velocity
 };
 
 #endif

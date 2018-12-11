@@ -17,11 +17,13 @@ SylinderSystem::SylinderSystem(const std::string &configFile, const std::string 
 
 SylinderSystem::SylinderSystem(const SylinderConfig &runConfig_, const std::string &posFile, int argc, char **argv)
     : runConfig(runConfig_), stepCount(0), snapID(0) {
+    // set MPI
     int mpiflag;
     MPI_Initialized(&mpiflag);
     TEUCHOS_ASSERT(mpiflag);
     commRcp = getMPIWORLDTCOMM();
 
+    // set openmp
     if (runConfig.ompThreads > 0) {
         omp_set_num_threads(runConfig.ompThreads);
     }
@@ -37,15 +39,17 @@ SylinderSystem::SylinderSystem(const SylinderConfig &runConfig_, const std::stri
 
     sylinderContainer.initialize();
     sylinderContainer.setAverageTargetNumberOfSampleParticlePerProcess(200); // more sample for better balance
+
     if (IOHelper::fileExist(posFile)) {
         setInitialFromFile(posFile);
     } else {
         setInitialFromConfig();
     }
+
     showOnScreenRank0(); // at this point all sylinders located on rank 0
 
     commRcp->barrier();
-    calcDomainDecomp();
+    decomposeDomain();
     exchangeSylinder(); // distribute to ranks, initial domain decomposition
 
     setTreeSylinder();
@@ -55,13 +59,13 @@ SylinderSystem::SylinderSystem(const SylinderConfig &runConfig_, const std::stri
     if (commRcp->getRank() == 0) {
         IOHelper::makeSubFolder("./result"); // prepare the output directory
     }
+
     commRcp->barrier();
     writeResult();
 
     calcVolFrac();
-
-    printf("local: %lu sylinders on process %d\n", sylinderContainer.getNumberOfParticleLocal(), commRcp->getRank());
-    printf("SylinderSystem initialized on process: %d \n", commRcp->getRank());
+    printf("SylinderSystem Initialized. %d sylinders on process %d\n", sylinderContainer.getNumberOfParticleLocal(),
+           commRcp->getRank());
 }
 
 void SylinderSystem::setTreeSylinder() {
@@ -348,12 +352,26 @@ void SylinderSystem::setDomainInfo() {
         break;
     }
 
-    dinfo.setPosRootDomain(PS::F64vec3(runConfig.simBoxLow[0], runConfig.simBoxLow[1], runConfig.simBoxLow[2]),
-                           PS::F64vec3(runConfig.simBoxHigh[0], runConfig.simBoxHigh[1], runConfig.simBoxHigh[2]));
-    // rootdomain must be specified after PBC
+    PS::F64vec3 rootDomainLow;
+    PS::F64vec3 rootDomainHigh;
+    for (int k = 0; k < 3; k++) {
+        rootDomainLow[k] = runConfig.simBoxLow[k];
+        rootDomainHigh[k] = runConfig.simBoxHigh[k];
+    }
+    // for (int k = 0; k < 3; k++) {
+    //     if (runConfig.simBoxPBC[k]) {
+    //         rootDomainLow[k] = runConfig.simBoxLow[k];
+    //         rootDomainHigh[k] = runConfig.simBoxHigh[k];
+    //     } else {
+    //         rootDomainLow[k] = -std::numeric_limits<double>::max() / 100;
+    //         rootDomainHigh[k] = std::numeric_limits<double>::max() / 100;
+    //     }
+    // }
+
+    dinfo.setPosRootDomain(rootDomainLow, rootDomainHigh); // rootdomain must be specified after PBC
 }
 
-void SylinderSystem::calcDomainDecomp() {
+void SylinderSystem::decomposeDomain() {
     applyBoxBC();
     dinfo.decomposeDomainAll(sylinderContainer);
 }
@@ -408,8 +426,10 @@ void SylinderSystem::calcMobMatrix() {
 
         MobTrans = dragParaInv * qq + dragPerpInv * Imqq;
         MobRot = dragRotInv * qq + dragRotInv * Imqq;
-        // MobRot regularized to remove null space no effect on geometric constraints
-        // here it becomes identity matrix, no problem for axissymetric slender body.
+        // MobRot regularized to remove null space.
+        // here it becomes identity matrix,
+        // no effect on geometric constraints
+        // no problem for axissymetric slender body.
         // this simplifies the rotational Brownian calculations.
 
         // column index is local index
@@ -555,7 +575,7 @@ void SylinderSystem::updateSylinderMap() {
     }
 }
 
-bool SylinderSystem::writeResultCurrentStep() {
+bool SylinderSystem::getIfWriteResultCurrentStep() {
     return (stepCount % static_cast<int>(runConfig.timeSnap / runConfig.dt) == 0);
 }
 
@@ -563,7 +583,7 @@ void SylinderSystem::prepareStep() {
     applyBoxBC();
 
     if (stepCount % 50 == 0) {
-        calcDomainDecomp();
+        decomposeDomain();
     }
 
     exchangeSylinder();
@@ -613,7 +633,7 @@ void SylinderSystem::runStep() {
 
     stepCount++;
 
-    if (writeResultCurrentStep()) {
+    if (getIfWriteResultCurrentStep()) {
         writeResult();
     }
 }
@@ -840,7 +860,8 @@ std::pair<int, int> SylinderSystem::getMaxGid() {
     return std::pair<int, int>(maxGidLocal, maxGidGlobal);
 }
 
-void SylinderSystem::getBoundingBox(Evec3 &localLow, Evec3 &localHigh, Evec3 &globalLow, Evec3 &globalHigh) {
+void SylinderSystem::calcBoundingBox(double localLow[3], double localHigh[3], double globalLow[3],
+                                     double globalHigh[3]) {
     const int nLocal = sylinderContainer.getNumberOfParticleLocal();
     double lx, ly, lz;
     lx = ly = lz = std::numeric_limits<double>::max();
@@ -860,13 +881,20 @@ void SylinderSystem::getBoundingBox(Evec3 &localLow, Evec3 &localHigh, Evec3 &gl
         hz = std::max(std::max(hz, pm[2]), pp[2]);
     }
 
-    localLow = Evec3(lx, ly, lz);
-    localHigh = Evec3(hx, hy, hz);
-    globalLow = localLow;
-    globalHigh = localHigh;
+    localLow[0] = lx;
+    localLow[1] = ly;
+    localLow[2] = lz;
+    localHigh[0] = hx;
+    localHigh[1] = hy;
+    localHigh[2] = hz;
 
-    Teuchos::reduceAll(*commRcp, Teuchos::MinValueReductionOp<int, double>(), 3, localLow.data(), globalLow.data());
-    Teuchos::reduceAll(*commRcp, Teuchos::MaxValueReductionOp<int, double>(), 3, localHigh.data(), globalHigh.data());
+    for (int k = 0; k < 3; k++) {
+        globalLow[k] = localLow[k];
+        globalHigh[k] = localHigh[k];
+    }
+
+    Teuchos::reduceAll(*commRcp, Teuchos::MinValueReductionOp<int, double>(), 3, localLow, globalLow);
+    Teuchos::reduceAll(*commRcp, Teuchos::MaxValueReductionOp<int, double>(), 3, localHigh, globalHigh);
 
     return;
 }
@@ -883,16 +911,17 @@ void SylinderSystem::fitInPeriodicBound(double &x, const double &lb, const doubl
 }
 
 void SylinderSystem::applyBoxBC() {
-    const int nLocal = sylinderContainer.getNumberOfParticleLocal();
+    sylinderContainer.adjustPositionIntoRootDomain(dinfo);
 
-#pragma omp parallel for
-    for (int i = 0; i < nLocal; i++) {
-        for (int k = 0; k < 3; k++) {
-            if (runConfig.simBoxPBC[k]) {
-                fitInPeriodicBound(sylinderContainer[i].pos[k], runConfig.simBoxLow[k], runConfig.simBoxHigh[k]);
-            }
-        }
-    }
+    // const int nLocal = sylinderContainer.getNumberOfParticleLocal();
+    // #pragma omp parallel for
+    //     for (int i = 0; i < nLocal; i++) {
+    //         for (int k = 0; k < 3; k++) {
+    //             if (runConfig.simBoxPBC[k]) {
+    //                 fitInPeriodicBound(sylinderContainer[i].pos[k], runConfig.simBoxLow[k], runConfig.simBoxHigh[k]);
+    //             }
+    //         }
+    //     }
 }
 
 void SylinderSystem::calcColStress() {
@@ -979,7 +1008,7 @@ void SylinderSystem::setPosWithWall() {
     }
 }
 
-void SylinderSystem::addNewSylinder(std::vector<Sylinder> &newSylinder) {
+void SylinderSystem::addNewSylinderAndRepartition(std::vector<Sylinder> &newSylinder) {
     // assign unique new gid for old cells on all ranks
     std::pair<int, int> maxGid = getMaxGid();
     const int maxGidLocal = maxGid.first;
@@ -1018,5 +1047,6 @@ void SylinderSystem::addNewSylinder(std::vector<Sylinder> &newSylinder) {
         sylinderContainer.addOneParticle(newSylinder[i]);
     }
 
-    calcDomainDecomp();
+    decomposeDomain();
+    exchangeSylinder();
 }

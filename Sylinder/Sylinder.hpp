@@ -1,7 +1,7 @@
 #ifndef SYLINDER_HPP_
 #define SYLINDER_HPP_
 
-#include "MPI/FDPS/particle_simulator.hpp"
+#include "FDPS/particle_simulator.hpp"
 #include "Util/Buffer.hpp"
 #include "Util/EigenDef.hpp"
 #include "Util/EquatnHelper.hpp"

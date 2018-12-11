@@ -5,7 +5,7 @@
 
 #include "Collision/CollisionCollector.hpp"
 #include "Collision/DCPQuery.hpp"
-#include "MPI/FDPS/particle_simulator.hpp"
+#include "FDPS/particle_simulator.hpp"
 #include "Util/EigenDef.hpp"
 
 #include <cassert>
