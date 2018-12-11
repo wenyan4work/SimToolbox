@@ -421,10 +421,9 @@ namespace ParticleSimulator{
                     tc_array[adr[j]].n_ptcl_ = tc_array[adr[j+1]].adr_ptcl_ - tc_array[adr[j]].adr_ptcl_;
                     n_ptcl_cum += tc_array[adr[j]].n_ptcl_;
                 }
-                if(n_cnt > 0){
+                assert(n_cnt > 0);
                     tc_array[adr[n_cnt-1]].n_ptcl_ = n_ptcl_tmp - n_ptcl_cum;
                     n_cell_new += N_CHILDREN;
-                }            
             } // end of omp parallel scope
             if( n_cell_new == 0) break;
             // go deeper
