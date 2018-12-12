@@ -66,6 +66,7 @@ void SylinderSystem::initialize(const SylinderConfig &runConfig_, const std::str
 
     if (commRcp->getRank() == 0) {
         IOHelper::makeSubFolder("./result"); // prepare the output directory
+        writeBox();
     }
 
     commRcp->barrier();
@@ -306,6 +307,24 @@ void SylinderSystem::writeVTK(const std::string &baseFolder) {
     }
 }
 
+void SylinderSystem::writeBox() {
+    FILE *boxFile = fopen("./result/simBox.vtk", "w");
+    fprintf(boxFile, "# vtk DataFile Version 3.0\n");
+    fprintf(boxFile, "vtk file\n");
+    fprintf(boxFile, "ASCII\n");
+    fprintf(boxFile, "DATASET RECTILINEAR_GRID\n");
+    fprintf(boxFile, "DIMENSIONS 2 2 2\n");
+    fprintf(boxFile, "X_COORDINATES 2 float\n");
+    fprintf(boxFile, "%g %g\n", runConfig.simBoxLow[0], runConfig.simBoxHigh[0]);
+    fprintf(boxFile, "Y_COORDINATES 2 float\n");
+    fprintf(boxFile, "%g %g\n", runConfig.simBoxLow[1], runConfig.simBoxHigh[1]);
+    fprintf(boxFile, "Z_COORDINATES 2 float\n");
+    fprintf(boxFile, "%g %g\n", runConfig.simBoxLow[2], runConfig.simBoxHigh[2]);
+    fprintf(boxFile, "CELL_DATA 1\n");
+    fprintf(boxFile, "POINT_DATA 8\n");
+    fclose(boxFile);
+}
+
 void SylinderSystem::writeResult() {
     std::string baseFolder = getCurrentResultFolder();
     IOHelper::makeSubFolder(baseFolder);
@@ -500,6 +519,8 @@ void SylinderSystem::calcVelocityKnown() {
     // allocate and zero out
     // velocityKnown = velocityBrown + velocityNonBrown + mobility * forceNonBrown
     velocityKnownRcp = Teuchos::rcp<TV>(new TV(sylinderMobilityMapRcp, true));
+    const int nLocal = sylinderContainer.getNumberOfParticleLocal();
+    TEUCHOS_ASSERT(nLocal * 6 == velocityKnownRcp->getLocalLength());
 
     if (!forceNonBrownRcp.is_null()) {
         TEUCHOS_ASSERT(!mobilityOperatorRcp.is_null());
@@ -511,21 +532,27 @@ void SylinderSystem::calcVelocityKnown() {
     }
 
     // write back total non Brownian velocity
+    // combine and sync the velNonB set in two places
     auto velPtr = velocityKnownRcp->getLocalView<Kokkos::HostSpace>();
-    const int nLocal = sylinderContainer.getNumberOfParticleLocal();
-    TEUCHOS_ASSERT(nLocal * 6 == velocityKnownRcp->getLocalLength());
+    velocityKnownRcp->modify<Kokkos::HostSpace>();
 
 #pragma omp parallel for
     for (int i = 0; i < nLocal; i++) {
         auto &sy = sylinderContainer[i];
         // translational
-        sy.velNonB[0] = velPtr(6 * i + 0, 0);
-        sy.velNonB[1] = velPtr(6 * i + 1, 0);
-        sy.velNonB[2] = velPtr(6 * i + 2, 0);
+        sy.velNonB[0] += velPtr(6 * i + 0, 0);
+        sy.velNonB[1] += velPtr(6 * i + 1, 0);
+        sy.velNonB[2] += velPtr(6 * i + 2, 0);
+        velPtr(6 * i + 0, 0) = sy.velNonB[0];
+        velPtr(6 * i + 1, 0) = sy.velNonB[1];
+        velPtr(6 * i + 2, 0) = sy.velNonB[2];
         // rotational
-        sy.omegaNonB[0] = velPtr(6 * i + 3, 0);
-        sy.omegaNonB[1] = velPtr(6 * i + 4, 0);
-        sy.omegaNonB[2] = velPtr(6 * i + 5, 0);
+        sy.omegaNonB[0] += velPtr(6 * i + 3, 0);
+        sy.omegaNonB[1] += velPtr(6 * i + 4, 0);
+        sy.omegaNonB[2] += velPtr(6 * i + 5, 0);
+        velPtr(6 * i + 3, 0) = sy.omegaNonB[0];
+        velPtr(6 * i + 4, 0) = sy.omegaNonB[1];
+        velPtr(6 * i + 5, 0) = sy.omegaNonB[2];
     }
 
     if (!velocityBrownRcp.is_null()) {
@@ -919,19 +946,7 @@ void SylinderSystem::fitInPeriodicBound(double &x, const double &lb, const doubl
     }
 }
 
-void SylinderSystem::applyBoxBC() {
-    sylinderContainer.adjustPositionIntoRootDomain(dinfo);
-
-    // const int nLocal = sylinderContainer.getNumberOfParticleLocal();
-    // #pragma omp parallel for
-    //     for (int i = 0; i < nLocal; i++) {
-    //         for (int k = 0; k < 3; k++) {
-    //             if (runConfig.simBoxPBC[k]) {
-    //                 fitInPeriodicBound(sylinderContainer[i].pos[k], runConfig.simBoxLow[k], runConfig.simBoxHigh[k]);
-    //             }
-    //         }
-    //     }
-}
+void SylinderSystem::applyBoxBC() { sylinderContainer.adjustPositionIntoRootDomain(dinfo); }
 
 void SylinderSystem::calcColStress() {
     // average all two-side collisions
