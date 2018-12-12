@@ -1,5 +1,5 @@
-#ifndef COLLISIONSOLVER_HPP
-#define COLLISIONSOLVER_HPP
+#ifndef COLLISIONSOLVER_HPP_
+#define COLLISIONSOLVER_HPP_
 
 #include <algorithm>
 #include <cmath>

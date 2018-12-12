@@ -1,20 +1,25 @@
-/*
- * GeoUtil.h
- *
- *  Created on: Sep 19, 2016
- *      Author: wyan
+/**
+ * @file DCPQuery.hpp
+ * @author Wen Yan (wenyan4work@gmail.com)
+ * @brief 
+ * @version 1.0
+ * @date 2018-12-12
+ * 
+ * @copyright Copyright (c) 2018
+ * 
  */
 
-#ifndef TUBULESIMULATOR_TUBULESIMULATOR_GEOUTIL_H_
-#define TUBULESIMULATOR_TUBULESIMULATOR_GEOUTIL_H_
-
-//
-// Created by Wen Yan on 9/19/16.
-//
+#ifndef DCPQUERRY_HPP_
+#define DCPQUERRY_HPP_
 
 #include <cmath>
 #include <limits>
 
+/**
+ * @brief result of point-segment distance in 3D 
+ * 
+ * @tparam Vector type for 3D vector
+ */
 template <typename Vector>
 struct ResultP3S3 {
     double distance, sqrDistance;
@@ -22,6 +27,11 @@ struct ResultP3S3 {
     Vector segmentClosest;   // (1-t)*p[0] + t*p[1]
 };
 
+/**
+ * @brief result of segment-segment distance in 3D
+ * 
+ * @tparam Vector type for 3D vector
+ */
 template <typename Vector>
 struct ResultS3S3 {
     double distance, sqrDistance;
@@ -29,23 +39,54 @@ struct ResultS3S3 {
     Vector segmentClosest[2];   // (1-t)*p[0] + t*p[1]
 };
 
+/**
+ * @brief norm of a 3D vector
+ * 
+ * @tparam Vec3 type for 3D vector
+ * @param vec 3D vector
+ * @return double norm
+ */
 template <typename Vec3>
-inline double norm(Vec3 &a) {
-    return a.norm();
+inline double norm(Vec3 &vec) {
+    return vec.norm();
 }
 
+/**
+ * @brief normalize a 3D vector in place
+ * 
+ * @tparam Vec3 type for 3D vector
+ * @param vec normalied vector
+ */
 template <typename Vec3>
-inline void normalize(Vec3 &a) {
+inline void normalize(Vec3 &vec) {
     // double r2 = a * a;
     // a = a * (1 / sqrt(r2));
-    a.normalize();
+    vec.normalize();
 }
 
+/**
+ * @brief dot-product of two vectors
+ * 
+ * @tparam Vector vector type
+ * @param a 
+ * @param b 
+ * @return double result
+ */
 template <typename Vector>
 inline double dot(Vector &a, Vector &b) {
     return a.dot(b);
 }
 
+/**
+ * @brief compute minimal point-segment distance in 3D space
+ * 
+ * @tparam Vector 3D vector type
+ * @param point 
+ * @param minus end point 0 of the segment
+ * @param plus end point 1 of the segment
+ * @param pointPerp result of the point on the segment with min distance
+ * @return double minimal distance
+ */
 template <typename Vector>
 double DistPointSeg(const Vector &point, const Vector &minus, const Vector &plus, Vector &pointPerp) {
     ResultP3S3<Vector> result;
@@ -86,7 +127,14 @@ double DistPointSeg(const Vector &point, const Vector &minus, const Vector &plus
     return result.distance;
 }
 
-// this object must be thread private in multi-threading environment
+/**
+ * @brief functor for minimal segment-segment distance query in 3D space
+ * 
+ * this object must be thread private in multi-threading environment
+ * @tparam N dimension
+ * @tparam Real floating-point type
+ * @tparam Vector 3D vector type
+ */
 template <int N, typename Real, typename Vector>
 class DCPQuery {
   public:
@@ -96,6 +144,19 @@ class DCPQuery {
         Vector closest[2];
     };
 
+    /**
+     * @brief functor for computing minimal segment-segment distance in 3D space
+     * 
+     * @param P0 end point 0 of segment P
+     * @param P1 end point 1 of segment P
+     * @param Q0 end point 0 of segment Q
+     * @param Q1 end point 1 of segment Q 
+     * @param Ploc result point on P 
+     * @param Qloc result point on Q
+     * @param s \f$s\in[0,1]\f$ describing Ploc on P
+     * @param t \f$t\in[0,1]\f$ describing Qloc on Q
+     * @return Real computed minimal distance
+     */
     Real operator()(Vector const &P0, Vector const &P1, Vector const &Q0, Vector const &Q1, Vector &Ploc, Vector &Qloc,
                     Real &s, Real &t);
 
@@ -420,53 +481,4 @@ using DCPSegment2Segment2 = DCPSegmentSegment<2, Real, Vector>;
 template <typename Real, typename Vector>
 using DCPSegment3Segment3 = DCPSegmentSegment<3, Real, Vector>;
 
-//
-///*Geometric Utility functions for use*/
-// template<typename T >
-// double DistPointSeg(const T point, const T segMinus, const T segPlus,
-//		PS::F64vec3 & pointPerp) {
-//	const auto vec1 = (point - segMinus) ^ (point - segPlus);
-//	const auto vec2 = (segPlus - segMinus);
-//	// use orthogonal projection to get the pointPerp
-//	const auto vec3 = (point - segMinus);
-//	pointPerp = segMinus + (vec3 * vec2) * (vec2 / (vec2 * vec2));
-//
-//	return sqrt(vec1 * vec1 / (vec2 * vec2));
-//}
-
-// the original function
-// template <int N, typename Real, typename Vector>
-// inline Real DCPQuery<N, Real, Vector>::GetClampedRoot(Real slope, Real h0, Real h1) {
-//     // Theoretically, r is in (0,1).  However, when the slope is nearly zero,
-//     // then so are h0 and h1.  Significant numerical rounding problems can
-//     // occur when using floating-point arithmetic.  If the rounding causes r
-//     // to be outside the interval, clamp it.  It is possible that r is in
-//     // (0,1) and has rounding errors, but because h0 and h1 are both nearly
-//     // zero, the quadratic is nearly constant on (0,1).  Any choice of p
-//     // should not cause undesirable accuracy problems for the final distance
-//     // computation.
-//     //
-//     // NOTE:  You can use bisection to recompute the root or even use
-//     // bisection to compute the root and skip the division.  This is generally
-//     // slower, which might be a problem for high-performance applications.
-
-//     Real r;
-
-//  if (h0 < (Real)0) {
-//         if (h1 > (Real)0) {
-//             r = -h0 / slope;
-//             if (r > (Real)1) {
-//                 r = (Real)0.5;
-//             }
-//             // The slope is positive and -h0 is positive, so there is no
-//             // need to test for a negative value and clamp it.
-//         } else {
-//             r = (Real)1;
-//         }
-//     } else {
-//         r = (Real)0;
-//     }
-//     return r;
-// }
-
-#endif /* TUBULESIMULATOR_TUBULESIMULATOR_GEOUTIL_H_ */
+#endif 

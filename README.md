@@ -1,5 +1,6 @@
 # SimToolBox
-A toolbox for object-tracking simulation. This toolbox contains a collection of useful tools for different tasks involved in a particle-tracking type simulation.
+A toolbox for object-tracking simulation. 
+This toolbox contains a collection of useful tools for different tasks involved in a particle-tracking type simulation.
 
 At the base level the code relies on `sctl`, `FDPS` and `Trilinos`.
 The folder `sctl` contains the Scientific Computing Template Library (`sctl`), developed by Dhairya Malhotra, and publicly available at `http://git.dhairyamalhotra.com/dmalhotra/SCTL`. 

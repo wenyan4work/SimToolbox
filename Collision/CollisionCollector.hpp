@@ -1,5 +1,5 @@
-#ifndef COLLISIONCOLLECTOR_HPP
-#define COLLISIONCOLLECTOR_HPP
+#ifndef COLLISIONCOLLECTOR_HPP_
+#define COLLISIONCOLLECTOR_HPP_
 
 #include <algorithm>
 #include <cmath>
@@ -11,17 +11,22 @@
 #include "Trilinos/TpetraUtil.hpp"
 #include "Util/EigenDef.hpp"
 
-struct CollisionBlock { // the information for each collision
+/**
+ * @brief collision constraint information block
+ *
+ * Each block stores the information for one collision constraint.
+ * The blocks are collected by CollisionCollector and then used to construct the sparse fcTrans matrix
+ */
+struct CollisionBlock {
   public:
-    double phi0;  // constraint value
-    double gamma; // force magnitude , could be an initial guess
-    int gidI, gidJ;
-    int globalIndexI, globalIndexJ;
-    bool oneSide = false; // one side collision, e.g. moving obj collide with a boundary, and the boundary does not
-                          // appear in the mobility matrix
-    Evec3 normI, normJ;   // norm vector for each particle. gvecJ = - gvecI
-    Evec3 posI, posJ;     // the collision position on I and J. useless for spheres.
-    Emat3 stress;
+    double phi0;                    /// constraint initial value
+    double gamma;                   /// force magnitude, could be an initial guess
+    int gidI, gidJ;                 /// global ID of the two colliding objects
+    int globalIndexI, globalIndexJ; /// the global index of the two objects in mobility matrix
+    bool oneSide = false; /// flag for one side collision, where one body of the pair does not appear in mobility matrix
+    Evec3 normI, normJ; /// surface norm vector at the location of minimal separation for each particle. normJ = - normI
+    Evec3 posI, posJ;   /// the collision position on bodies I and J. useless for spheres.
+    Emat3 stress;       /// stress 3x3 matrix, to be scaled by solution gamma for the actual stress
 
     CollisionBlock() : gidI(0), gidJ(0), globalIndexI(0), globalIndexJ(0), phi0(0), gamma(0) {
         // default constructor
@@ -33,12 +38,30 @@ struct CollisionBlock { // the information for each collision
         stress.setZero();
     }
 
+    /**
+     * @brief Construct a new Collision Block object
+     * 
+     * @param phi0_ current value of the constraint (current minimal separation)
+     * @param gamma_ initial guess of collision force magnitude
+     * @param gidI_ 
+     * @param gidJ_ 
+     * @param globalIndexI_ 
+     * @param globalIndexJ_ 
+     * @param normI_ 
+     * @param normJ_ 
+     * @param posI_ 
+     * @param posJ_ 
+     * @param oneSide_ flag for one side collision
+     * 
+     * If oneside = true, the gidJ, globalIndexJ, normJ, posJ will be ignored when constructing the fcTrans matrix
+     * so any value of gidJ, globalIndexJ, normJ, posJ can be used in that case.
+     * 
+     */
     CollisionBlock(double phi0_, double gamma_, int gidI_, int gidJ_, int globalIndexI_, int globalIndexJ_,
                    const Evec3 &normI_, const Evec3 &normJ_, const Evec3 &posI_, const Evec3 &posJ_,
                    bool oneSide_ = false)
         : phi0(phi0_), gamma(gamma_), gidI(gidI_), gidJ(gidJ_), globalIndexI(globalIndexI_),
           globalIndexJ(globalIndexJ_), normI(normI_), normJ(normJ_), posI(posI_), posJ(posJ_), oneSide(oneSide_) {
-        // if oneside = true, the gidJ, globalIndexJ, normJ, posJ will be ignored
         stress.setZero();
     }
 };
