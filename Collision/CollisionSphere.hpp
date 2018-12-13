@@ -2,6 +2,7 @@
 #define COLLISIONSPHERE_HPP_
 
 #include "CollisionCollector.hpp"
+
 #include "Sphere/Sphere.hpp"
 #include "Util/Buffer.hpp"
 #include "Util/EigenDef.hpp"

@@ -19,15 +19,19 @@
  */
 struct CollisionBlock {
   public:
-    double phi0;                    /// constraint initial value
-    double gamma;                   /// force magnitude, could be an initial guess
-    int gidI, gidJ;                 /// global ID of the two colliding objects
-    int globalIndexI, globalIndexJ; /// the global index of the two objects in mobility matrix
-    bool oneSide = false; /// flag for one side collision, where one body of the pair does not appear in mobility matrix
-    Evec3 normI, normJ; /// surface norm vector at the location of minimal separation for each particle. normJ = - normI
-    Evec3 posI, posJ;   /// the collision position on bodies I and J. useless for spheres.
-    Emat3 stress;       /// stress 3x3 matrix, to be scaled by solution gamma for the actual stress
+    double phi0;                    ///< constraint initial value
+    double gamma;                   ///< force magnitude, could be an initial guess
+    int gidI, gidJ;                 ///< global ID of the two colliding objects
+    int globalIndexI, globalIndexJ; ///< the global index of the two objects in mobility matrix
+    bool oneSide = false;           ///< flag for one side collision. body J does not appear in mobility matrix
+    Evec3 normI, normJ;             ///< surface norm vector at the location of minimal separation.
+    Evec3 posI, posJ;               ///< the collision position on bodies I and J. useless for spheres.
+    Emat3 stress;                   ///< stress 3x3 matrix, to be scaled by solution gamma for the actual stress
 
+    /**
+     * @brief Construct a new empty collision block
+     *
+     */
     CollisionBlock() : gidI(0), gidJ(0), globalIndexI(0), globalIndexJ(0), phi0(0), gamma(0) {
         // default constructor
         normI.setZero();
@@ -40,22 +44,22 @@ struct CollisionBlock {
 
     /**
      * @brief Construct a new Collision Block object
-     * 
+     *
      * @param phi0_ current value of the constraint (current minimal separation)
      * @param gamma_ initial guess of collision force magnitude
-     * @param gidI_ 
-     * @param gidJ_ 
-     * @param globalIndexI_ 
-     * @param globalIndexJ_ 
-     * @param normI_ 
-     * @param normJ_ 
-     * @param posI_ 
-     * @param posJ_ 
+     * @param gidI_
+     * @param gidJ_
+     * @param globalIndexI_
+     * @param globalIndexJ_
+     * @param normI_
+     * @param normJ_
+     * @param posI_
+     * @param posJ_
      * @param oneSide_ flag for one side collision
-     * 
+     *
      * If oneside = true, the gidJ, globalIndexJ, normJ, posJ will be ignored when constructing the fcTrans matrix
      * so any value of gidJ, globalIndexJ, normJ, posJ can be used in that case.
-     * 
+     *
      */
     CollisionBlock(double phi0_, double gamma_, int gidI_, int gidJ_, int globalIndexI_, int globalIndexJ_,
                    const Evec3 &normI_, const Evec3 &normJ_, const Evec3 &posI_, const Evec3 &posJ_,
@@ -66,16 +70,21 @@ struct CollisionBlock {
     }
 };
 
-using CollisionBlockQue = std::vector<CollisionBlock>; // can be changed to other containers, e.g., deque
-using CollisionBlockPool = std::vector<CollisionBlockQue>;
+using CollisionBlockQue = std::vector<CollisionBlock>;     ///< a queue contains blocks collected by one thread
+using CollisionBlockPool = std::vector<CollisionBlockQue>; ///< a pool contains queues on different threads
 
-// process each collision i,j and record them to ColBlocks
-// interface operator(obj i, obj j)
+/**
+ * @brief collecter of collision blocks
+ * 
+ */
 class CollisionCollector {
   public:
-    std::shared_ptr<CollisionBlockPool> collisionPoolPtr;
+    std::shared_ptr<CollisionBlockPool> collisionPoolPtr; /// all copy of collector share a pointer to collision pool
 
-    // constructor
+    /**
+     * @brief Construct a new Collision Collector object
+     *
+     */
     CollisionCollector() {
         const int totalThreads = omp_get_max_threads();
         collisionPoolPtr = std::make_shared<CollisionBlockPool>();
@@ -87,18 +96,32 @@ class CollisionCollector {
         std::cout << "stress recoder size:" << collisionPoolPtr->size() << std::endl;
     }
 
-    // copy constructor
+    /**
+     * @brief Construct a new Collision Collector object
+     *
+     * @param obj
+     */
     CollisionCollector(const CollisionCollector &obj) = default;
     CollisionCollector(CollisionCollector &&obj) = default;
     CollisionCollector &operator=(const CollisionCollector &obj) = default;
     CollisionCollector &operator=(CollisionCollector &&obj) = default;
     ~CollisionCollector() = default;
 
-    bool empty() const {
-        // after the constructor this should always be false
-        return collisionPoolPtr->empty();
-    }
+    /**
+     * @brief if the shared pointer to collision pool is not allocated
+     *
+     * After the constructor this should always be false
+     * @return true
+     * @return false
+     */
+    bool empty() const { return collisionPoolPtr->empty(); }
 
+    /**
+     * @brief clear the blocks ang get an empty collision pool
+     *
+     * The collision pool still contains (the number of openmp threads) queues
+     *
+     */
     void clear() {
         assert(collisionPoolPtr);
         for (int i = 0; i < collisionPoolPtr->size(); i++) {
@@ -106,6 +129,11 @@ class CollisionCollector {
         }
     }
 
+    /**
+     * @brief get the number of collision constraints on the local node
+     *
+     * @return int
+     */
     int getLocalCollisionNumber() {
         int sum = 0;
         for (int i = 0; i < collisionPoolPtr->size(); i++) {
@@ -114,6 +142,11 @@ class CollisionCollector {
         return sum;
     }
 
+    /**
+     * @brief compute the average of collision stress of all constraints (blocks)
+     *
+     * @param stress the result
+     */
     void computeCollisionStress(Emat3 &stress) {
         const auto &colPool = *collisionPoolPtr;
         const int poolSize = colPool.size();
@@ -135,6 +168,15 @@ class CollisionCollector {
         stress = stress * (1.0 / poolSize);
     }
 
+/**
+ * @brief process each collision i,j and record them to ColBlocks
+ * 
+ * @tparam Trg 
+ * @tparam Src 
+ * @param trg 
+ * @param src 
+ * @param srcShift shift of Src position. used in periodic boundary condition.
+ */
     template <class Trg, class Src>
     void operator()(Trg &trg, const Src &src, const std::array<double, 3> &srcShift) {
         const int threadId = omp_get_thread_num();
