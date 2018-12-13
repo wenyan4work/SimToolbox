@@ -1,5 +1,17 @@
-#ifndef IOHELPER_HPP
-#define IOHELPER_HPP
+/**
+ * @file IOHelper.hpp
+ * @author wenyan4work(wenyan4work@gmail.com)
+ * @brief
+ * @version 0.1
+ * @date 2018-12-13
+ *
+ * @copyright Copyright (c) 2018
+ *
+ */
+#ifndef IOHELPER_HPP_
+#define IOHELPER_HPP_
+
+#include "Base64.hpp"
 
 #include <array>
 #include <cstring>
@@ -9,16 +21,16 @@
 #include <type_traits>
 #include <vector>
 
-// for filesystem
-// #include <boost/filesystem.hpp>
 #include <errno.h>
 #include <sys/stat.h>
 
-#include "Base64.hpp"
-
+/**
+ * @brief an abstract class for helping with VTK IO
+ *
+ */
 class IOHelper {
   public:
-    enum class IOTYPE { UInt8, Int32, Float32, Float64 };
+    enum class IOTYPE { UInt8, Int32, Float32, Float64 }; ///< VTK XML binary data type
 
     struct FieldVTU {
         int dimension;
@@ -255,8 +267,14 @@ class IOHelper {
         pvtufile.close();
     }
 
-    /*
-     * general VTK helper
+    /**
+     * @brief write data array into binary XML data field
+     *
+     * @tparam T
+     * @param data
+     * @param name
+     * @param numComp number of components (1 for scalar, 3 for vector, etc)
+     * @param file
      */
     template <class T>
     static void writeDataArrayBase64(std::vector<T> &data, const std::string &name, int numComp, std::ofstream &file) {

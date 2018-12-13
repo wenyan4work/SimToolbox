@@ -1,3 +1,14 @@
+/**
+ * @file SystemConfig.hpp
+ * @author wenyan4work (wenyan4work@gmail.com)
+ * @brief read system configuration from a yaml file
+ * @version 1.0
+ * @date 2018-12-13
+ *
+ * @copyright Copyright (c) 2018
+ *
+ */
+
 #ifndef SYSTEMCONFIG_HPP_
 #define SYSTEMCONFIG_HPP_
 
@@ -31,7 +42,13 @@ class SystemConfig {
     double timeTotal;
     double timeSnap;
 
+    /**
+     * @brief Construct a new System Config object from a yaml file
+     *
+     * @param filename
+     */
     SystemConfig(std::string filename);
+
     ~SystemConfig() = default;
 
     void dump() const;

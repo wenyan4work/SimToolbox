@@ -1,11 +1,20 @@
-#ifndef EQUATNHELPER_HPP
-#define EQUATNHELPER_HPP
+/**
+ * @file EquatnHelper.hpp
+ * @author wenyan4work (wenyan4work@gmail.com)
+ * @brief add a few functions to eigen quaternion
+ * @version 1.0
+ * @date 2018-12-13
+ *
+ * @copyright Copyright (c) 2018
+ *
+ */
 
-// add a few functions to eigen quaternion
-
-#include <cmath>
+#ifndef EQUATNHELPER_HPP_
+#define EQUATNHELPER_HPP_
 
 #include "EigenDef.hpp"
+
+#include <cmath>
 
 // WARNING: use w,x,y,z of a quaternion, do not use [0,1,2,3], since the mapping order is different in eigen and in most
 // papers. eigen: w->[3], for scalar. x,y,z->[0,1,2] for vector
@@ -24,8 +33,20 @@
 // vec2 = gen1 * vec1; Get the inverse of the transformation
 // gen2 = gen1.inverse(); Spherical interpolation  (Rotation2D and Quaternion only)
 
+/**
+ * @brief an abstract class with a few static member functions
+ *
+ */
 class EquatnHelper {
   public:
+    /**
+     * @brief Set a Unit Random Equatn object representing uniform distribution on sphere surface
+     *
+     * @param q the quaternion object
+     * @param u1 \f$U[0,1)\f$ random number
+     * @param u2 \f$U[0,1)\f$ random number
+     * @param u3 \f$U[0,1)\f$ random number
+     */
     static void setUnitRandomEquatn(Equatn &q, const double &u1, const double &u2, const double &u3) {
         // a random unit quaternion following a uniform distribution law on SO(3)
         // from three U[0,1] random numbers
@@ -42,8 +63,15 @@ class EquatnHelper {
         q.z() = b * cu3;
     }
 
+    /**
+     * @brief rotate a quaternion by \f$\omega \delta t\f$
+     *
+     * Delong, JCP, 2015, Appendix A eq1, not linearized
+     * @param q
+     * @param omega angular velocity
+     * @param dt time interval
+     */
     static void rotateEquatn(Equatn &q, const Evec3 &omega, const double &dt) {
-        // Delong, JCP, 2015, Appendix A eq1, not linearized
         const double w = omega.norm();
         if (w < std::numeric_limits<float>::epsilon()) {
             return;
@@ -61,6 +89,12 @@ class EquatnHelper {
         q.normalize();
     }
 
+    /**
+     * @brief Get a cross product matrix from a vector
+     *
+     * @param p
+     * @param P
+     */
     static void getCrossProductMatrix(const Evec3 &p, Emat3 &P) {
         P(0, 0) = 0;
         P(0, 1) = -p[2];

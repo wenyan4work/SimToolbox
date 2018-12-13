@@ -1,5 +1,15 @@
-#ifndef TRNGPOOL_H_
-#define TRNGPOOL_H_
+/**
+ * @file TRngPool.hpp
+ * @author wenyan4work (wenyan4work@gmail.com)
+ * @brief Random Number Generator based on TRNG library
+ * @version 1.0
+ * @date 2018-12-13
+ *
+ * @copyright Copyright (c) 2018
+ *
+ */
+#ifndef TRNGPOOL_HPP_
+#define TRNGPOOL_HPP_
 
 #include <iostream>
 #include <memory>
@@ -14,28 +24,41 @@
 #include <trng/normal_dist.hpp>
 #include <trng/uniform01_dist.hpp>
 
+/**
+ * @brief rng based on TRNG library
+ *
+ */
 class TRngPool {
-    using myEngineType=trng::mrg5;
+    using myEngineType = trng::mrg5; ///< rng engine
 
   private:
-    int myRank;
-    int nProcs;
-    int nThreads;
+    int myRank;   ///< my MPI rank
+    int nProcs;   ///< total number of MPI ranks
+    int nThreads; ///< number of threads on each rank
 
-    // typedef trng::lcg64_shift myEngineType;
+    std::vector<std::unique_ptr<myEngineType>> rngEngineThreadsPtr; /// one rng for each local thread
 
-    std::vector<std::unique_ptr<myEngineType>> rngEngineThreadsPtr;
+    trng::uniform01_dist<double> u01; ///< \f$U(0,1)\f$ transformer
+    trng::normal_dist<double> n01;    ///< \f$N(0,1)\f$ transformer
 
-    trng::uniform01_dist<double> u01;
-    trng::normal_dist<double> n01;
-
-    std::unique_ptr<trng::lognormal_dist<double>> lnDistPtr;
+    std::unique_ptr<trng::lognormal_dist<double>> lnDistPtr; ///< \f$logNormal(\mu,\sigma)\f$ transformer
 
   public:
+    /**
+     * @brief Set the Log Normal Parameters \f$\mu,\sigma\f$
+     *
+     * @param mu
+     * @param sigma
+     */
     void setLogNormalParameters(double mu, double sigma) {
         lnDistPtr.reset(new trng::lognormal_dist<double>(mu, sigma));
     }
 
+    /**
+     * @brief Construct a new TRngPool object with seed
+     *
+     * @param seed
+     */
     explicit TRngPool(int seed = 0) : n01(0, 1) {
 
         myRank = 0;
@@ -75,10 +98,21 @@ class TRngPool {
     TRngPool(const TRngPool &) = delete;
     TRngPool &operator=(const TRngPool &) = delete;
 
+    /**
+     * @brief get a U01 random number on thread Id
+     *
+     * @param threadId
+     * @return double
+     */
     inline double getU01(int threadId) { return u01(*rngEngineThreadsPtr[threadId]); }
     inline double getN01(int threadId) { return n01(*rngEngineThreadsPtr[threadId]); }
     inline double getLN(int threadId) { return (*lnDistPtr)(*rngEngineThreadsPtr[threadId]); }
 
+    /**
+     * @brief check thread ID and get a U01 random number
+     *
+     * @return double
+     */
     inline double getU01() {
         const int threadId = omp_get_thread_num();
         return getU01(threadId);

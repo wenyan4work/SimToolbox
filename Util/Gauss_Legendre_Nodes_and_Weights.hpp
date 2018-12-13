@@ -15,6 +15,14 @@
 
 #include <cassert>
 
+/**
+ * @brief get 1D Gauss-Legendre node and weight with array size \f$N\in[1,128]\f$
+ *
+ * @tparam Real
+ * @param N
+ * @param nodes
+ * @param weights
+ */
 template <class Real>
 void Gauss_Legendre_Nodes_and_Weights(int N, std::vector<Real> &nodes, std::vector<Real> &weights) {
     assert(N >= 1 && "Number of nodes must be atleast 1.");

@@ -1,10 +1,15 @@
-/*
- * EigenDef.hpp
+/**
+ * @file EigenDef.hpp
+ * @author wenyan4work (wenyan4work@gmail.com)
+ * @brief useful definitions of eigen
+ * @version 1.0
+ * @date 2016-10-27
  *
- *  Created on: Oct 27, 2016
- *      Author: wyan
+ * Do not use auto with Eigen
+ *
+ * @copyright Copyright (c) 2018
+ *
  */
-
 #ifndef EIGENDEF_HPP_
 #define EIGENDEF_HPP_
 
@@ -67,7 +72,13 @@ using Evec = Eigen::VectorXd;
 using Emat = Eigen::Matrix<double, Eigen::Dynamic, Eigen::Dynamic>; // default to column major
 using Espmat = Eigen::SparseMatrix<double>;
 
-// copy swap
+/**
+ * @brief swap by copy
+ *
+ * @tparam T
+ * @param a
+ * @param b
+ */
 template <typename T>
 void copySwap(T &a, T &b) {
     T temp = b;

@@ -1,24 +1,43 @@
-// adapted from  VTK/base64.c
 
-#ifndef BASE64_HPP
-#define BASE64_HPP
+/**
+ * @file Base64.hpp
+ * @author wenyan4work(wenyan4work@gmail.com)
+ * @brief adapted from VTK/base64.c for base64 encoding
+ * @version 1.0
+ * @date 2018-12-13
+ *
+ * @copyright Copyright (c) 2018
+ *
+ *  This is the original declaration within VTK
+ *  Distributed under the OSI-approved BSD 3-Clause License.  See accompanying
+ *  file Copyright.txt or https://cmake.org/licensing#kwsys for details.
+ */
+
+#ifndef BASE64_HPP_
+#define BASE64_HPP_
 
 #include <string>
 #include <vector>
 
-/* Distributed under the OSI-approved BSD 3-Clause License.  See accompanying
-   file Copyright.txt or https://cmake.org/licensing#kwsys for details.  */
-
+/**
+ * @brief convert class for Base64 encoding
+ *
+ */
 class B64Converter {
-    static const unsigned char kwsysBase64EncodeTable[65];
+    static const unsigned char kwsysBase64EncodeTable[65]; ///< lookup encoding table
 
-    static const unsigned char kwsysBase64DecodeTable[256];
+    static const unsigned char kwsysBase64DecodeTable[256]; ///< lookup decoding table
 
     static unsigned char kwsysBase64EncodeChar(int c) { return kwsysBase64EncodeTable[(unsigned char)c]; }
 
     static unsigned char kwsysBase64DecodeChar(unsigned char c) { return kwsysBase64DecodeTable[c]; }
 
-    /* Encode 3 bytes into a 4 byte string. */
+    /**
+     * @brief encode 3 bytes into 4 chars
+     *
+     * @param src
+     * @param dest
+     */
     static void kwsysBase64_Encode3(const unsigned char *src, unsigned char *dest) {
         dest[0] = kwsysBase64EncodeChar((src[0] >> 2) & 0x3F);
         dest[1] = kwsysBase64EncodeChar(((src[0] << 4) & 0x30) | ((src[1] >> 4) & 0x0F));
@@ -26,7 +45,12 @@ class B64Converter {
         dest[3] = kwsysBase64EncodeChar(src[2] & 0x3F);
     }
 
-    /* Encode 2 bytes into a 4 byte string. */
+    /**
+     * @brief encode 3 bytes into 2 chars
+     *
+     * @param src
+     * @param dest
+     */
     static void kwsysBase64_Encode2(const unsigned char *src, unsigned char *dest) {
         dest[0] = kwsysBase64EncodeChar((src[0] >> 2) & 0x3F);
         dest[1] = kwsysBase64EncodeChar(((src[0] << 4) & 0x30) | ((src[1] >> 4) & 0x0F));
@@ -34,7 +58,12 @@ class B64Converter {
         dest[3] = '=';
     }
 
-    /* Encode 1 bytes into a 4 byte string. */
+    /**
+     * @brief encode 3 bytes into 1 char
+     *
+     * @param src
+     * @param dest
+     */
     static void kwsysBase64_Encode1(const unsigned char *src, unsigned char *dest) {
         dest[0] = kwsysBase64EncodeChar((src[0] >> 2) & 0x3F);
         dest[1] = kwsysBase64EncodeChar(((src[0] << 4) & 0x30));
@@ -42,7 +71,12 @@ class B64Converter {
         dest[3] = '=';
     }
 
-    /* Decode 4 bytes into a 3 byte string. */
+    /**
+     * @brief decode 4 chars into 3 bytes
+     *
+     * @param src
+     * @param dest
+     */
     static int kwsysBase64_Decode3(const unsigned char *src, unsigned char *dest) {
         unsigned char d0, d1, d2, d3;
 
@@ -89,6 +123,15 @@ class B64Converter {
     //   unsigned char* output, int mark_end)
 
   public:
+    /**
+     * @brief encode input bytes into a std::string for ascii output
+     *
+     * @param input
+     * @param length
+     * @param output new output will be appended
+     * @param mark_end
+     * @return size_t return number of chars written
+     */
     static size_t kwsysBase64_Encode(const unsigned char *input, size_t length, std::string &output,
                                      bool mark_end = false) {
         // append to output
@@ -203,10 +246,18 @@ class B64Converter {
 
         return (size_t)(optr - output);
     }
-    // int32 to base64 string
-    // double to base64 string
+
+    /**
+     * @brief encode std::vector<T> into the result string with a VTK XML header
+     *
+     * @tparam T type
+     * @param vec
+     * @param result
+     */
     template <class T>
     static void getBase64FromVector(const std::vector<T> &vec, std::string &result) {
+        // int32 to base64 string
+        // double to base64 string
         const uint32_t length =
             vec.size() * (sizeof(T) / sizeof(unsigned char)); // length of actual bytes, not just vec.size()
         // encode the total length
@@ -216,7 +267,5 @@ class B64Converter {
                            (sizeof(T) / sizeof(unsigned char)) * vec.size(), result);
     }
 };
-
-
 
 #endif

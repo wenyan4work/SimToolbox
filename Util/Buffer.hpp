@@ -7,22 +7,33 @@
 
 #include <msgpack.hpp>
 
-// pack data to byte array in MsgPack format
-// this does not hold any actual buffer data
+/**
+ * @brief pack data to byte array in MsgPack format
+ *
+ * this class does not hold any actual buffer data
+ */
 class Buffer {
   private:
     size_t readPos = 0;
     std::vector<char> *contentPtr = nullptr;
 
   public:
-    // constructor
+    /**
+     * @brief Construct a new empty Buffer object
+     *
+     */
     Buffer() {
         readPos = 0;
         contentPtr = nullptr;
     };
 
-    // construct a Buffer object with external buf.
-    // buf is empty after this constructor
+    /**
+     * @brief Construct a new Buffer object with external buffer
+     *
+     * buf is empty after this constructor
+     *
+     * @param buf
+     */
     explicit Buffer(std::vector<char> &buf) {
         readPos = 0;
         contentPtr = &buf;
@@ -41,6 +52,10 @@ class Buffer {
 
     void setReadPos(const size_t &pos) noexcept { readPos = pos; }
 
+    /**
+     * @brief display readPos and the content pointed by contentPtr
+     *
+     */
     void dump() noexcept {
         for (auto &v : *contentPtr) {
             printf("%c", v);
@@ -55,7 +70,12 @@ class Buffer {
 
     size_t getSize() { return contentPtr->size(); }
 
-    // interface to mimic stringstream
+    /**
+     * @brief interface to mimic stringstream as required by msgpack
+     *
+     * @param ptr
+     * @param length
+     */
     inline void write(const char *ptr, size_t length) {
         assert(contentPtr != nullptr);
         // for (int i = 0; i < length; i++) {
@@ -67,25 +87,28 @@ class Buffer {
         std::copy(ptr, ptr + length, content.end() - length);
     }
 
-    // pack data routines.
+    /**
+     * @brief pack data into std::vector<char> pointed by contentPtr
+     *
+     * POD and std data types are supported by msgpack by default
+     *
+     * @tparam T
+     * @param data
+     */
     template <class T>
     inline void pack(const T &data) {
         msgpack::pack(*this, data);
     }
 
-    // helper of deserialization
-    inline void unpackDebugPrint(const msgpack::object &obj) const {
-#ifndef DNDEBUG
-        // print the deserialized object.
-        std::cout << obj << std::endl;
-        if (contentPtr != nullptr && readPos > contentPtr->size()) {
-            printf("Error: read position past the end of content.\n");
-            exit(1);
-        }
-#endif
-    }
-
-    // unpack data routines
+    /**
+     * @brief unpack the data in content and move the readPos
+     *
+     * POD and std data types are supported by msgpack by default
+     *
+     * @tparam T
+     * @param output
+     * @param content
+     */
     template <class T>
     inline void unpack(T &output, const std::vector<char> &content) {
         size_t offset = readPos;
@@ -95,6 +118,22 @@ class Buffer {
         // shift position
         readPos = offset;
         // unpackDebugPrint(obj);
+    }
+
+    /**
+     * @brief print debug info of msgPack of unpack
+     *
+     * @param obj
+     */
+    inline void unpackDebugPrint(const msgpack::object &obj) const {
+#ifndef NDEBUG
+        // print the deserialized object.
+        std::cout << obj << std::endl;
+        if (contentPtr != nullptr && readPos > contentPtr->size()) {
+            printf("Error: read position past the end of content.\n");
+            exit(1);
+        }
+#endif
     }
 };
 
