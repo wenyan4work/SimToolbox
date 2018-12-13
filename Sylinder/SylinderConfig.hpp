@@ -1,8 +1,22 @@
+/**
+ * @file SylinderConfig.hpp
+ * @author wenyan4work (wenyan4work@gmail.com)
+ * @brief read configuration parameters from a yaml file
+ * @version 1.0
+ * @date 2018-12-13
+ *
+ * @copyright Copyright (c) 2018
+ *
+ */
 #ifndef SYLINDERCONFIG_HPP_
 #define SYLINDERCONFIG_HPP_
 
 #include <iostream>
 
+/**
+ * @brief read configuration parameters from a yaml file
+ *
+ */
 class SylinderConfig {
   public:
     // parallel setting

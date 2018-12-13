@@ -1,3 +1,13 @@
+/**
+ * @file Sylinder.hpp
+ * @author wenyan4work (wenyan4work@gmail.com)
+ * @brief Sphero-cylinder type
+ * @version 1.0
+ * @date 2018-12-13
+ *
+ * @copyright Copyright (c) 2018
+ *
+ */
 #ifndef SYLINDER_HPP_
 #define SYLINDER_HPP_
 
@@ -10,91 +20,186 @@
 
 #include <cstdio>
 #include <cstdlib>
-#include <vector>
-
 #include <type_traits>
-#include <unordered_map>
 #include <vector>
 
+/**
+ * @brief Sphero-cylinder class
+ *
+ */
 class Sylinder {
   public:
-    int gid = GEO_INVALID_INDEX;
-    int globalIndex = GEO_INVALID_INDEX;
-    double radius;
-    double radiusCollision;
-    double length;
-    double lengthCollision;
-    double radiusSearch;
-    double sepmin;
+    int gid = GEO_INVALID_INDEX;         ///< unique global id
+    int globalIndex = GEO_INVALID_INDEX; ///< unique global index sequentially ordered
+    double radius;                       ///< radius
+    double radiusCollision;              ///< radius for collision resolution
+    double length;                       ///< length
+    double lengthCollision;              ///< length for collision resolution
+    double radiusSearch;                 ///< radiusSearch for short range interactions
+    double sepmin;                       ///< minimal separation with its neighbors within radiusSearch
 
-    double pos[3];
-    double vel[3];
-    double omega[3];
-    double orientation[4];
+    double pos[3];         ///< position
+    double orientation[4]; ///< orientation quaternion. direction norm vector = orientation * (0,0,1)
+    double vel[3];         ///< velocity
+    double omega[3];       ///< angular velocity
 
     // these are not packed and transferred
-    double velCol[3];
-    double omegaCol[3];
-    double velBrown[3];
-    double omegaBrown[3];
-    double velNonB[3]; // all non-Brownian deterministic motion beforce collision
-    double omegaNonB[3];
+    double velCol[3];     ///< collision velocity
+    double omegaCol[3];   ///< collision angular velocity
+    double velBrown[3];   ///< Brownian velocity
+    double omegaBrown[3]; ///< Brownian angular velocity
+    double velNonB[3];    ///< all non-Brownian deterministic velocity beforce collision resolution
+    double omegaNonB[3];  ///< all non-Brownian deterministic angular velocity before collision resolution
 
+    /**
+     * @brief Construct a new Sylinder object
+     *
+     */
     Sylinder() = default;
+
+    /**
+     * @brief Destroy the Sylinder object
+     *
+     */
     ~Sylinder() = default;
 
+    /**
+     * @brief Construct a new Sylinder object
+     *
+     * @param gid_
+     * @param radius_
+     * @param radiusCollision_
+     * @param length_
+     * @param lengthCollision_
+     * @param pos_ if not specified position is set as [0,0,0]
+     * @param orientation_ if not specied orientation is set as identity
+     */
     Sylinder(const int &gid_, const double &radius_, const double &radiusCollision_, const double &length_,
              const double &lengthCollision_, const double pos_[3] = nullptr, const double orientation_[4] = nullptr);
 
+    /**
+     * @brief Copy constructor
+     *
+     */
     Sylinder(const Sylinder &) = default;
-    Sylinder &operator=(const Sylinder &) = default;
-
     Sylinder(Sylinder &&) = default;
+    Sylinder &operator=(const Sylinder &) = default;
     Sylinder &operator=(Sylinder &&) = default;
 
+    /**
+     * @brief display the data fields for this sylinder
+     *
+     */
     void dumpSylinder() const;
 
+    /**
+     * @brief set the velocity data fields to zero
+     *
+     */
     void clear();
 
-    // motion
+    /**
+     * @brief update the position and orientation with internal velocity data fields and given dt
+     *
+     * @param dt
+     */
     void stepEuler(double dt);
 
-    // necessary interface for InteractionManager.hpp
+    /**
+     * @brief return position
+     *
+     * necessary interface for InteractionManager.hpp
+     * @return const double*
+     */
     const double *Coord() const { return pos; }
+    /**
+     * @brief return search radius
+     *
+     * necessary interface for InteractionManager.hpp
+     * @return double
+     */
+    double Rad() const { return radiusCollision * 4 + lengthCollision; }
 
-    double Rad() const { return radiusCollision * 4; }
-
+    /**
+     * @brief serialization
+     *
+     * necessary interface for InteractionManager.hpp
+     * @param buff
+     */
     void Pack(std::vector<char> &buff) const;
-
+    /**
+     * @brief deserialization
+     *
+     * necessary interface for InteractionManager.hpp
+     * @param buff
+     */
     void Unpack(const std::vector<char> &buff);
 
-    // necessary interface for FDPS FullParticle class
+    /**
+     * @brief Get the Gid
+     *
+     * necessary interface for FDPS FullParticle class
+     * @return int
+     */
     int getGid() const { return gid; }
+
+    /**
+     * @brief Get position as a PS::F64vec3 object
+     *
+     * necessary interface for FDPS FullParticle class
+     * @return PS::F64vec3
+     */
     PS::F64vec3 getPos() const { return PS::F64vec3(pos[0], pos[1], pos[2]); }
+
+    /**
+     * @brief Set position with given PS::F64vec3 object
+     *
+     * necessary interface for FDPS FullParticle class
+     * @param newPos
+     */
     void setPos(const PS::F64vec3 &newPos) {
         pos[0] = newPos.x;
         pos[1] = newPos.y;
         pos[2] = newPos.z;
     }
-    // FDPS IO interface
+
+    /**
+     * @brief write to a file*
+     *
+     * FDPS IO interface
+     * @param fptr
+     */
     void writeAscii(FILE *fptr) const;
 
-    // Output to VTK
-    // PVTP Header file from rank 0
+    /**
+     * @brief write VTK XML PVTP Header file from rank 0
+     *
+     * @param prefix
+     * @param postfix
+     * @param nProcs
+     */
     static void writePVTP(const std::string &prefix, const std::string &postfix, const int nProcs);
 
-    // PVTP data file from every MPI rank
+    /**
+     * @brief write VTK XML binary base64 VTP data file from every MPI rank
+     *
+     * Procedure for dumping sylinders in the system:
+     * Each sylinder writes a polyline with two (connected) points.
+     * Points are labeled with float -1 and 1
+     * Sylinder data fields are written as cell data
+     * Rank 0 writes the parallel header , then each rank write its own serial vtp/vtu file
+     *
+     * @tparam Container container for local sylinders which supports [] operator
+     * @param sylinder
+     * @param sylinderNumber
+     * @param prefix
+     * @param postfix
+     * @param rank
+     */
     template <class Container>
     static void writeVTP(const Container &sylinder, const int sylinderNumber, const std::string &prefix,
                          const std::string &postfix, int rank) {
         // for each sylinder:
-        /*
-         Procedure for dumping sylinders in the system:
-        each sylinder writes a polyline with two (connected) points. points are labeled with float -1 and 1
-        sylinder data written as cell data
-        1 basic data (x,y,z), r, rcol, v, omega, etc output as VTK POLY_DATA file (*.vtp), each partiel is a VTK_VERTEX
-        For each dataset, rank 0 writes the parallel header , then each rank write its own serial vtp/vtu file
-        */
 
         // write VTP for basic data
         //  use float to save some space
@@ -213,7 +318,9 @@ class Sylinder {
     }
 };
 
-// for FDPS writeAscii file header
+/**
+ * @brief FDPS writeAscii file header
+ */
 class SylinderAsciiHeader {
   public:
     int nparticle;

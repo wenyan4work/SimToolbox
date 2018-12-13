@@ -1,3 +1,13 @@
+/**
+ * @file SylinderNear.hpp
+ * @author wenyan4work (wenyan4work@gmail.com)
+ * @brief Essential type for sylinder short range interactions
+ * @version 1.0
+ * @date 2018-12-13
+ *
+ * @copyright Copyright (c) 2018
+ *
+ */
 #ifndef SylinderNear_HPP_
 #define SylinderNear_HPP_
 
@@ -22,7 +32,11 @@
  *
  */
 
-// Essential Particle Class for FDPS
+/**
+ * @brief Essential type for sylinder short range interactions
+ *
+ * Essential Particle Class for FDPS
+ */
 struct SylinderNearEP {
   public:
     int gid;
@@ -36,7 +50,12 @@ struct SylinderNearEP {
     double pos[3];
     double direction[3];
 
-    // interface for FDPS
+    /**
+     * @brief copy data fields from full type Sylinder
+     *
+     * interface for FDPS
+     * @param fp
+     */
     void copyFromFP(const Sylinder &fp) {
         gid = fp.gid;
         globalIndex = fp.globalIndex;
@@ -53,9 +72,30 @@ struct SylinderNearEP {
         direction[2] = q[2];
     }
 
+    /**
+     * @brief Get pos as a PS::F64vec3 object
+     *
+     * interface for FDPS
+     * @return PS::F64vec
+     */
     PS::F64vec getPos() const { return PS::F64vec3(pos[0], pos[1], pos[2]); }
 
+    /**
+     * @brief get search radius
+     *
+     * interface for FDPS
+     * FDPS does not support search with rI+rJ.
+     * Here length*2 ensures contact is detected with Symmetry search mode
+     * @return PS::F64
+     */
     PS::F64 getRSearch() const { return length * 2 + 4 * radiusCollision; }
+
+    /**
+     * @brief Set pos with a PS::F64vec3 object
+     *
+     * interface for FDPS
+     * @param newPos
+     */
     void setPos(const PS::F64vec3 &newPos) {
         pos[0] = newPos.x;
         pos[1] = newPos.y;
@@ -66,10 +106,14 @@ struct SylinderNearEP {
 static_assert(std::is_trivially_copyable<SylinderNearEP>::value, "");
 static_assert(std::is_default_constructible<SylinderNearEP>::value, "");
 
+/**
+ * @brief collect short range interaction forces
+ *
+ */
 class ForceNear {
   public:
-    double sepmin;
-    double forceNear[3]; // for future use
+    double sepmin; ///< minimal separation
+    double forceNear[3];
     double torqueNear[3];
 
     void clear() {
@@ -82,13 +126,25 @@ class ForceNear {
 static_assert(std::is_trivially_copyable<ForceNear>::value, "");
 static_assert(std::is_default_constructible<ForceNear>::value, "");
 
+/**
+ * @brief callable object to collect collision blocks and compute near force
+ *
+ */
 class CalcSylinderNearForce {
   public:
-    std::shared_ptr<CollisionBlockPool> colPoolPtr;
+    std::shared_ptr<CollisionBlockPool> colPoolPtr; ///< shared object for collecting collision constraints
 
-    // constructor
+    /**
+     * @brief Construct a new CalcSylinderNearForce object
+     *
+     */
     CalcSylinderNearForce() {}
 
+    /**
+     * @brief Construct a new CalcSylinderNearForce object
+     *
+     * @param colPoolPtr_ the CollisionBlockPool object to write to
+     */
     CalcSylinderNearForce(std::shared_ptr<CollisionBlockPool> &colPoolPtr_) {
         assert(colPoolPtr_);
 
@@ -99,9 +155,15 @@ class CalcSylinderNearForce {
 #endif
     }
 
-    // use default copy constructor
-    // CalcSylinderNearForce(const CalcSylinderNearForce &obj) : colPoolPtr(obj.colPoolPtr) {}
-
+    /**
+     * @brief interaction functor called by FDPS internally
+     *
+     * @param ep_i target
+     * @param Nip number of target
+     * @param ep_j source
+     * @param Njp number of source
+     * @param forceNear computed force
+     */
     void operator()(const SylinderNearEP *const ep_i, const PS::S32 Nip, const SylinderNearEP *const ep_j,
                     const PS::S32 Njp, ForceNear *const forceNear) {
         constexpr double COLBUF = 0.3;
@@ -158,6 +220,22 @@ class CalcSylinderNearForce {
     }
 
   private:
+    /**
+     * @brief compute collision stress for a pair of sylinders
+     *
+     * @param dirI
+     * @param dirJ
+     * @param posI
+     * @param posJ
+     * @param hI
+     * @param hJ
+     * @param rI
+     * @param rJ
+     * @param rho
+     * @param Ploc
+     * @param Qloc
+     * @param StressIJ
+     */
     void collideStress(const Evec3 &dirI, const Evec3 &dirJ, const Evec3 &posI, const Evec3 &posJ, double hI, double hJ,
                        const double rI, const double rJ, const double rho, const Evec3 &Ploc, const Evec3 &Qloc,
                        Emat3 &StressIJ) {
@@ -240,6 +318,10 @@ class CalcSylinderNearForce {
     }
 };
 
-using TreeSylinderNear = PS::TreeForForceShort<ForceNear, SylinderNearEP, SylinderNearEP>::Scatter;
+/**
+ * @brief tree type for computing near interaction of sylinders
+ *
+ */
+using TreeSylinderNear = PS::TreeForForceShort<ForceNear, SylinderNearEP, SylinderNearEP>::Symmetry;
 
 #endif
