@@ -1,10 +1,31 @@
-#ifndef PRECOND_HPP_
-#define PRECOND_HPP_
+/**
+ * @file Preconditioner.hpp
+ * @author wenyan4work (wenyan4work@gmail.com)
+ * @brief utilities for creating preconditioners
+ * @version 1.0
+ * @date 2018-12-13
+ *
+ * @copyright Copyright (c) 2018
+ *
+ */
+
+#ifndef PRECONDITIONER_HPP_
+#define PRECONDITIONER_HPP_
 
 #include "TpetraUtil.hpp"
 
+/**
+ * @brief an abstract class for creating preconditioners
+ *
+ */
 class PrecondUtil {
   public:
+    /**
+     * @brief display the debugging info for TCMAT A and TOP preconditioner
+     *
+     * @param A
+     * @param PrecOp
+     */
     static void showPrecDebugInfo(const Teuchos::RCP<const TCMAT> &A, const Teuchos::RCP<const TOP> &PrecOp) {
 #ifdef IFPACKDEBUG
         dumpTCMAT(A, "A_for_Prec");
@@ -59,15 +80,24 @@ class PrecondUtil {
 #endif
     }
 
-    // ILUT preconditioner, not good for threading, and includes only diagonal blocks in Schwarz decomposition
+    /**
+     * @brief create an ILUT preconditioner
+     *
+     * not good for threading, and includes only diagonal blocks in Schwarz decomposition
+     *
+     * @param A
+     * @param tol
+     * @param fill
+     * @return Teuchos::RCP<TOP>
+     */
     static Teuchos::RCP<TOP> createILUTPreconditioner(const Teuchos::RCP<const TCMAT> &A, double tol, double fill) {
-        using Teuchos::ParameterList;
-        using Teuchos::RCP;
-        using Teuchos::Time;
-        using Teuchos::TimeMonitor;
-        using Teuchos::rcp;
         using std::cout;
         using std::endl;
+        using Teuchos::ParameterList;
+        using Teuchos::RCP;
+        using Teuchos::rcp;
+        using Teuchos::Time;
+        using Teuchos::TimeMonitor;
 
         // set parameter list
         // The name of the type of preconditioner to use.
@@ -136,17 +166,22 @@ class PrecondUtil {
         return prec;
     }
 
-    // Polynomial Relaxation Preconditioner
+    /**
+     * @brief Create a Polynomial Relaxation Preconditioner
+     *
+     * @param A
+     * @return Teuchos::RCP<TOP>
+     */
     static Teuchos::RCP<TOP> createPlnPreconditioner(const Teuchos::RCP<const TCMAT> &A) {
         // get a CrsMatrix A, return a Polynomial (Relaxation, Chebyshev, etc) Preconditioner for A represented by a
         // Operator
-        using Teuchos::ParameterList;
-        using Teuchos::RCP;
-        using Teuchos::Time;
-        using Teuchos::TimeMonitor;
-        using Teuchos::rcp;
         using std::cout;
         using std::endl;
+        using Teuchos::ParameterList;
+        using Teuchos::RCP;
+        using Teuchos::rcp;
+        using Teuchos::Time;
+        using Teuchos::TimeMonitor;
         // set parameter list
         // The name of the type of preconditioner to use.
         //	Teuchos::ParameterList plistSWZ; // SCHWARZ domain decomposition -> block diagonal
@@ -242,6 +277,10 @@ class PrecondUtil {
         return prec;
     }
 
+    /**
+     * @brief inverting preconditioner
+     *
+     */
     class KinvOperator : public TOP {
       private:
         // This is an implementation detail; users don't need to see it.
@@ -264,15 +303,25 @@ class PrecondUtil {
         Teuchos::RCP<TOP> precOp;
 
       public:
-        // Constructor
-        //
-        // n: Global number of rows and columns in the operator.
-        // comm: The communicator over which to distribute those rows and columns.
+        /**
+         * @brief Construct a new Kinv Operator object
+         *
+         * @param A
+         * @param comm
+         * @param map
+         * @param initialGuess
+         */
         KinvOperator(const Teuchos::RCP<const TCMAT> &A, const Teuchos::RCP<const Teuchos::Comm<int>> &comm,
                      const Teuchos::RCP<const TMAP> &map, const Teuchos::RCP<const TMV> &initialGuess)
             // initialGuess vector is not modified.
             : KinvOperator(A, initialGuess){}; // delegate constructor
 
+        /**
+         * @brief Construct a new Kinv Operator object
+         *
+         * @param A_
+         * @param initialGuess_
+         */
         KinvOperator(const Teuchos::RCP<const TCMAT> &A_, const Teuchos::RCP<const TMV> &initialGuess_)
             : A(A_), comm(A_->getComm()), rowMap(A_->getRowMap()), colMap(A_->getColMap()), myRank(comm->getRank()),
               numProcs(comm->getSize()), globalSize(rowMap->getGlobalNumElements()),
@@ -320,20 +369,47 @@ class PrecondUtil {
 #endif
         }
 
-        // Destructor
+        /**
+         * @brief Destroy the Kinv Operator object
+         *
+         */
         ~KinvOperator() = default;
 
+        /**
+         * @brief Get the Domain Map object
+         *
+         * @return Teuchos::RCP<const TMAP>
+         */
         Teuchos::RCP<const TMAP> getDomainMap() const {
             return this->rowMap; // Get the domain Map of this Operator subclass.
         }
+
+        /**
+         * @brief Get the Range Map object
+         *
+         * @return Teuchos::RCP<const TMAP>
+         */
         Teuchos::RCP<const TMAP> getRangeMap() const {
             return this->rowMap; // Get the range Map of this Operator subclass.
         }
 
+        /**
+         * @brief check if this operator can be applied as transposed
+         *
+         * @return true
+         * @return false
+         */
         bool hasTransposeApply() const { return false; }
 
-        // Compute Y := alpha Op X + beta Y.
-        // EQ 22 in note.
+        /**
+         * @brief compute Y := alpha Op X + beta Y.
+         *
+         * @param X
+         * @param Y
+         * @param mode
+         * @param alpha
+         * @param beta
+         */
         void apply(const TMV &X, TMV &Y, Teuchos::ETransp mode = Teuchos::NO_TRANS,
                    scalar_type alpha = Teuchos::ScalarTraits<scalar_type>::one(),
                    scalar_type beta = Teuchos::ScalarTraits<scalar_type>::zero()) const {
@@ -363,15 +439,17 @@ class PrecondUtil {
         }
     };
 
+    /**
+     * @brief Create a KinvPreconditioner object
+     *
+     * @param A
+     * @param initialGuess
+     * @return Teuchos::RCP<TOP>
+     */
     static Teuchos::RCP<TOP> createKinvPreconditioner(const Teuchos::RCP<const TCMAT> &A,
                                                       const Teuchos::RCP<const TMV> &initialGuess) {
         return Teuchos::rcp(new KinvOperator(A.getConst(), initialGuess.getConst()));
     }
 };
 
-// Teuchos::RCP<TOP> createILUTPreconditioner(const Teuchos::RCP<const TCMAT> &, double, double);
-
-// Teuchos::RCP<TOP> createPlnPreconditioner(const Teuchos::RCP<const TCMAT> &);
-
-// Teuchos::RCP<TOP> createKinvPreconditioner(const Teuchos::RCP<const TCMAT> &, const Teuchos::RCP<const TMV> &);
 #endif

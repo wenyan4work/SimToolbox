@@ -14,6 +14,10 @@
 
 #include <iostream>
 
+/**
+ * @brief read system configuration from a yaml file
+ *
+ */
 class SystemConfig {
   public:
     // parallel setting

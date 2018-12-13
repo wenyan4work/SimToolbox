@@ -1,5 +1,5 @@
-#ifndef BUFFER_HPP
-#define BUFFER_HPP
+#ifndef BUFFER_HPP_
+#define BUFFER_HPP_
 
 #include <cstdio>
 #include <iostream>
