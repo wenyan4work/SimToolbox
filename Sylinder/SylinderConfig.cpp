@@ -83,7 +83,7 @@ void SylinderConfig::dump() const {
         printf("viscosity: %g\n", viscosity);
         printf("kBT: %g\n", KBT);
         printf("Sylinder Number: %d\n", sylinderNumber);
-        printf("Sylinder Length: %d\n", sylinderLength);
+        printf("Sylinder Length: %g\n", sylinderLength);
         printf("Sylinder Length Sigma: %g\n", sylinderLengthSigma);
         printf("Sylinder Diameter: %g\n", sylinderDiameter);
         printf("-------------------------------------------\n");
