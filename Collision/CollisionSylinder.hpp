@@ -1,3 +1,13 @@
+/**
+ * @file CollisionSylinder.hpp
+ * @author wenyan4work (wenyan4work@gmail.com)
+ * @brief collision between sylinders
+ * @version 0.1
+ * @date 2018-12-14
+ *
+ * @copyright Copyright (c) 2018
+ *
+ */
 #ifndef COLLISIONSYLINDER_HPP_
 #define COLLISIONSYLINDER_HPP_
 
@@ -9,6 +19,10 @@
 #include "Util/EigenDef.hpp"
 #include "Util/GeoCommon.h"
 
+/**
+ * @brief To be used with InteractionManager
+ *
+ */
 class CollisionSylinder {
     // this is a POD type, used to generate collision blocks
   public:

@@ -1,5 +1,18 @@
+/**
+ * @file CollisionCollector.hpp
+ * @author wenyan4work (wenyan4work@gmail.com)
+ * @brief Collect collision constraints
+ * @version 0.1
+ * @date 2018-12-14
+ *
+ * @copyright Copyright (c) 2018
+ *
+ */
 #ifndef COLLISIONCOLLECTOR_HPP_
 #define COLLISIONCOLLECTOR_HPP_
+
+#include "Trilinos/TpetraUtil.hpp"
+#include "Util/EigenDef.hpp"
 
 #include <algorithm>
 #include <cmath>
@@ -7,9 +20,6 @@
 #include <vector>
 
 #include <omp.h>
-
-#include "Trilinos/TpetraUtil.hpp"
-#include "Util/EigenDef.hpp"
 
 /**
  * @brief collision constraint information block
@@ -75,7 +85,7 @@ using CollisionBlockPool = std::vector<CollisionBlockQue>; ///< a pool contains 
 
 /**
  * @brief collecter of collision blocks
- * 
+ *
  */
 class CollisionCollector {
   public:
@@ -168,15 +178,15 @@ class CollisionCollector {
         stress = stress * (1.0 / poolSize);
     }
 
-/**
- * @brief process each collision i,j and record them to ColBlocks
- * 
- * @tparam Trg 
- * @tparam Src 
- * @param trg 
- * @param src 
- * @param srcShift shift of Src position. used in periodic boundary condition.
- */
+    /**
+     * @brief process each collision i,j and record them to ColBlocks
+     *
+     * @tparam Trg
+     * @tparam Src
+     * @param trg
+     * @param src
+     * @param srcShift shift of Src position. used in periodic boundary condition.
+     */
     template <class Trg, class Src>
     void operator()(Trg &trg, const Src &src, const std::array<double, 3> &srcShift) {
         const int threadId = omp_get_thread_num();

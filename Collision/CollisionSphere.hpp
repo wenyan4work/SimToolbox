@@ -1,3 +1,14 @@
+/**
+ * @file CollisionSphere.hpp
+ * @author wenyan4work (wenyan4work@gmail.com)
+ * @brief collision between spheres
+ * @version 0.1
+ * @date 2018-12-14
+ * 
+ * @copyright Copyright (c) 2018
+ * 
+ */
+
 #ifndef COLLISIONSPHERE_HPP_
 #define COLLISIONSPHERE_HPP_
 
@@ -8,6 +19,10 @@
 #include "Util/EigenDef.hpp"
 #include "Util/GeoCommon.h"
 
+/**
+ * @brief To be used with InteractionManager
+ * 
+ */
 class CollisionSphere {
   public:
     int gid = GEO_INVALID_INDEX;

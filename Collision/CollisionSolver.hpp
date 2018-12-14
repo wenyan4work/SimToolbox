@@ -1,3 +1,13 @@
+/**
+ * @file CollisionSolver.hpp
+ * @author wenyan4work (wenyan4work@gmail.com)
+ * @brief Solve the collision LCP problem
+ * @version 0.1
+ * @date 2018-12-14
+ * 
+ * @copyright Copyright (c) 2018
+ * 
+ */
 #ifndef COLLISIONSOLVER_HPP_
 #define COLLISIONSOLVER_HPP_
 

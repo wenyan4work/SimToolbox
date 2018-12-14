@@ -182,8 +182,8 @@ void SylinderSystem::setInitialCircularCrossSection() {
     // x axis
     centerCrossSec = Evec3(0, (runConfig.initBoxHigh[1] - runConfig.initBoxLow[1]) * 0.5 + runConfig.initBoxLow[1],
                            (runConfig.initBoxHigh[2] - runConfig.initBoxLow[2]) * 0.5 + runConfig.initBoxLow[2]);
-    radiusCrossSec = sqrt(pow(runConfig.initBoxHigh[1] - centerCrossSec[1], 2) +
-                          pow(runConfig.initBoxHigh[2] - centerCrossSec[2], 2));
+    radiusCrossSec = 0.5 * std::min(runConfig.initBoxHigh[2] - runConfig.initBoxLow[2],
+                                    runConfig.initBoxHigh[1] - runConfig.initBoxLow[1]);
 #pragma omp parallel
     {
         const int threadId = omp_get_thread_num();

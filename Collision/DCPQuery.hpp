@@ -1,9 +1,9 @@
 /**
  * @file DCPQuery.hpp
- * @author Wen Yan (wenyan4work@gmail.com)
- * @brief 
- * @version 1.0
- * @date 2018-12-12
+ * @author wenyan4work (wenyan4work@gmail.com)
+ * @brief geometric utilities for sylinder collision detection
+ * @version 0.1
+ * @date 2018-12-14
  * 
  * @copyright Copyright (c) 2018
  * 

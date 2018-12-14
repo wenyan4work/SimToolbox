@@ -1,3 +1,13 @@
+/**
+ * @file CPSolver.hpp
+ * @author wenyan4work (wenyan4work@gmail.com)
+ * @brief LCP Solver
+ * @version 0.1
+ * @date 2018-12-14
+ * 
+ * @copyright Copyright (c) 2018
+ * 
+ */
 #ifndef CPSOLVER_HPP_
 #define CPSOLVER_HPP_
 

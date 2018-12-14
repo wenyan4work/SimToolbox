@@ -17,3 +17,5 @@ The folder `Protein`, `Sphere`, and `Sylinder` contains geometric primitives for
 The folder `Util` contains some utilities to facilitate the application, including an interface to linear algebra `Eigen`, a parallel RNG interface to `TRNG`, a command line parser `cmdparser` (https://github.com/FlorianRappl/CmdParser), a timer, and a Gauss_Legendre table (https://github.com/sivaramambikasaran/Quadrature).
 
 New functions will be continuously added to this toolbox to facilitate quick development of HPC simulation code.
+
+Run the script `Gendoc.sh` to generate html document with doxygen in `doc/html/index.html`.
