@@ -24,7 +24,7 @@ void test(int argc, char **argv) {
         newSylinder.emplace_back(i, runConfig.sylinderDiameter / 2, runConfig.sylinderDiameter / 2,
                                  runConfig.sylinderLength / 2, runConfig.sylinderLength / 2);
     }
-    sylinderSystem.addNewSylinderAndRepartition(newSylinder);
+    sylinderSystem.addNewSylinder(newSylinder);
 
     for (int i = 0; i < 10; i++) {
         sylinderSystem.prepareStep();
