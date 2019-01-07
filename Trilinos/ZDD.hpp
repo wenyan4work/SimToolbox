@@ -56,9 +56,9 @@ class ZDD {
         localID.reserve(nEst);
         localData.reserve(nEst);
 
-        static_assert(std::is_trivially_copyable<ID_TYPE>::value(), "");
-        static_assert(std::is_trivially_copyable<DATA_TYPE>::value(), "");
-        static_assert(std::is_default_constructible<DATA_TYPE>::value(), "");
+        static_assert(std::is_trivially_copyable<ID_TYPE>::value, "");
+        static_assert(std::is_trivially_copyable<DATA_TYPE>::value, "");
+        static_assert(std::is_default_constructible<DATA_TYPE>::value, "");
     }
 
     /**
