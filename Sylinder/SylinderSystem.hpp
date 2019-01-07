@@ -118,13 +118,6 @@ class SylinderSystem {
     void setPosWithWall();
 
     /**
-     * @brief Get the local and global max gid for sylinders
-     *
-     * @return std::pair<int, int> [localMaxGid,globalMaxGid]
-     */
-    std::pair<int, int> getMaxGid();
-
-    /**
      * @brief Get orientation quaternion with givne px,py,pz
      *
      * component in [px,py,pz] out of range [-1,1] will be randomly generated
@@ -368,6 +361,14 @@ class SylinderSystem {
     Teuchos::RCP<TV> getVelocityCol() const { return velocityColRcp; };
     Teuchos::RCP<TCMAT> getMobMatrix() { return mobilityMatrixRcp; };
     Teuchos::RCP<TOP> getMobOperator() { return mobilityOperatorRcp; };
+
+    // get information
+    /**
+     * @brief Get the local and global max gid for sylinders
+     *
+     * @return std::pair<int, int> [localMaxGid,globalMaxGid]
+     */
+    std::pair<int, int> getMaxGid();
 };
 
 #endif

@@ -151,7 +151,7 @@ void SylinderSystem::setInitialFromConfig() {
                 }
                 double pos[3];
                 for (int k = 0; k < 3; k++) {
-                    pos[k] = rngPoolPtr->getU01(threadId) * boxEdge[k] + runConfig.initBoxLow[0];
+                    pos[k] = rngPoolPtr->getU01(threadId) * boxEdge[k] + runConfig.initBoxLow[k];
                 }
                 Equatn orientq;
                 getOrient(orientq, runConfig.initOrient[0], runConfig.initOrient[1], runConfig.initOrient[2], threadId);
