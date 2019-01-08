@@ -23,7 +23,7 @@ SylinderSystem::SylinderSystem(const SylinderConfig &runConfig_, const std::stri
 void SylinderSystem::initialize(const SylinderConfig &runConfig_, const std::string &posFile, int argc, char **argv) {
     runConfig = runConfig_;
     stepCount = 0;
-    snapID = 0;
+    snapID = -1; // the first snapshot starts from 0 in writeResult
 
     // set MPI
     int mpiflag;
@@ -286,11 +286,7 @@ std::string SylinderSystem::getCurrentResultFolder() {
 
 void SylinderSystem::writeAscii(const std::string &baseFolder) {
     // write a single ascii .dat file
-    const int nLocal = sylinderContainer.getNumberOfParticleLocal();
-    int nGlobal = nLocal;
-    if (commRcp->getSize() > 1) {
-        MPI_Allreduce(&nLocal, &nGlobal, 1, MPI_INT, MPI_SUM, MPI_COMM_WORLD);
-    }
+    const int nGlobal = sylinderContainer.getNumberOfParticleGlobal();
 
     std::string name = baseFolder + std::string("SylinderAscii_") + std::to_string(snapID) + ".dat";
     SylinderAsciiHeader header;
@@ -326,11 +322,11 @@ void SylinderSystem::writeBox() {
 }
 
 void SylinderSystem::writeResult() {
+    snapID++;
     std::string baseFolder = getCurrentResultFolder();
     IOHelper::makeSubFolder(baseFolder);
     writeAscii(baseFolder);
     writeVTK(baseFolder);
-    snapID++;
 }
 
 void SylinderSystem::showOnScreenRank0() {
