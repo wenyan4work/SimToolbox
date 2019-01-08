@@ -11,7 +11,7 @@
 #ifndef GEOUTIL_HPP_
 #define GEOUTIL_HPP_
 
-//TODO: More thorough tests
+// TODO: More thorough tests
 
 /**
  * @brief find PBC Image of x in range[lb,ub)
@@ -23,7 +23,7 @@
  * @return Real
  */
 template <class Real>
-void findPBCImage(const Real &lb, const Real &ub, Real &x) {
+inline void findPBCImage(const Real &lb, const Real &ub, Real &x) {
     const Real L = ub - lb;
     while (x >= ub) {
         x -= L;
@@ -47,7 +47,7 @@ void findPBCImage(const Real &lb, const Real &ub, Real &x) {
  * @return Real
  */
 template <class Real>
-void findPBCImage(const Real &lb, const Real &ub, Real &x, Real &trg) {
+inline void findPBCImage(const Real &lb, const Real &ub, Real &x, Real &trg) {
     findPBCImage(lb, ub, trg);
     x = x - trg;
     findPBCImage(lb, ub, x);
@@ -69,13 +69,46 @@ void findPBCImage(const Real &lb, const Real &ub, Real &x, Real &trg) {
  * @param y
  */
 template <class Real>
-void getRandPointInCircle(const Real &radius, const Real &U01a, const Real &U01b, //
-                          Real &x, Real &y) {
+inline void getRandPointInCircle(const Real &radius, const Real &U01a, const Real &U01b, //
+                                 Real &x, Real &y) {
     constexpr Real Pi = 3.14159265358979323846;
     double theta = 2 * Pi * U01a;   /* angle is uniform */
     double r = radius * sqrt(U01b); /* radius proportional to sqrt(U), U~U(0,1) */
     x = r * cos(theta);
     y = r * sin(theta);
+}
+
+/**
+ * @brief Get a random point on unit sphere
+ *
+ * @tparam Real
+ * @param U01a rng U01
+ * @param U01b rng U01
+ * @param theta
+ * @param phi
+ */
+template <class Real>
+inline void getRandPointAngleOnSphere(const Real &U01a, const Real &U01b, Real &theta, Real &phi) {
+    constexpr Real Pi = 3.14159265358979323846;
+    theta = 2 * Pi * U01a;
+    phi = acos(2 * U01b - 1.0);
+}
+
+/**
+ * @brief Get a random point on unit sphere
+ *
+ * @tparam Real
+ * @param U01a rng U01
+ * @param U01b rng U01
+ * @param pos
+ */
+template <class Real>
+inline void getRandPointOnSphere(const Real &U01a, const Real &U01b, Real pos[3]) {
+    Real theta, phi;
+    getRandPointAngleOnSphere(U01a, U01b, theta, phi);
+    pos[0] = cos(theta) * sin(phi);
+    pos[1] = sin(theta) * sin(phi);
+    pos[2] = cos(phi);
 }
 
 #endif
