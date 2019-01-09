@@ -62,10 +62,10 @@ using EAmatPsi = Eigen::Matrix<double, 4, 3, Eigen::DontAlign>;
 using EAquatn = Eigen::Quaterniond;
 
 // map from raw pointer to fixed size type
-using Emap3 = Eigen::Map<Evec3>;
-using ECmap3 = Eigen::Map<const Evec3>;
-using Emapq = Eigen::Map<Eigen::Quaternion<double>, Eigen::DontAlign>;
-using ECmapq = Eigen::Map<const Eigen::Quaternion<double>, Eigen::DontAlign>;
+using Emap3 = Eigen::Map<Evec3, Eigen::Unaligned>;
+using ECmap3 = Eigen::Map<const Evec3, Eigen::Unaligned>;
+using Emapq = Eigen::Map<Eigen::Quaternion<double>, Eigen::Unaligned>;
+using ECmapq = Eigen::Map<const Eigen::Quaternion<double>, Eigen::Unaligned>;
 
 // dynamic size types
 using Evec = Eigen::VectorXd;

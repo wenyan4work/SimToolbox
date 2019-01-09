@@ -103,12 +103,12 @@ inline void getRandPointAngleOnSphere(const Real &U01a, const Real &U01b, Real &
  * @param pos
  */
 template <class Real>
-inline void getRandPointOnSphere(const Real &U01a, const Real &U01b, Real pos[3]) {
+inline void getRandPointOnSphere(const Real &radius, const Real &U01a, const Real &U01b, Real pos[3]) {
     Real theta, phi;
     getRandPointAngleOnSphere(U01a, U01b, theta, phi);
-    pos[0] = cos(theta) * sin(phi);
-    pos[1] = sin(theta) * sin(phi);
-    pos[2] = cos(phi);
+    pos[0] = cos(theta) * sin(phi) * radius;
+    pos[1] = sin(theta) * sin(phi) * radius;
+    pos[2] = cos(phi) * radius;
 }
 
 #endif

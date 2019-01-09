@@ -130,24 +130,21 @@ class SylinderSystem {
      */
     void getOrient(Equatn &orient, const double px, const double py, const double pz, const int threadId);
 
-    /**
-     * @brief Get random coordinate [x,y] in a circle with radius
-     *
-     * @param radius
-     * @param x
-     * @param y
-     * @param threadId openmp thread id for random number generation
-     */
-    void getRandPointInCircle(const double &radius, double &x, double &y, const int &threadId);
+    // /**
+    //  * @brief Get random coordinate [x,y] in a circle with radius
+    //  *
+    //  * @param radius
+    //  * @param x
+    //  * @param y
+    //  * @param threadId openmp thread id for random number generation
+    //  */
+    // void getRandPointInCircle(const double &radius, double &x, double &y, const int &threadId);
 
     /**
-     * @brief get the image of x specified by the range [lb,ub) with periodic BC
+     * @brief update the rank data field of sylinder
      *
-     * @param x
-     * @param lb
-     * @param ub
      */
-    void fitInPeriodicBound(double &x, const double &lb, const double &ub) const;
+    void updateSylinderRank();
 
   public:
     SylinderConfig runConfig; ///< system configuration. Be careful if this is modified on the fly

@@ -39,16 +39,16 @@
  */
 struct SylinderNearEP {
   public:
-    int gid;
-    int globalIndex;
+    int gid;                ///< global unique id
+    int globalIndex;        ///< sequentially ordered unique index in sylinder map
+    int rank;               ///< mpi rank of owning rank
+    double radius;          ///< radius
+    double radiusCollision; ///< collision radius
+    double length;          ///< length
+    double lengthCollision; ///< collision length
 
-    double radius;
-    double radiusCollision;
-    double length;
-    double lengthCollision;
-
-    double pos[3];
-    double direction[3];
+    double pos[3];       ///< position
+    double direction[3]; ///< direction (unit norm vector)
 
     /**
      * @brief copy data fields from full type Sylinder
@@ -59,6 +59,7 @@ struct SylinderNearEP {
     void copyFromFP(const Sylinder &fp) {
         gid = fp.gid;
         globalIndex = fp.globalIndex;
+        rank = fp.rank;
 
         radius = fp.radius;
         radiusCollision = fp.radiusCollision;

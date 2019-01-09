@@ -31,6 +31,7 @@ class Sylinder {
   public:
     int gid = GEO_INVALID_INDEX;         ///< unique global id
     int globalIndex = GEO_INVALID_INDEX; ///< unique global index sequentially ordered
+    int rank = -1;                       ///< mpi rank
     double radius;                       ///< radius
     double radiusCollision;              ///< radius for collision resolution
     double length;                       ///< length

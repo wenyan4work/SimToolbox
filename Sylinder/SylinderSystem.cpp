@@ -1,6 +1,7 @@
 #include "SylinderSystem.hpp"
 
 #include "Util/EquatnHelper.hpp"
+#include "Util/GeoUtil.hpp"
 #include "Util/IOHelper.hpp"
 
 #include <cmath>
@@ -168,12 +169,12 @@ void SylinderSystem::setInitialFromConfig() {
     }
 }
 
-void SylinderSystem::getRandPointInCircle(const double &radius, double &x, double &y, const int &threadId) {
-    double theta = 2 * Pi * rngPoolPtr->getU01(threadId);   /* angle is uniform */
-    double r = radius * sqrt(rngPoolPtr->getU01(threadId)); /* radius proportional to sqrt(U), U~U(0,1) */
-    x = r * cos(theta);
-    y = r * sin(theta);
-}
+// void SylinderSystem::getRandPointInCircle(const double &radius, double &x, double &y, const int &threadId) {
+//     double theta = 2 * Pi * rngPoolPtr->getU01(threadId);   /* angle is uniform */
+//     double r = radius * sqrt(rngPoolPtr->getU01(threadId)); /* radius proportional to sqrt(U), U~U(0,1) */
+//     x = r * cos(theta);
+//     y = r * sin(theta);
+// }
 
 void SylinderSystem::setInitialCircularCrossSection() {
     const int nLocal = sylinderContainer.getNumberOfParticleLocal();
@@ -192,7 +193,7 @@ void SylinderSystem::setInitialCircularCrossSection() {
             double y = sylinderContainer[i].pos[1];
             double z = sylinderContainer[i].pos[2];
             // replace y,z with position in the circle
-            getRandPointInCircle(radiusCrossSec, y, z, threadId);
+            getRandPointInCircle(radiusCrossSec, rngPoolPtr->getU01(threadId), rngPoolPtr->getU01(threadId), y, z);
             sylinderContainer[i].pos[1] = y + centerCrossSec[1];
             sylinderContainer[i].pos[2] = z + centerCrossSec[2];
         }
@@ -399,7 +400,10 @@ void SylinderSystem::decomposeDomain() {
     dinfo.decomposeDomainAll(sylinderContainer);
 }
 
-void SylinderSystem::exchangeSylinder() { sylinderContainer.exchangeParticle(dinfo); }
+void SylinderSystem::exchangeSylinder() {
+    sylinderContainer.exchangeParticle(dinfo);
+    updateSylinderRank();
+}
 
 void SylinderSystem::calcMobMatrix() {
     // diagonal hydro mobility operator
@@ -931,14 +935,12 @@ void SylinderSystem::calcBoundingBox(double localLow[3], double localHigh[3], do
     return;
 }
 
-void SylinderSystem::fitInPeriodicBound(double &x, const double &lb, const double &ub) const {
-    // put the periodic image of x in [lb,ub)
-    const double L = ub - lb;
-    while (x >= ub) {
-        x -= L;
-    }
-    while (x < lb) {
-        x += L;
+void SylinderSystem::updateSylinderRank() {
+    const int nLocal = sylinderContainer.getNumberOfParticleLocal();
+    const int rank = commRcp->getRank();
+#pragma omp parallel for
+    for (int i = 0; i < nLocal; i++) {
+        sylinderContainer[i].rank = rank;
     }
 }
 
