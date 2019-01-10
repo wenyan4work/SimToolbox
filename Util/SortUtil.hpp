@@ -60,6 +60,10 @@ void sortDataWithTag(std::vector<Tag> &tags, std::vector<Data> &data) {
 #pragma omp parallel for
     for (int i = 0; i < length; i++) {
         tagsSorted[i] = tags[indices[i]];
+    }
+
+#pragma omp parallel for
+    for (int i = 0; i < length; i++) {
         dataSorted[i] = data[indices[i]];
     }
 
