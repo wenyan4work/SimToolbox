@@ -21,6 +21,10 @@ class Sphere {
     Evec3 vel;
     Evec3 omega;
     Equatn orientation;
+    Evec3 forceCol;
+    Evec3 torqueCol;
+    Evec3 forceNonCol;
+    Evec3 torqueNonCol;
 
     // std::vector<NeighborSphere> sphNeighbor;
     std::unordered_map<std::string, Shexp *> sphLayer;

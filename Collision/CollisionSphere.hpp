@@ -75,6 +75,8 @@ class CollisionSphere {
             block.globalIndexJ = sphereJ.globalIndex;
             block.posI.setZero();
             block.posJ.setZero();
+            block.endI = posI;
+            block.endJ = posJ;
             block.gamma = sep < 0 ? -sep : 0; // a crude initial guess
             return true;
         } else {

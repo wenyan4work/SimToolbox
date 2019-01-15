@@ -237,6 +237,10 @@ void Sphere::writeVTP(const std::vector<Sphere> &sphere, const std::string &pref
     std::vector<float> omega(3 * sphereNumber);
     std::vector<float> xnorm(3 * sphereNumber);
     std::vector<float> znorm(3 * sphereNumber);
+    std::vector<float> forceCol(3 * sphereNumber);
+    std::vector<float> torqueCol(3 * sphereNumber);
+    std::vector<float> forceNonCol(3 * sphereNumber);
+    std::vector<float> torqueNonCol(3 * sphereNumber);
 
 #pragma omp parallel for
     for (int i = 0; i < sphereNumber; i++) {
@@ -251,6 +255,10 @@ void Sphere::writeVTP(const std::vector<Sphere> &sphere, const std::string &pref
             omega[3 * i + j] = sphere[i].omega[j];
             xnorm[3 * i + j] = nx[j];
             znorm[3 * i + j] = nz[j];
+            forceCol[3 * i + j] = sphere[i].forceCol[j];
+            torqueCol[3 * i + j] = sphere[i].torqueCol[j];
+            forceNonCol[3 * i + j] = sphere[i].forceNonCol[j];
+            torqueNonCol[3 * i + j] = sphere[i].torqueNonCol[j];
         }
     }
 
@@ -272,6 +280,10 @@ void Sphere::writeVTP(const std::vector<Sphere> &sphere, const std::string &pref
     IOHelper::writeDataArrayBase64(omega, "omega", 3, file);
     IOHelper::writeDataArrayBase64(xnorm, "xnorm", 3, file);
     IOHelper::writeDataArrayBase64(znorm, "znorm", 3, file);
+    IOHelper::writeDataArrayBase64(forceCol, "forceCol", 3, file);
+    IOHelper::writeDataArrayBase64(torqueCol, "torqueCol", 3, file);
+    IOHelper::writeDataArrayBase64(forceNonCol, "forceNonCol", 3, file);
+    IOHelper::writeDataArrayBase64(torqueNonCol, "torqueNonCol", 3, file);
     file << "</PointData>\n";
     // no cell data
     // Points
@@ -293,6 +305,10 @@ void Sphere::writePVTP(const std::string &prefix, const std::string &postfix, co
     dataFields.emplace_back(3, IOHelper::IOTYPE::Float32, "omega");
     dataFields.emplace_back(3, IOHelper::IOTYPE::Float32, "xnorm");
     dataFields.emplace_back(3, IOHelper::IOTYPE::Float32, "znorm");
+    dataFields.emplace_back(3, IOHelper::IOTYPE::Float32, "forceCol");
+    dataFields.emplace_back(3, IOHelper::IOTYPE::Float32, "torqueCol");
+    dataFields.emplace_back(3, IOHelper::IOTYPE::Float32, "forceNonCol");
+    dataFields.emplace_back(3, IOHelper::IOTYPE::Float32, "torqueNonCol");
 
     std::vector<std::string> pieceNames;
     for (int i = 0; i < nProcs; i++) {
