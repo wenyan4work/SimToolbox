@@ -136,7 +136,8 @@ int main(int argc, char **argv) {
     sysMotor.exchangeParticle(dinfo);
     printf("exchanged\n");
 
-    MixPairInteraction<Tubule, Motor, Tubule, Motor, ForceTest> mixSystem(sysTubule, sysMotor, dinfo);
+    MixPairInteraction<Tubule, Motor, Tubule, Motor, ForceTest> mixSystem;
+    mixSystem.initialize(sysTubule, sysMotor, dinfo);
 
     mixSystem.updateSystem();
     printf("mixSystemUpdated\n");

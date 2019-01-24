@@ -51,6 +51,20 @@ struct SylinderNearEP {
     double direction[3]; ///< direction (unit norm vector)
 
     /**
+     * @brief Get gid
+     * 
+     * @return int 
+     */
+    int getGid() const { return gid; }
+
+    /**
+     * @brief Get global index (sequentially ordered in sylinder map)
+     * 
+     * @return int 
+     */
+    int getGlobalIndex() const { return globalIndex; }
+
+    /**
      * @brief copy data fields from full type Sylinder
      *
      * interface for FDPS
