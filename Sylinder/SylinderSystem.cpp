@@ -24,7 +24,7 @@ SylinderSystem::SylinderSystem(const SylinderConfig &runConfig_, const std::stri
 void SylinderSystem::initialize(const SylinderConfig &runConfig_, const std::string &posFile, int argc, char **argv) {
     runConfig = runConfig_;
     stepCount = 0;
-    snapID = -1; // the first snapshot starts from 0 in writeResult
+    snapID = 0; // the first snapshot starts from 0 in writeResult
 
     // set MPI
     int mpiflag;
@@ -42,8 +42,7 @@ void SylinderSystem::initialize(const SylinderConfig &runConfig_, const std::str
     collisionSolverPtr = std::make_shared<CollisionSolver>();
     collisionCollectorPtr = std::make_shared<CollisionCollector>();
 
-    PS::Initialize(argc, argv); // init FDPS system
-    dinfo.initialize();         // init DomainInfo
+    dinfo.initialize(); // init DomainInfo
     setDomainInfo();
 
     sylinderContainer.initialize();
@@ -69,9 +68,6 @@ void SylinderSystem::initialize(const SylinderConfig &runConfig_, const std::str
         IOHelper::makeSubFolder("./result"); // prepare the output directory
         writeBox();
     }
-
-    commRcp->barrier();
-    writeResult();
 
     calcVolFrac();
     printf("SylinderSystem Initialized. %d sylinders on process %d\n", sylinderContainer.getNumberOfParticleLocal(),
@@ -323,11 +319,11 @@ void SylinderSystem::writeBox() {
 }
 
 void SylinderSystem::writeResult() {
-    snapID++;
     std::string baseFolder = getCurrentResultFolder();
     IOHelper::makeSubFolder(baseFolder);
     writeAscii(baseFolder);
     writeVTK(baseFolder);
+    snapID++;
 }
 
 void SylinderSystem::showOnScreenRank0() {

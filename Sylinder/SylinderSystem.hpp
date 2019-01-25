@@ -349,10 +349,11 @@ class SylinderSystem {
     void stepEuler(); ///< Euler step update position and orientation, with both collision and non-collision velocity
 
     // write results
-    std::string getCurrentResultFolder(); ///< get the current output folder path
-    bool getIfWriteResultCurrentStep();   ///< check if the current step is writing (set by runConfig)
-    int getSnapID() { return snapID; };   ///< get the (sequentially ordered) ID of current snapshot
-    void writeResult();                   ///< write result regardless of runConfig
+    std::string getCurrentResultFolder();     ///< get the current output folder path
+    bool getIfWriteResultCurrentStep();       ///< check if the current step is writing (set by runConfig)
+    int getSnapID() { return snapID; };       ///< get the (sequentially ordered) ID of current snapshot
+    int getStepCount() { return stepCount; }; ///< get the (sequentially ordered) count of steps executed
+    void writeResult();                       ///< write result regardless of runConfig
 
     // expose raw vectors and operators
     Teuchos::RCP<TV> getForceNonBrown() const { return forceNonBrownRcp; }
