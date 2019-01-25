@@ -137,15 +137,15 @@ int main(int argc, char **argv) {
     printf("exchanged\n");
 
     MixPairInteraction<Tubule, Motor, Tubule, Motor, ForceTest> mixSystem;
-    mixSystem.initialize(sysTubule, sysMotor, dinfo);
+    mixSystem.initialize();
 
-    mixSystem.updateSystem();
+    mixSystem.updateSystem(sysTubule, sysMotor, dinfo);
     printf("mixSystemUpdated\n");
     mixSystem.updateTree();
     printf("mixTreeUpdated\n");
 
     CountMixNeighbor<Tubule, Motor> countMixNbFtr;
-    mixSystem.computeForce<CountMixNeighbor<Tubule, Motor>>(countMixNbFtr);
+    mixSystem.computeForce<CountMixNeighbor<Tubule, Motor>>(countMixNbFtr, dinfo);
     printf("forceComputed\n");
 
     const auto &forceResult = mixSystem.getForceResult();

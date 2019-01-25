@@ -224,12 +224,17 @@ class SylinderSystem {
      * @return PS::ParticleSystem<Sylinder>&
      */
     PS::ParticleSystem<Sylinder> &getContainer() { return sylinderContainer; }
+
+    PS::ParticleSystem<Sylinder> *getContainerPtr() { return &sylinderContainer; }
+
     /**
      * @brief Get the DomainInfo object
      *
      * @return PS::DomainInfo&
      */
     PS::DomainInfo &getDomainInfo() { return dinfo; }
+
+    PS::DomainInfo *getDomainInfoPtr() { return &dinfo; }
     /**
      * @brief Get the RngPoolPtr object
      *

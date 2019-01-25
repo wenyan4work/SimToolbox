@@ -88,10 +88,13 @@ struct MixEPI {
     template <class EPS>
     void copyFromFP(const MixFP<EPT, EPS> &fp) {
         trgFlag = fp.trgFlag;
+        maxRSearch = fp.maxRSearch;
         if (trgFlag) {
             epTrg = fp.epTrg;
+        } else {
+            // if not a trg particle, pos should be always valid
+            setPos(fp.getPos());
         }
-        // setPos(fp.getPos());
     }
 };
 
@@ -117,8 +120,10 @@ struct MixEPJ {
         maxRSearch = fp.maxRSearch;
         if (srcFlag) {
             epSrc = fp.epSrc;
+        } else {
+            // if not a src particle, pos should be always valid
+            setPos(fp.getPos());
         }
-        // setPos(fp.getPos());
     }
 };
 
@@ -177,11 +182,6 @@ class MixPairInteraction {
     static_assert(std::is_default_constructible<EPS>::value, "EPS is not defalut constructible\n");
     static_assert(std::is_default_constructible<Force>::value, "Force is not defalut constructible\n");
 
-    // hold information
-    const PS::ParticleSystem<FPT> *systemTrgPtr; ///< trg FDPS container
-    const PS::ParticleSystem<FPS> *systemSrcPtr; ///< src FDPS container
-    PS::DomainInfo *dinfoPtr;                    ///< domainInfo. src and trg should be both decomposed with this dinfo.
-
     // result
     std::vector<Force> forceResult; ///< computed force result
 
@@ -206,6 +206,7 @@ class MixPairInteraction {
     SystemType systemMix;                 ///< mixed FDPS system
     std::unique_ptr<TreeType> treeMixPtr; ///< tree for pair interaction
     int numberParticleInTree;             ///< number of particles in tree
+    int nLocalTrg, nLocalSrc;
 
   public:
     /**
@@ -222,10 +223,10 @@ class MixPairInteraction {
      * @param systemSrc_
      * @param dinfo_
      */
-    void initialize(PS::ParticleSystem<FPT> &systemTrg_, PS::ParticleSystem<FPS> &systemSrc_, PS::DomainInfo &dinfo_) {
-        systemTrgPtr = &(systemTrg_);
-        systemSrcPtr = &(systemSrc_);
-        dinfoPtr = &(dinfo_);
+    void initialize() {
+        // systemTrgPtr = systemTrgPtr_;
+        // systemSrcPtr = systemSrcPtr_;
+        // dinfoPtr = dinfoPtr_;
         systemMix.initialize();
         numberParticleInTree = 0;
     };
@@ -240,7 +241,7 @@ class MixPairInteraction {
      * @brief update systemMix
      *
      */
-    void updateSystem();
+    void updateSystem(PS::ParticleSystem<FPT> &systemTrg, PS::ParticleSystem<FPS> &systemSrc, PS::DomainInfo &dinfo);
 
     /**
      * @brief update treeMix
@@ -268,7 +269,7 @@ class MixPairInteraction {
      * @param calcMixForceFtr
      */
     template <class CalcMixForce>
-    void computeForce(CalcMixForce &calcMixForceFtr);
+    void computeForce(CalcMixForce &calcMixForceFtr, PS::DomainInfo &dinfo);
 
     /**
      * @brief Get the calculated force
@@ -279,11 +280,11 @@ class MixPairInteraction {
 };
 
 template <class FPT, class FPS, class EPT, class EPS, class Force>
-void MixPairInteraction<FPT, FPS, EPT, EPS, Force>::updateSystem() {
-    auto &systemTrg = *systemTrgPtr;
-    auto &systemSrc = *systemSrcPtr;
-    const int nLocalTrg = systemTrg.getNumberOfParticleLocal();
-    const int nLocalSrc = systemSrc.getNumberOfParticleLocal();
+void MixPairInteraction<FPT, FPS, EPT, EPS, Force>::updateSystem(PS::ParticleSystem<FPT> &systemTrg,
+                                                                 PS::ParticleSystem<FPS> &systemSrc,
+                                                                 PS::DomainInfo &dinfo) {
+    nLocalTrg = systemTrg.getNumberOfParticleLocal();
+    nLocalSrc = systemSrc.getNumberOfParticleLocal();
 
     // fill systemMix
     systemMix.setNumberOfParticleLocal(nLocalTrg + nLocalSrc);
@@ -301,7 +302,7 @@ void MixPairInteraction<FPT, FPS, EPT, EPS, Force>::updateSystem() {
         // systemMix[mixIndex].setPos(systemSrc[i].getPos());
     }
 
-    systemMix.adjustPositionIntoRootDomain(*dinfoPtr);
+    systemMix.adjustPositionIntoRootDomain(dinfo);
 
     // set maxRSearch
     setMaxRSearch();
@@ -319,8 +320,6 @@ void MixPairInteraction<FPT, FPS, EPT, EPS, Force>::dumpSystem() {
 
 template <class FPT, class FPS, class EPT, class EPS, class Force>
 void MixPairInteraction<FPT, FPS, EPT, EPS, Force>::setMaxRSearch() {
-    auto &systemTrg = *systemTrgPtr;
-    auto &systemSrc = *systemSrcPtr;
     const int nLocalMix = systemMix.getNumberOfParticleLocal();
 
     double maxRSearchMix = 0;
@@ -349,25 +348,24 @@ void MixPairInteraction<FPT, FPS, EPT, EPS, Force>::updateTree() {
     if (!treeMixPtr || (nParGlobal > numberParticleInTree * 1.5)) {
         treeMixPtr.reset();
         treeMixPtr = std::make_unique<TreeType>();
+        // build tree
+        // be careful if tuning the tree default parameters
+        treeMixPtr->initialize(2 * nParGlobal);
+        numberParticleInTree = nParGlobal;
     }
-    // build tree
-    // be careful if tuning the tree default parameters
-    treeMixPtr->initialize(2 * nParGlobal);
-    numberParticleInTree = nParGlobal;
 }
 
 template <class FPT, class FPS, class EPT, class EPS, class Force>
 template <class CalcMixForce>
-void MixPairInteraction<FPT, FPS, EPT, EPS, Force>::computeForce(CalcMixForce &calcMixForceFtr) {
+void MixPairInteraction<FPT, FPS, EPT, EPS, Force>::computeForce(CalcMixForce &calcMixForceFtr, PS::DomainInfo &dinfo) {
 #ifndef DNDEBUG
     dumpSystem();
 #endif
-    treeMixPtr->calcForceAll(calcMixForceFtr, systemMix, *dinfoPtr);
+    treeMixPtr->calcForceAll(calcMixForceFtr, systemMix, dinfo);
 
-    forceResult.resize(systemTrgPtr->getNumberOfParticleLocal());
-    const int nTrg = forceResult.size();
+    forceResult.resize(nLocalTrg);
 #pragma omp parallel for
-    for (int i = 0; i < nTrg; i++) {
+    for (int i = 0; i < nLocalTrg; i++) {
         forceResult[i] = treeMixPtr->getForce(i);
     }
 }
