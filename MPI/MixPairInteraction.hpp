@@ -321,7 +321,6 @@ void MixPairInteraction<FPT, FPS, EPT, EPS, Force>::dumpSystem() {
 template <class FPT, class FPS, class EPT, class EPS, class Force>
 void MixPairInteraction<FPT, FPS, EPT, EPS, Force>::setMaxRSearch() {
     const int nLocalMix = systemMix.getNumberOfParticleLocal();
-
     double maxRSearchMix = 0;
 
 #pragma omp parallel for reduction(max : maxRSearchMix)
@@ -331,9 +330,7 @@ void MixPairInteraction<FPT, FPS, EPT, EPS, Force>::setMaxRSearch() {
 
     MPI_Allreduce(MPI_IN_PLACE, &maxRSearchMix, 1, MPI_DOUBLE, MPI_MAX, MPI_COMM_WORLD);
 
-    // #ifndef DNDEBUG
-    printf("Global maxRSearch %lf\n", maxRSearchMix);
-    // #endif
+    // printf("Global maxRSearch %lf\n", maxRSearchMix);
 
 #pragma omp parallel for
     for (int i = 0; i < nLocalMix; i++) {
@@ -358,9 +355,7 @@ void MixPairInteraction<FPT, FPS, EPT, EPS, Force>::updateTree() {
 template <class FPT, class FPS, class EPT, class EPS, class Force>
 template <class CalcMixForce>
 void MixPairInteraction<FPT, FPS, EPT, EPS, Force>::computeForce(CalcMixForce &calcMixForceFtr, PS::DomainInfo &dinfo) {
-#ifndef DNDEBUG
-    dumpSystem();
-#endif
+    // dumpSystem();
     treeMixPtr->calcForceAll(calcMixForceFtr, systemMix, dinfo);
 
     forceResult.resize(nLocalTrg);
