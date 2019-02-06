@@ -12,6 +12,7 @@
 #define MIXPAIRINTERACTION_HPP_
 
 #include "FDPS/particle_simulator.hpp"
+#include "Util/GeoCommon.h"
 
 #include <memory>
 #include <type_traits>
@@ -63,7 +64,7 @@ struct MixFP {
      */
     void setPos(const PS::F64vec3 &newPos) { trgFlag ? epTrg.setPos(newPos) : epSrc.setPos(newPos); }
 
-    int getGid() { return trgFlag ? epTrg.getGid() : epSrc.getGid(); }
+    int getGid() const { return trgFlag ? epTrg.getGid() : epSrc.getGid(); }
     // void copyFromForce(Force &f) { force = f; }
 
     PS::F64 getRSearch() const { return trgFlag ? epTrg.getRSearch() : epSrc.getRSearch(); }
@@ -81,6 +82,7 @@ struct MixEPI {
     EPT epTrg;
 
     double getRSearch() const { return trgFlag ? epTrg.getRSearch() : maxRSearch * 0.5; }
+    int getGid() const { return trgFlag ? epTrg.getGid() : GEO_INVALID_INDEX; }
 
     PS::F64vec3 getPos() const { return epTrg.getPos(); }
     void setPos(const PS::F64vec3 &newPos) { epTrg.setPos(newPos); }
@@ -110,6 +112,7 @@ struct MixEPJ {
     EPS epSrc;
 
     double getRSearch() const { return srcFlag ? epSrc.getRSearch() : maxRSearch * 0.5; }
+    int getGid() const { return srcFlag ? epSrc.getGid() : GEO_INVALID_INDEX; }
 
     PS::F64vec3 getPos() const { return epSrc.getPos(); }
     void setPos(const PS::F64vec3 &newPos) { epSrc.setPos(newPos); }
