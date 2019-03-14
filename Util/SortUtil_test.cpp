@@ -1,4 +1,4 @@
-#include "../../Util/SortUtil.hpp"
+#include "SortUtil.hpp"
 
 #include <cstdio>
 int main() {
