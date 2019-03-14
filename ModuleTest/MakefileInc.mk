@@ -1,8 +1,7 @@
 SFTPATH:=/mnt/home/wyan/local
 
-# inherit flags, includes and libs from Trilinos and pvfmm
+# inherit flags, includes and libs from Trilinos
 include $(SFTPATH)/include/Makefile.export.Trilinos
-include $(PVFMM_DIR)/MakeVariables
 
 # internal includes
 SIMTOOLBOX := ${CURDIR}/../../
@@ -10,7 +9,6 @@ SIMTOOLBOX := ${CURDIR}/../../
 # external libraries
 TRNG = $(SFTPATH)/include/trng
 EIGEN= $(SFTPATH)/include/eigen3
-PVFMM= $(SFTPATH)/include/pvfmm
 YAML= $(SFTPATH)/include/yaml-cpp
 
 USERINCLUDE = -I$(TRNG)/include -I$(EIGEN) -I$(SIMTOOLBOX)
@@ -25,8 +23,8 @@ CXX= mpicxx
 LINK= $(CXX)
 
 # optimized
-CXXFLAGS= $(CXXFLAGS_PVFMM) 
-LINKFLAGS= $(CXXFLAGS) $(LDLIBS_PVFMM) $(Trilinos_EXTRA_LD_FLAGS) #-lm -ldl
+CXXFLAGS= $(TRILINOS_CXXFLAGS) -fopenmp
+LINKFLAGS= $(CXXFLAGS) $(Trilinos_EXTRA_LD_FLAGS)
 
 # remove some flags for debugging
 # if Trilinos and pvfmm are compiled with ipo, removing this may cause linking failures
