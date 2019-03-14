@@ -13,6 +13,7 @@
 
 #include <algorithm>
 #include <cassert>
+#include <cstdio>
 #include <vector>
 
 #include <omp.h>
@@ -25,11 +26,22 @@
 template <class Tag>
 class sort_indices {
   private:
-    const std::vector<Tag> &mparr;
+    const std::vector<Tag> *tagPtr;
 
   public:
-    sort_indices(const std::vector<Tag> &parr) : mparr(parr) {}
-    bool operator()(int i, int j) const { return mparr[i] < mparr[j]; }
+    sort_indices(std::vector<Tag> *ptr) : tagPtr(ptr) {}
+
+    sort_indices(const sort_indices &other) = default;
+
+    sort_indices operator=(sort_indices<Tag> other) = delete;
+
+    bool operator()(const int &i, const int &j) const {
+        assert(i >= 0);
+        assert(i < tagPtr->size());
+        assert(j >= 0);
+        assert(j < tagPtr->size());
+        return (*tagPtr)[i] < (*tagPtr)[j];
+    }
 };
 
 /**
@@ -53,7 +65,11 @@ void sortDataWithTag(std::vector<Tag> &tags, std::vector<Data> &data) {
     }
 
     // sort indices
-    std::sort(indices.begin(), indices.end(), sort_indices<Tag>(tags));
+    auto comp = sort_indices<Tag>(&tags);
+    // This triggers bug? in intel openmp runtime?
+    // std::sort(indices.begin(), indices.end(), comp);
+    std::stable_sort(indices.begin(), indices.end(), comp);
+
     // create new
     std::vector<Tag> tagsSorted(length);
     std::vector<Data> dataSorted(length);

@@ -1,6 +1,8 @@
-#include "../../Util/GeoUtil.hpp"
+#include "GeoUtil.hpp"
 
 #include <cstdio>
+#include <cmath>
+
 void testFindImage() {
     const double lb = 0, ub = 1;
     double x;

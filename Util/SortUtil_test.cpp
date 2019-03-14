@@ -1,8 +1,9 @@
 #include "SortUtil.hpp"
 
 #include <cstdio>
+
 int main() {
-    const int length = 10000;
+    const int length = 100;
     std::vector<int> tags(length);
     std::vector<int> data(length);
     // prepare initial data

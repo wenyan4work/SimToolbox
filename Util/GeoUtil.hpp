@@ -4,6 +4,7 @@
  * @brief a few utility template functions
  * @version 1.0
  * @date 2019-01-07
+// TODO: More thorough tests
  *
  * @copyright Copyright (c) 2019
  *
@@ -11,7 +12,7 @@
 #ifndef GEOUTIL_HPP_
 #define GEOUTIL_HPP_
 
-// TODO: More thorough tests
+#include <cmath>
 
 /**
  * @brief find PBC Image of x in range[lb,ub)
