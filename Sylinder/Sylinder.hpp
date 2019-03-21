@@ -12,7 +12,6 @@
 #define SYLINDER_HPP_
 
 #include "FDPS/particle_simulator.hpp"
-#include "Util/Buffer.hpp"
 #include "Util/EigenDef.hpp"
 #include "Util/EquatnHelper.hpp"
 #include "Util/GeoCommon.h"
@@ -120,21 +119,6 @@ class Sylinder {
      * @return double
      */
     double Rad() const { return radiusCollision * 4 + lengthCollision; }
-
-    /**
-     * @brief serialization
-     *
-     * necessary interface for InteractionManager.hpp
-     * @param buff
-     */
-    void Pack(std::vector<char> &buff) const;
-    /**
-     * @brief deserialization
-     *
-     * necessary interface for InteractionManager.hpp
-     * @param buff
-     */
-    void Unpack(const std::vector<char> &buff);
 
     /**
      * @brief Get the Gid

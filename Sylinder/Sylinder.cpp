@@ -50,59 +50,6 @@ void Sylinder::dumpSylinder() const {
     printf("orient %g, %g, %g, %g\n", orientation[0], orientation[1], orientation[2], orientation[3]);
 }
 
-void Sylinder::Pack(std::vector<char> &buff) const {
-    Buffer buffer(buff);
-    // head
-    buffer.pack(std::string("SYLINDER"));
-    // fixed size data
-    buffer.pack(gid);                                                 // int gid = INVALID;
-    buffer.pack(globalIndex);                                         // int gid = INVALID;
-    buffer.pack(radius);                                              // double radius;
-    buffer.pack(radiusCollision);                                     // double radiusCollision;
-    buffer.pack(length);                                              // double ;
-    buffer.pack(lengthCollision);                                     // double ;
-    buffer.pack(radiusSearch);                                        // double
-    buffer.pack(std::array<double, 3>{pos[0], pos[1], pos[2]});       // Evec3 pos;
-    buffer.pack(std::array<double, 3>{vel[0], vel[1], vel[2]});       // Evec3 vel;
-    buffer.pack(std::array<double, 3>{omega[0], omega[1], omega[2]}); // Evec3 omega;
-    buffer.pack(std::array<double, 4>{orientation[0], orientation[1], orientation[2], orientation[3]});
-}
-
-void Sylinder::Unpack(const std::vector<char> &buff) {
-    Buffer buffer;
-    // head
-    std::string strbuf;
-    buffer.unpack(strbuf, buff);
-    assert(strbuf == std::string("SYLINDER"));
-    // fixed size data
-    buffer.unpack(gid, buff);             // int gid = INVALID;
-    buffer.unpack(globalIndex, buff);     // int gid = INVALID;
-    buffer.unpack(radius, buff);          // double radius;
-    buffer.unpack(radiusCollision, buff); // double radiusCollision;
-    buffer.unpack(length, buff);          // double
-    buffer.unpack(lengthCollision, buff); // double
-    buffer.unpack(radiusSearch, buff);    // double
-    std::array<double, 3> array3;
-    buffer.unpack(array3, buff); // Evec3 pos;
-    pos[0] = array3[0];
-    pos[1] = array3[1];
-    pos[2] = array3[2];
-    buffer.unpack(array3, buff); // Evec3 vel;
-    vel[0] = array3[0];
-    vel[1] = array3[1];
-    vel[2] = array3[2];
-    buffer.unpack(array3, buff); // Evec3 omega;
-    omega[0] = array3[0];
-    omega[1] = array3[1];
-    omega[2] = array3[2];
-    std::array<double, 4> array4;
-    buffer.unpack(array4, buff); // Equatn orientation;
-    orientation[0] = array4[0];
-    orientation[1] = array4[1];
-    orientation[2] = array4[2];
-    orientation[3] = array4[3];
-}
-
 void Sylinder::writePVTP(const std::string &prefix, const std::string &postfix, const int nProcs) {
     std::vector<std::string> pieceNames;
 
