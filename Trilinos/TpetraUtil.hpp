@@ -21,8 +21,8 @@
 
 // Tpetra container
 #include <MatrixMarket_Tpetra.hpp>
+#include <Tpetra_Core.hpp>
 #include <Tpetra_CrsMatrix.hpp>
-#include <Tpetra_DefaultPlatform.hpp>
 #include <Tpetra_Map.hpp>
 #include <Tpetra_MultiVector.hpp>
 #include <Tpetra_Operator.hpp>
