@@ -69,6 +69,20 @@ void SylinderSystem::initialize(const SylinderConfig &runConfig_, const std::str
         writeBox();
     }
 
+    // 100 NON-B steps to resolve initial configuration collisions
+    // no output
+    printf("-------------------------------------\n");
+    printf("-Initial Collision Resolution Begin--\n");
+    printf("-------------------------------------\n");
+    for (int i = 0; i < 100; i++) {
+        prepareStep();
+        calcVelocityKnown();
+        resolveCollision();
+        stepEuler();
+    }
+    printf("--Initial Collision Resolution End---\n");
+    printf("-------------------------------------\n");
+
     calcVolFrac();
     printf("SylinderSystem Initialized. %d sylinders on process %d\n", sylinderContainer.getNumberOfParticleLocal(),
            commRcp->getRank());
