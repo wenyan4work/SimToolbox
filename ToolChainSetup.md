@@ -117,6 +117,8 @@ export MKL_INTERFACE_LAYER=LP64
 ```
 then compile your code with `-qopenmp` flag in both compiling and linking stages to use Intel OpenMP runtime libiomp5.
 
+In both cases, adding `$MKLROOT/lib/intel64` to your `LD_LIBRARY_PATH`.
+
 **Short summary of using static linking**
 
 Static linking requires the three layers of MKL to be explicitly linked. you can see clearly from the link line below:
@@ -273,7 +275,7 @@ libiomp5.a          libiomp5.dylib      libiomp5_db.dylib   libiompstubs5.a     
 ```
 Those dylibs are what we need. 
 - **DO NOT** statically link openmp runtime library.
-- **DO NOT** link to clang's libomp or gcc's libgomp when using MKL. Program crashes or results are wrong.
+- **DO NOT** link to gcc's libgomp when using MKL on mac, because there is no gomp threading layer of MKL on mac. Program crashes or results are wrong.
 
 ## OpenMP
 By default, clang's OpenMP libraries are installed like this:
@@ -303,7 +305,7 @@ To force the linkage to the real `libiomp5`, first install Intel MKL, and then r
 /usr/local/opt/llvm/lib/libiomp5.dylib -> /opt/intel/lib/libiomp5.dylib
 ```
 
-Then at compile time, use this:
+Then at compile and link time, use this:
 ```bash
 CFLAGS = -fopenmp=libiomp5
 LDFLAGS = -fopenmp=libiomp5 -L/opt/intel/lib -liomp5 -Wl,-rpath,/opt/intel/lib
