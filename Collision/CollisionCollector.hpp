@@ -5,6 +5,7 @@
 #include <cmath>
 #include <deque>
 #include <vector>
+#include <memory>
 
 #include <omp.h>
 

@@ -16,13 +16,13 @@ template <Integer DIM = 3> class Morton {
 
  public:
   #if SCTL_MAX_DEPTH < 7
-  typedef uint8_t UINT_T;
+  typedef uint8_t SCTLMORTON_UNIT_T;
   #elif SCTL_MAX_DEPTH < 15
-  typedef uint16_t UINT_T;
+  typedef uint16_t SCTLMORTON_UNIT_T;
   #elif SCTL_MAX_DEPTH < 31
-  typedef uint32_t UINT_T;
+  typedef uint32_t SCTLMORTON_UNIT_T;
   #elif SCTL_MAX_DEPTH < 63
-  typedef uint64_t UINT_T;
+  typedef uint64_t SCTLMORTON_UNIT_T;
   #endif
 
   static const Integer MAX_DEPTH = SCTL_MAX_DEPTH;
@@ -35,8 +35,8 @@ template <Integer DIM = 3> class Morton {
   template <class T> Morton(ConstIterator<T> coord, uint8_t depth_ = MAX_DEPTH) {
     depth = depth_;
     assert(depth <= MAX_DEPTH);
-    UINT_T mask = ~((((UINT_T)1) << (MAX_DEPTH - depth)) - 1);
-    for (Integer i = 0; i < DIM; i++) x[i] = mask & (UINT_T)floor(coord[i] * maxCoord);
+    SCTLMORTON_UNIT_T mask = ~((((SCTLMORTON_UNIT_T)1) << (MAX_DEPTH - depth)) - 1);
+    for (Integer i = 0; i < DIM; i++) x[i] = mask & (SCTLMORTON_UNIT_T)floor(coord[i] * maxCoord);
   }
 
   uint8_t Depth() const { return depth; }
@@ -47,7 +47,7 @@ template <Integer DIM = 3> class Morton {
   }
 
   Morton Next() const {
-    UINT_T mask = ((UINT_T)1) << (MAX_DEPTH - depth);
+    SCTLMORTON_UNIT_T mask = ((SCTLMORTON_UNIT_T)1) << (MAX_DEPTH - depth);
     Integer d, i;
 
     Morton m = *this;
@@ -67,7 +67,7 @@ template <Integer DIM = 3> class Morton {
   }
 
   Morton Ancestor(uint8_t ancestor_level) const {
-    UINT_T mask = ~((((UINT_T)1) << (MAX_DEPTH - ancestor_level)) - 1);
+    SCTLMORTON_UNIT_T mask = ~((((SCTLMORTON_UNIT_T)1) << (MAX_DEPTH - ancestor_level)) - 1);
 
     Morton m;
     for (Integer i = 0; i < DIM; i++) m.x[i] = x[i] & mask;
@@ -86,13 +86,13 @@ template <Integer DIM = 3> class Morton {
 
   void NbrList(Vector<Morton> &nlst, uint8_t level, bool periodic) const {
     nlst.ReInit(1);
-    UINT_T mask = ~((((UINT_T)1) << (MAX_DEPTH - level)) - 1);
+    SCTLMORTON_UNIT_T mask = ~((((SCTLMORTON_UNIT_T)1) << (MAX_DEPTH - level)) - 1);
     for (Integer i = 0; i < DIM; i++) nlst[0].x[i] = x[i] & mask;
     nlst[0].depth = level;
 
     Morton m;
     Integer k = 1;
-    mask = (((UINT_T)1) << (MAX_DEPTH - level));
+    mask = (((SCTLMORTON_UNIT_T)1) << (MAX_DEPTH - level));
     if (periodic) {
       for (Integer i = 0; i < DIM; i++) {
         for (Integer j = 0; j < k; j++) {
@@ -136,7 +136,7 @@ template <Integer DIM = 3> class Morton {
     nlst[0].depth = (uint8_t)(depth + 1);
 
     Integer k = 1;
-    UINT_T mask = (((UINT_T)1) << (MAX_DEPTH - (depth + 1)));
+    SCTLMORTON_UNIT_T mask = (((SCTLMORTON_UNIT_T)1) << (MAX_DEPTH - (depth + 1)));
     for (Integer i = 0; i < DIM; i++) {
       for (Integer j = 0; j < k; j++) {
         nlst[j + k] = nlst[j];
@@ -147,13 +147,13 @@ template <Integer DIM = 3> class Morton {
   }
 
   bool operator<(const Morton &m) const {
-    UINT_T diff = 0;
+    SCTLMORTON_UNIT_T diff = 0;
     for (Integer i = 0; i < DIM; i++) diff = diff | (x[i] ^ m.x[i]);
     if (!diff) return depth < m.depth;
 
-    UINT_T mask = 1;
-    for (Integer i = 4 * sizeof(UINT_T); i > 0; i = (i >> 1)) {
-      UINT_T mask_ = (mask << i);
+    SCTLMORTON_UNIT_T mask = 1;
+    for (Integer i = 4 * sizeof(SCTLMORTON_UNIT_T); i > 0; i = (i >> 1)) {
+      SCTLMORTON_UNIT_T mask_ = (mask << i);
       if (mask_ <= diff) mask = mask_;
     }
 
@@ -202,7 +202,7 @@ template <Integer DIM = 3> class Morton {
     for (Integer j = MAX_DEPTH; j >= 0; j--) {
       for (Integer i = DIM - 1; i >= 0; i--) {
         s = s * 0.5;
-        if (mid.x[i] & (((UINT_T)1) << j)) a += s;
+        if (mid.x[i] & (((SCTLMORTON_UNIT_T)1) << j)) a += s;
       }
     }
     out << "(";
@@ -214,10 +214,10 @@ template <Integer DIM = 3> class Morton {
   }
 
  private:
-  static constexpr UINT_T maxCoord = ((UINT_T)1) << (MAX_DEPTH);
+  static constexpr SCTLMORTON_UNIT_T maxCoord = ((SCTLMORTON_UNIT_T)1) << (MAX_DEPTH);
 
-  // StaticArray<UINT_T,DIM> x;
-  UINT_T x[DIM];
+  // StaticArray<SCTLMORTON_UNIT_T,DIM> x;
+  SCTLMORTON_UNIT_T x[DIM];
   uint8_t depth;
 };
 }

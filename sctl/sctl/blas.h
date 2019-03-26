@@ -23,8 +23,8 @@ extern "C" {
 /*! DAXPY compute y := alpha * x + y where alpha is a scalar and x and y are n-vectors.
 *  See http://www.netlib.org/blas/daxpy.f for more information.
 */
-void saxpy_(int* N, float* ALPHA, float* X, int* INCX, float* Y, int* INCY);
-void daxpy_(int* N, double* ALPHA, double* X, int* INCX, double* Y, int* INCY);
+// void saxpy_(int* N, float* ALPHA, float* X, int* INCX, float* Y, int* INCY);
+// void daxpy_(int* N, double* ALPHA, double* X, int* INCX, double* Y, int* INCY);
 /*!  DGEMM  performs one of the matrix-matrix operations
 *
 *     C := alpha*op( A )*op( B ) + beta*C,
@@ -61,8 +61,8 @@ void dger_(int* M, int* N, double* ALPHA, double* X, int* INCX, double* Y, int* 
 /*! DSCAL computes y := alpha * y where alpha is a scalar and y is an n-vector.
 *  See http://www.netlib.org/blas/dscal.f for more information
 */
-void sscal_(int* N, float* ALPHA, float* X, int* INCX);
-void dscal_(int* N, double* ALPHA, double* X, int* INCX);
+// void sscal_(int* N, float* ALPHA, float* X, int* INCX);
+// void dscal_(int* N, double* ALPHA, double* X, int* INCX);
 }
 
 #endif
