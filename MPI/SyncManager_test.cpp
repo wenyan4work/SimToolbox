@@ -1,4 +1,4 @@
-#include "MPI/SyncManager.hpp"
+#include "SyncManager.hpp"
 #include "Util/Buffer.hpp"
 
 #include <cstdio>

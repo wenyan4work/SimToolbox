@@ -1,7 +1,8 @@
-#include "../../Trilinos/TpetraUtil.hpp"
-#include <mpi.h>
+#include "TpetraUtil.hpp"
 
 #include <vector>
+
+#include <mpi.h>
 
 int main(int argc, char **argv) {
 

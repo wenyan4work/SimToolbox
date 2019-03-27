@@ -1,4 +1,4 @@
-#include "../../Collision/CPSolver.hpp"
+#include "CPSolver.hpp"
 #include <mpi.h>
 
 #include <vector>

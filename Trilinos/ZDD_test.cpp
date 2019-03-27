@@ -1,4 +1,7 @@
-#include "../../Trilinos/ZDD.hpp"
+#include "ZDD.hpp"
+
+#include <cstdio>
+
 #include <mpi.h>
 
 struct data {

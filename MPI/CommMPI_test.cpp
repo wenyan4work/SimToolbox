@@ -1,7 +1,8 @@
-#include "../../MPI/CommMPI.hpp"
-#include "../../Util/TRngPool.hpp"
+#include "CommMPI.hpp"
+#include "Util/TRngPool.hpp"
 
 #include <cstdio>
+
 #include <mpi.h>
 #include <omp.h>
 

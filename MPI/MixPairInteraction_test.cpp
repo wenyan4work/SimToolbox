@@ -1,5 +1,7 @@
-#include "MPI/MixPairInteraction.hpp"
+#include "MixPairInteraction.hpp"
+
 #include "Util/TRngPool.hpp"
+
 #include <type_traits>
 
 struct Tubule {
