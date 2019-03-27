@@ -233,6 +233,17 @@ Use the **SAME** compiler as you used to Trilinos to compile these libraries, to
 
 # Mac
 I assume you use HomeBrew with default settings. We will setup everything with the llvm compiler from HomeBrew, and link compiled programs to bundled libraries instead of Mac's default c++ runtime.
+
+Since Mojave, the `/usr/include` folder is removed by Apple. The necessary system headers can be found:
+```bash
+~ $ xcrun --show-sdk-version
+10.14.4
+~ $ xcrun --show-sdk-path
+/Library/Developer/CommandLineTools/SDKs/MacOSX10.14.sdk
+~ $ ls $(xcrun --show-sdk-path)/usr/
+bin     include lib     libexec share
+```
+
 ## MPI compiler 
 ```bash
 brew install llvm
@@ -245,7 +256,7 @@ export OMPI_MPICC=/usr/local/opt/llvm/bin/clang
 export OMPI_MPICXX=/usr/local/opt/llvm/bin/clang++
 export OMPI_CFLAGS="-I/usr/local/opt/llvm/include"
 export OMPI_CXXFLAGS="-I/usr/local/opt/llvm/include"
-export OMPI_LDFLAGS="-L/usr/local/opt/llvm/lib -Wl,-rpath,/usr/local/opt/llvm/lib"
+export OMPI_LDFLAGS="-L/usr/local/lib -L/usr/local/opt/llvm/lib -Wl,-rpath,/usr/local/opt/llvm/lib"
 ```
 You should verify the installation:
 ```bash
@@ -260,9 +271,9 @@ You should see the clang version from HomeBrew instead of Mac's default clang.
 You should also verify:
 ```bash
 ~ $ mpicc --showme
-/usr/local/opt/llvm/bin/clang -I/usr/local/Cellar/open-mpi/4.0.0/include -I/usr/local/opt/llvm/include -L/usr/local/opt/llvm/lib -Wl,-rpath,/usr/local/opt/llvm/lib -lmpi
+/usr/local/opt/llvm/bin/clang -I/usr/local/Cellar/open-mpi/4.0.0/include -I/usr/local/opt/llvm/include -L/usr/local/lib -L/usr/local/opt/llvm/lib -Wl,-rpath,/usr/local/opt/llvm/lib -lmpi
 ~ $ mpicxx --showme
-/usr/local/opt/llvm/bin/clang++ -I/usr/local/Cellar/open-mpi/4.0.0/include -I/usr/local/opt/llvm/include -L/usr/local/opt/llvm/lib -Wl,-rpath,/usr/local/opt/llvm/lib -lmpi
+/usr/local/opt/llvm/bin/clang++ -I/usr/local/Cellar/open-mpi/4.0.0/include -I/usr/local/opt/llvm/include -L/usr/local/lib -L/usr/local/opt/llvm/lib -Wl,-rpath,/usr/local/opt/llvm/lib -lmpi
 ```
 
 ## MKL
