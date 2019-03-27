@@ -3,17 +3,17 @@
 #   - TRNG_INCLUDE
 
 # Find the header files
-find_path(TRNG_INCLUDE_DIRS trng/ 
+find_path(TRNG_INCLUDE trng/ 
   HINTS ${SFTPATH} $ENV{TRNG_DIR}
   PATH_SUFFIXES include
   NO_DEFAULT_PATH
   DOC "Directory with TRNG header.")
-find_path(TRNG_INCLUDE trng/)
+#find_path(TRNG_INCLUDE trng/)
 
 # Find the library
-find_library(TRNG_LIBRARY trng4 
+find_library(TRNG_LIBRARY libtrng4.a 
   HINTS ${SFTPATH} $ENV{TRNG_DIR}
   PATH_SUFFIXES lib
   NO_DEFAULT_PATH
   DOC "The TRNG library.")
-find_library(TRNG_LIBRARY trng4)
+#find_library(TRNG_LIBRARY trng4)
