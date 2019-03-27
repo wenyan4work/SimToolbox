@@ -12,6 +12,7 @@ int main(int argc, char **argv) {
     MPI_Init(&argc, &argv);
     int rank = 0;
     MPI_Comm_rank(MPI_COMM_WORLD, &rank);
+
     {
         ZDD<data> doubleDataDirectory(100);
         const int nLocal = 100;
@@ -34,6 +35,7 @@ int main(int argc, char **argv) {
             printf("findID %d, findData %g\n", doubleDataDirectory.findID[i], doubleDataDirectory.findData[i].pos[1]);
         }
     }
+
     MPI_Barrier(MPI_COMM_WORLD);
     MPI_Finalize();
     return 0;

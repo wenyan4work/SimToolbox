@@ -1,0 +1,2 @@
+add_executable(SylinderNear_test SylinderNear_test.cpp)
+target_link_libraries (SylinderNear_test Eigen3::Eigen)
