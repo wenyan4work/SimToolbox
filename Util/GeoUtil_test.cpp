@@ -45,14 +45,14 @@ int main() {
 
     TRngPool rngPool(10);
 
-    for (int i = 0; i < 100; i++) {
+    for (int i = 0; i < 1000; i++) {
         double lb = -rngPool.getU01() * 10 - 1;
         double ub = rngPool.getU01() * 10 + 1;
         double x = rngPool.getU01() * 1000 - 500;
         pass = (pass && testFindPBCImage(lb, ub, x));
     }
 
-    for (int i = 0; i < 100; i++) {
+    for (int i = 0; i < 1000; i++) {
         double lb = -rngPool.getU01() * 10 - 1;
         double ub = rngPool.getU01() * 10 + 1;
         double x = rngPool.getU01() * 1000 - 500;

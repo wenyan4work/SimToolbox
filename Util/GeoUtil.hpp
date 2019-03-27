@@ -50,12 +50,12 @@ inline void findPBCImage(const Real &lb, const Real &ub, Real &x) {
 template <class Real>
 inline void findPBCImage(const Real &lb, const Real &ub, Real &x, Real &trg) {
     findPBCImage(lb, ub, trg);
-    x = x - trg;
-    findPBCImage(lb, ub, x);
-    if (x > 0.5 * (lb + ub)) {
-        x = trg + x - (ub - lb);
+    Real dist = x - trg;
+    findPBCImage(0.0, ub - lb, dist);
+    if (dist > (ub - lb) * 0.5) {
+        x = trg + dist - (ub - lb);
     } else {
-        x = trg + x;
+        x = trg + dist;
     }
 }
 
