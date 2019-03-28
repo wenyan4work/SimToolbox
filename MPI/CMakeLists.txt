@@ -5,7 +5,7 @@
 
 add_executable(CommMPI_test CommMPI_test.cpp)
 target_compile_options(CommMPI_test PRIVATE ${OpenMP_CXX_FLAGS})
-target_include_directories(CommMPI_test PRIVATE ${PROJECT_SOURCE_DIR} ${Trilinos_INCLUDE_DIRS} ${TRNG_INCLUDE})
+target_include_directories(CommMPI_test PRIVATE ${PROJECT_SOURCE_DIR} ${Trilinos_INCLUDE_DIRS} ${TRNG_INCLUDE_DIR})
 target_link_libraries(CommMPI_test PRIVATE ${Trilinos_LIBRARIES})
 target_link_libraries(CommMPI_test PRIVATE ${Trilinos_TPL_LIBRARIES})
 target_link_libraries(CommMPI_test PRIVATE ${TRNG_LIBRARY})
@@ -18,7 +18,7 @@ add_test(NAME CommMPI COMMAND CommMPI_test)
 
 add_executable(MixPairInteraction_test MixPairInteraction_test.cpp)
 target_compile_options(MixPairInteraction_test PRIVATE ${OpenMP_CXX_FLAGS})
-target_include_directories(MixPairInteraction_test PRIVATE ${PROJECT_SOURCE_DIR} ${Trilinos_INCLUDE_DIRS} ${TRNG_INCLUDE})
+target_include_directories(MixPairInteraction_test PRIVATE ${PROJECT_SOURCE_DIR} ${Trilinos_INCLUDE_DIRS} ${TRNG_INCLUDE_DIR})
 target_link_libraries(MixPairInteraction_test PRIVATE ${Trilinos_LIBRARIES})
 target_link_libraries(MixPairInteraction_test PRIVATE ${Trilinos_TPL_LIBRARIES})
 target_link_libraries(MixPairInteraction_test PRIVATE ${TRNG_LIBRARY})

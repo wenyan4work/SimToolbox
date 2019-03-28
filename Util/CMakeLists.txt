@@ -5,7 +5,7 @@
 
 add_executable(GeoUtil_test GeoUtil_test.cpp)
 target_compile_options(GeoUtil_test PRIVATE ${OpenMP_CXX_FLAGS})
-target_include_directories(GeoUtil_test PRIVATE ${PROJECT_SOURCE_DIR} ${TRNG_INCLUDE})
+target_include_directories(GeoUtil_test PRIVATE ${PROJECT_SOURCE_DIR} ${TRNG_INCLUDE_DIR})
 target_link_libraries(GeoUtil_test PRIVATE ${TRNG_LIBRARY} OpenMP::OpenMP_CXX)
 add_test(NAME GeoUtil COMMAND GeoUtil_test)
 set_tests_properties(GeoUtil PROPERTIES

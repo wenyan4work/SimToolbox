@@ -22,7 +22,10 @@ target_compile_definitions(SylinderSystem_test PRIVATE
 PARTICLE_SIMULATOR_THREAD_PARALLEL 
 PARTICLE_SIMULATOR_MPI_PARALLEL)
 target_include_directories(SylinderSystem_test 
-PRIVATE ${PROJECT_SOURCE_DIR} ${Trilinos_INCLUDE_DIRS} ${YAML_CPP_INCLUDE_DIR})
+PRIVATE ${PROJECT_SOURCE_DIR} 
+${Trilinos_INCLUDE_DIRS} 
+${TRNG_INCLUDE_DIR} 
+${YAML_CPP_INCLUDE_DIR})
 target_link_libraries(SylinderSystem_test PRIVATE ${Trilinos_LIBRARIES})
 target_link_libraries(SylinderSystem_test PRIVATE ${Trilinos_TPL_LIBRARIES})
 target_link_libraries(SylinderSystem_test PRIVATE ${YAML_CPP_LIBRARIES})
