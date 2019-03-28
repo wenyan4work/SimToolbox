@@ -7,6 +7,7 @@ set(CMAKE_CXX_EXTENSIONS OFF)
 set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} "${CMAKE_SOURCE_DIR}/cmake/")
 set(SFTPATH $ENV{HOME}/local)
 
+find_package(OpenMP REQUIRED)
 find_package(MPI REQUIRED)  
 # this does not change the compiler
 # to use mpi compiler, do cmake -D CMAKE_CXX_COMPILER=mpicxx
@@ -14,9 +15,9 @@ find_package(MPI REQUIRED)
 # target_link_libraries(exe PRIVATE OpenMP::OpenMP_CXX)
 # target_link_libraries(exe PRIVATE MPI::MPI_CXX)
 
-find_package(OpenMP REQUIRED)
 find_package(TRNG REQUIRED)
 find_package(Eigen3 REQUIRED)
+find_package(yaml-cpp REQUIRED)
 
 # Get Trilinos as one entity
 find_package(Trilinos REQUIRED)
@@ -52,4 +53,6 @@ enable_testing()
 
 add_subdirectory(Util)
 add_subdirectory(Trilinos)
-# add_subdirectory(Sylinder)
+add_subdirectory(MPI)
+add_subdirectory(Sylinder)
+add_subdirectory(Collision)

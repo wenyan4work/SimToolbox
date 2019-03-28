@@ -1,3 +1,3 @@
 #include "SylinderNear.hpp"
 
-int main() {}
+int main() { return 0; }

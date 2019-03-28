@@ -595,7 +595,7 @@ void SylinderSystem::resolveCollision() {
     // i.e., less likely to collide
     const double buffer = 0;
     collisionSolverPtr->setup(*(collisionCollectorPtr->collisionPoolPtr), sylinderMobilityMapRcp, runConfig.dt, buffer);
-    collisionSolverPtr->setControlLCP(1e-5, 8000, false); // res, maxIte, NWTN refine
+    collisionSolverPtr->setControlLCP(runConfig.colResTol, runConfig.colMaxIte, runConfig.colNewtonRefine);
     collisionSolverPtr->solveCollision(mobilityOperatorRcp, velocityKnownRcp);
     collisionSolverPtr->writebackGamma(*(collisionCollectorPtr->collisionPoolPtr));
 
