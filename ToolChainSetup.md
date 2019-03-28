@@ -178,8 +178,8 @@ ccmake  \
   -D CMAKE_INSTALL_PREFIX:FILEPATH="/mnt/home/wyan/local/" \
   -D CMAKE_BUILD_TYPE:STRING=Release \
   -D BUILD_SHARED_LIBS=OFF \
-  -D CMAKE_C_FLAGS_RELEASE:STRING="-O3 -march=native" \
-  -D CMAKE_CXX_FLAGS_RELEASE:STRING="-O3 -march=native" \
+  -D CMAKE_C_FLAGS:STRING="-O3 -march=native" \
+  -D CMAKE_CXX_FLAGS:STRING="-O3 -march=native" \
   -D OpenMP_C_FLAGS:STRING="-fopenmp" \
   -D OpenMP_CXX_FLAGS:STRING="-fopenmp" \
   -D Kokkos_ENABLE_HWLOC:BOOL=OFF \
@@ -441,8 +441,8 @@ ccmake  \
   -D CMAKE_INSTALL_PREFIX:FILEPATH="/Users/wyan/local/" \
   -D CMAKE_BUILD_TYPE:STRING=Release \
   -D BUILD_SHARED_LIBS=OFF \
-  -D CMAKE_C_FLAGS_RELEASE:STRING="-O3 -march=native" \
-  -D CMAKE_CXX_FLAGS_RELEASE:STRING="-O3 -march=native" \
+  -D CMAKE_C_FLAGS:STRING="-O3 -march=native" \
+  -D CMAKE_CXX_FLAGS:STRING="-O3 -march=native" \
   -D OpenMP_C_FLAGS:STRING="-fopenmp=libiomp5" \
   -D OpenMP_CXX_FLAGS:STRING="-fopenmp=libiomp5" \
   -D OpenMP_C_LIB_NAMES:STRING="iomp5" \
