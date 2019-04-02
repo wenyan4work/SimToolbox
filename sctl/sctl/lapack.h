@@ -21,7 +21,7 @@ Software Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA
 
 // EXTERN_C_BEGIN
 extern "C" {
-// extern void sgesvd_(char *JOBU, char *JOBVT, int *M, int *N, float *A, int *LDA, float *S, float *U, int *LDU, float *VT, int *LDVT, float *WORK, int *LWORK, int *INFO);
+extern void sgesvd_(char *JOBU, char *JOBVT, int *M, int *N, float *A, int *LDA, float *S, float *U, int *LDU, float *VT, int *LDVT, float *WORK, int *LWORK, int *INFO);
 /*!    DGESVD computes the singular value decomposition (SVD) of a real
       *  M-by-N matrix A, optionally computing the left and/or right singular
       *  vectors. The SVD is written
@@ -37,7 +37,7 @@ extern "C" {
       *
       * See http://www.netlib.org/lapack/double/dgesvd.f for more information
       */
-// extern void dgesvd_(char *JOBU, char *JOBVT, int *M, int *N, double *A, int *LDA, double *S, double *U, int *LDU, double *VT, int *LDVT, double *WORK, int *LWORK, int *INFO);
+extern void dgesvd_(char *JOBU, char *JOBVT, int *M, int *N, double *A, int *LDA, double *S, double *U, int *LDU, double *VT, int *LDVT, double *WORK, int *LWORK, int *INFO);
 /*! DGESDD computes the singular value decomposition (SVD) of a real
       *  M-by-N matrix A, optionally computing the left and right singular
       *  vectors.  If singular vectors are desired, it uses a
@@ -56,7 +56,7 @@ extern "C" {
       *
       *  See http://www.netlib.org/lapack/double/dgesdd.f for more information
       */
-// extern void dgesdd_(char *jobz, int *m, int *n, double *a, int *lda, double *s, double *u, int *ldu, double *vt, int *ldvt, double *work, int *lwork, int *iwork, int *info);
+extern void dgesdd_(char *jobz, int *m, int *n, double *a, int *lda, double *s, double *u, int *ldu, double *vt, int *ldvt, double *work, int *lwork, int *iwork, int *info);
 /*!  DGETRF computes an LU factorization of a general M-by-N matrix A
       *  using partial pivoting with row interchanges.
       *
@@ -70,7 +70,7 @@ extern "C" {
       *
       *  See http://www.netlib.org/lapack/double/dgetrf.f for more information
       */
-// extern void dgetrf_(int *M, int *N, double *A, int *LDA, int *IPIV, int *INFO);
+extern void dgetrf_(int *M, int *N, double *A, int *LDA, int *IPIV, int *INFO);
 /*!  DGETRI computes the inverse of a matrix using the LU factorization
       *  computed by DGETRF.
       *
@@ -79,7 +79,7 @@ extern "C" {
       *
       *  See http://www.netlib.org/lapack/double/dgetri.f for more information
       */
-// extern void dgetri_(int *N, double *A, int *LDA, int *IPIV, double *WORK, int *LWORK, int *INFO);
+extern void dgetri_(int *N, double *A, int *LDA, int *IPIV, double *WORK, int *LWORK, int *INFO);
 }
 // EXTERN_C_END
 
