@@ -9,14 +9,6 @@
 #include "Util/Base64.hpp"
 #include "Util/Gauss_Legendre_Nodes_and_Weights.hpp"
 #include "Util/IOHelper.hpp"
-
-extern "C" {
-extern void sgesvd_(char *JOBU, char *JOBVT, int *M, int *N, float *A, int *LDA, float *S, float *U, int *LDU,
-                    float *VT, int *LDVT, float *WORK, int *LWORK, int *INFO);
-extern void dgesvd_(char *JOBU, char *JOBVT, int *M, int *N, double *A, int *LDA, double *S, double *U, int *LDU,
-                    double *VT, int *LDVT, double *WORK, int *LWORK, int *INFO);
-}
-
 #include "sctl/sctl.hpp"
 
 constexpr double pi = 3.1415926535897932384626433;

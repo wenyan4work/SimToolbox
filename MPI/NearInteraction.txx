@@ -228,8 +228,8 @@ void NearInteraction<Real, DIM>::SetupRepartition(const std::vector<SrcObj> &src
 template <class Real, sctl::Integer DIM>
 static void NbrList(sctl::Vector<sctl::Morton<DIM>> &nbrlst, const sctl::Morton<DIM> &m0, sctl::Integer depth,
                     sctl::ConstIterator<Real> period_length) {
-    typedef typename sctl::Morton<DIM>::SCTLMORTON_UNIT_T SCTLMORTON_UNIT_T;
-    const SCTLMORTON_UNIT_T N0 = (((SCTLMORTON_UNIT_T)1) << depth);
+    typedef typename sctl::Morton<DIM>::UINT_T UINT_T;
+    const UINT_T N0 = (((UINT_T)1) << depth);
     Real s = ((Real)1) / N0;
 
     sctl::StaticArray<Real, (1 << ((2 * DIM))) * DIM> c;
