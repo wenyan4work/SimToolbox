@@ -10,7 +10,7 @@
 
 #include <mpi.h>
 
-constexpr bool testPole = true;
+constexpr bool testPole = false;
 
 void testSTKThreading(const int order = 12, const int samples = 1000, const int nThreads = -1) {
     std::vector<Shexp> sh;
@@ -533,23 +533,23 @@ int main(int argc, char **argv) {
     testSTKThreading(order, 1000, -1);
     testSTKThreading(order, 1000, 1);
 
-    // #pragma omp parallel for
-        for (int i = 0; i < 100; i++) {
-            testSTKSL(order, 1000, false);
-            testSTKSL(order, 1000, true);
+#pragma omp parallel for
+    for (int i = 0; i < 100; i++) {
+        testSTKSL(order, 1000, false);
+        testSTKSL(order, 1000, true);
 
-            testSTKDL(order, 1000, false);
-            testSTKDL(order, 1000, true);
+        testSTKDL(order, 1000, false);
+        testSTKDL(order, 1000, true);
 
-            testTrac(order, 1000, false);
-            testTrac(order, 1000, true);
+        testTrac(order, 1000, false);
+        testTrac(order, 1000, true);
 
-            testTracSelf(order, 1000, false);
-            testTracSelf(order, 1000, true);
+        testTracSelf(order, 1000, false);
+        testTracSelf(order, 1000, true);
 
-            testLAPConvert(order, 1000);
-            testSTKConvert(order, 1000);
-        }
+        testLAPConvert(order, 1000);
+        testSTKConvert(order, 1000);
+    }
 
     MPI_Finalize();
     return 0;
