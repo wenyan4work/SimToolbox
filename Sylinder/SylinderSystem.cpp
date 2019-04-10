@@ -307,10 +307,14 @@ void SylinderSystem::writeAscii(const std::string &baseFolder) {
 }
 
 void SylinderSystem::writeVTK(const std::string &baseFolder) {
+    const int rank = commRcp->getRank();
+    const int size = commRcp->getSize();
     Sylinder::writeVTP<PS::ParticleSystem<Sylinder>>(sylinderContainer, sylinderContainer.getNumberOfParticleLocal(),
-                                                     baseFolder, std::to_string(snapID), commRcp->getRank());
-    if (commRcp->getRank() == 0) {
-        Sylinder::writePVTP(baseFolder, std::to_string(snapID), commRcp->getSize()); // write parallel head
+                                                     baseFolder, std::to_string(snapID), rank);
+    collisionCollectorPtr->writeVTP(baseFolder, std::to_string(snapID), rank);
+    if (rank == 0) {
+        Sylinder::writePVTP(baseFolder, std::to_string(snapID), size); // write parallel head
+        collisionCollectorPtr->writePVTP(baseFolder, std::to_string(snapID), size);
     }
 }
 
@@ -820,9 +824,9 @@ void SylinderSystem::collectWallCollision() {
                 // add a new collision block. this block has only 6 non zero entries.
                 // passing sy.gid+1/globalIndex+1 as a 'fake' colliding body j, which is actually not used in the solver
                 // when oneside=true, out of range index is ignored
-                (*collisionPoolPtr)[threadId].emplace_back(phi0, -phi0, sy.gid, sy.gid + 1, sy.globalIndex,
-                                                           sy.globalIndex + 1, Evec3(0, 0, 1), Evec3(0, 0, 0),
-                                                           colLoc - ECmap3(sy.pos), Evec3(0, 0, 0), true);
+                (*collisionPoolPtr)[threadId].emplace_back(
+                    phi0, -phi0, sy.gid, sy.gid + 1, sy.globalIndex, sy.globalIndex + 1, Evec3(0, 0, 1), Evec3(0, 0, 0),
+                    colLoc - ECmap3(sy.pos), Evec3(0, 0, 0), colLoc, Evec3(colLoc[0], colLoc[1], wallBot), true);
             }
         }
     }
@@ -866,7 +870,8 @@ void SylinderSystem::collectWallCollision() {
                 // when oneside=true, out of range index is ignored
                 (*collisionPoolPtr)[threadId].emplace_back(phi0, -phi0, sy.gid, sy.gid + 1, sy.globalIndex,
                                                            sy.globalIndex + 1, Evec3(0, 0, -1), Evec3(0, 0, 0),
-                                                           colLoc - ECmap3(sy.pos), Evec3(0, 0, 0), true);
+                                                           colLoc - ECmap3(sy.pos), Evec3(0, 0, 0), colLoc,
+                                                           Evec3(colLoc[0], colLoc[1], wallTop), true);
             }
         }
     }
@@ -957,46 +962,50 @@ void SylinderSystem::updateSylinderRank() {
 void SylinderSystem::applyBoxBC() { sylinderContainer.adjustPositionIntoRootDomain(dinfo); }
 
 void SylinderSystem::calcColStress() {
-    // average all two-side collisions
-    const auto &colPool = *(collisionCollectorPtr->collisionPoolPtr);
-    const int poolSize = colPool.size();
+    //     // average all two-side collisions
+    //     const auto &colPool = *(collisionCollectorPtr->collisionPoolPtr);
+    //     const int poolSize = colPool.size();
 
-    // reduction of stress
-    std::vector<Emat3> stressPool(poolSize);
-#pragma omp parallel for schedule(static, 1)
-    for (int que = 0; que < poolSize; que++) {
-        Emat3 stress = Emat3::Zero();
-        for (const auto &col : colPool[que]) {
-            if (col.oneSide == false && col.gamma > 0)
-                stress = stress + (col.stress * col.gamma);
-        }
-        stressPool[que] = stress;
-    }
+    //     // reduction of stress
+    //     std::vector<Emat3> stressPool(poolSize);
+    // #pragma omp parallel for schedule(static, 1)
+    //     for (int que = 0; que < poolSize; que++) {
+    //         Emat3 stress = Emat3::Zero();
+    //         for (const auto &col : colPool[que]) {
+    //             if (col.oneSide == false && col.gamma > 0)
+    //                 stress = stress + (col.stress * col.gamma);
+    //         }
+    //         stressPool[que] = stress;
+    //     }
 
-    Emat3 sumStress = Emat3::Zero();
-    for (int i = 0; i < poolSize; i++) {
-        sumStress = sumStress + stressPool[i];
-    }
+    //     Emat3 sumStress = Emat3::Zero();
+    //     for (int i = 0; i < poolSize; i++) {
+    //         sumStress = sumStress + stressPool[i];
+    //     }
+
+    Emat3 meanStress = Emat3::Zero();
+    collisionCollectorPtr->computeCollisionStress(meanStress, false);
 
     // scale to nkBT
     const double scaleFactor = 1 / (sylinderMapRcp->getGlobalNumElements() * runConfig.KBT);
-    sumStress *= scaleFactor;
+    meanStress *= scaleFactor;
     // mpi reduction
-    double sumStressLocal[9];
-    double sumStressGlobal[9];
+    double meanStressLocal[9];
+    double meanStressGlobal[9];
     for (int i = 0; i < 3; i++) {
         for (int j = 0; j < 3; j++) {
-            sumStressLocal[i * 3 + j] = sumStress(i, j);
-            sumStressGlobal[i * 3 + j] = 0;
+            meanStressLocal[i * 3 + j] = meanStress(i, j);
+            meanStressGlobal[i * 3 + j] = 0;
         }
     }
 
-    Teuchos::reduceAll(*commRcp, Teuchos::SumValueReductionOp<int, double>(), 9, sumStressLocal, sumStressGlobal);
+    Teuchos::reduceAll(*commRcp, Teuchos::SumValueReductionOp<int, double>(), 9, meanStressLocal, meanStressGlobal);
 
     if (commRcp->getRank() == 0)
-        printf("RECORD: ColXF %7g,%7g,%7g,%7g,%7g,%7g,%7g,%7g,%7g\n", sumStressGlobal[0], sumStressGlobal[1],
-               sumStressGlobal[2], sumStressGlobal[3], sumStressGlobal[4], sumStressGlobal[5], sumStressGlobal[6],
-               sumStressGlobal[7], sumStressGlobal[8]);
+        printf("RECORD: ColXF %7g,%7g,%7g,%7g,%7g,%7g,%7g,%7g,%7g\n",         //
+               meanStressGlobal[0], meanStressGlobal[1], meanStressGlobal[2], //
+               meanStressGlobal[3], meanStressGlobal[4], meanStressGlobal[5], //
+               meanStressGlobal[6], meanStressGlobal[7], meanStressGlobal[8]);
 }
 
 void SylinderSystem::setPosWithWall() {

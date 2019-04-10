@@ -52,15 +52,15 @@ struct SylinderNearEP {
 
     /**
      * @brief Get gid
-     * 
-     * @return int 
+     *
+     * @return int
      */
     int getGid() const { return gid; }
 
     /**
      * @brief Get global index (sequentially ordered in sylinder map)
-     * 
-     * @return int 
+     *
+     * @return int
      */
     int getGlobalIndex() const { return globalIndex; }
 
@@ -218,23 +218,24 @@ class CalcSylinderNearForce {
                     // in this constructor need conversion between PS::F64vec3 and Eigen::Vector3d
                     const double phi0 = sep;
                     const double gamma = sep < 0 ? -sep : 0;
-                    const Evec3 PlocEvec(Ploc[0], Ploc[1], Ploc[2]);
-                    const Evec3 QlocEvec(Qloc[0], Qloc[1], Qloc[2]);
-                    const Evec3 normI = (PlocEvec - QlocEvec).normalized();
+                    // const Evec3 PlocEvec(Ploc[0], Ploc[1], Ploc[2]);
+                    // const Evec3 QlocEvec(Qloc[0], Qloc[1], Qloc[2]);
+                    const Evec3 normI = (Ploc - Qloc).normalized();
                     const Evec3 normJ = -normI;
                     const Evec3 posI = Ploc - centerI;
                     const Evec3 posJ = Qloc - centerJ;
                     (*colPoolPtr)[myThreadId].emplace_back(phi0, gamma, syI.gid, syJ.gid, syI.globalIndex,
-                                                           syJ.globalIndex, normI, normJ, posI, posJ, false);
-                    Emat3 &stressIJ = (*colPoolPtr)[myThreadId].back().stress;
+                                                           syJ.globalIndex, normI, normJ, posI, posJ, Ploc, Qloc,
+                                                           false);
+                    Emat3 stressIJ; //= (*colPoolPtr)[myThreadId].back().stress;
                     collideStress(directionI, directionJ, centerI, centerJ, syI.lengthCollision, syJ.lengthCollision,
-                                  syI.radiusCollision, syJ.radiusCollision, 1.0, PlocEvec, QlocEvec, stressIJ);
+                                  syI.radiusCollision, syJ.radiusCollision, 1.0, Ploc, Qloc, stressIJ);
+                    (*colPoolPtr)[myThreadId].back().setStress(stressIJ);
                 }
             }
         }
     }
 
-  private:
     /**
      * @brief compute collision stress for a pair of sylinders
      *
@@ -253,7 +254,7 @@ class CalcSylinderNearForce {
      */
     void collideStress(const Evec3 &dirI, const Evec3 &dirJ, const Evec3 &posI, const Evec3 &posJ, double hI, double hJ,
                        const double rI, const double rJ, const double rho, const Evec3 &Ploc, const Evec3 &Qloc,
-                       Emat3 &StressIJ) {
+                       Emat3 &StressIJ) const {
         Emat3 NI, GAMMAI, NJ, GAMMAJ, InvGAMMAI, InvGAMMAJ;
         InitializeSyN(NI, rI, hI, rho);
         InitializeSyGA(GAMMAI, rI, hI, rho);
