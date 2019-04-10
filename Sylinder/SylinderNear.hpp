@@ -252,9 +252,9 @@ class CalcSylinderNearForce {
      * @param Qloc
      * @param StressIJ
      */
-    void collideStress(const Evec3 &dirI, const Evec3 &dirJ, const Evec3 &posI, const Evec3 &posJ, double hI, double hJ,
-                       const double rI, const double rJ, const double rho, const Evec3 &Ploc, const Evec3 &Qloc,
-                       Emat3 &StressIJ) const {
+    void collideStress(const Evec3 &dirI, const Evec3 &dirJ, const Evec3 &centerI, const Evec3 &centerJ, //
+                       double hI, double hJ, const double rI, const double rJ, const double rho,         //
+                       const Evec3 &Ploc, const Evec3 &Qloc, Emat3 &StressIJ) const {
         Emat3 NI, GAMMAI, NJ, GAMMAJ, InvGAMMAI, InvGAMMAJ;
         InitializeSyN(NI, rI, hI, rho);
         InitializeSyGA(GAMMAI, rI, hI, rho);
@@ -275,26 +275,15 @@ class CalcSylinderNearForce {
         InvGAMMAJ = aJ * Emat3::Identity() + (bJ - aJ) * (dirJ * dirJ.transpose());
 
         Evec3 F1 = (Qloc - Ploc).normalized();
-        Emat3 rIf = (posI) * (-F1.transpose()); // Newton's law
-        Emat3 rJf = (posJ) * (F1.transpose());
-        Evec3 xICf = (Ploc - posI).cross(-F1); // Newton's law
-        Evec3 xJCf = (Qloc - posJ).cross(F1);
+        Emat3 rIf = (centerI) * (-F1.transpose()); // Newton's law
+        Emat3 rJf = (centerJ) * (F1.transpose());
+        Evec3 xICf = (Ploc - centerI).cross(-F1); // Newton's law
+        Evec3 xJCf = (Qloc - centerJ).cross(F1);
 
         // Levi-Civita symbol epsilon
-        double epsilon[3][3][3];
-        for (int i = 0; i < 3; i++) {
-            for (int j = 0; j < 3; j++) {
-                for (int k = 0; k < 3; k++) {
-                    epsilon[i][j][k] = 0.0;
-                }
-            }
-        }
-        epsilon[0][1][2] = 1.0;
-        epsilon[1][2][0] = 1.0;
-        epsilon[2][0][1] = 1.0;
-        epsilon[1][0][2] = -1.0;
-        epsilon[2][1][0] = -1.0;
-        epsilon[0][2][1] = -1.0;
+        constexpr double epsilon[3][3][3] = {{{0, 0, 0}, {0, 0, 1}, {0, -1, 0}}, //
+                                             {{0, 0, -1}, {0, 0, 0}, {1, 0, 0}}, //
+                                             {{0, 1, 0}, {-1, 0, 0}, {0, 0, 0}}};
 
         Emat3 SGI, SGJ;
         SGI.setZero();
