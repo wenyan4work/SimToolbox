@@ -12,6 +12,7 @@
 #define POINTDISTRIBUTION_HPP_
 
 #include <vector>
+#include <string>
 
 /**
  * @brief generate fixed 1, 2, or 4 points
