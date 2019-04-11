@@ -369,7 +369,7 @@ class CollisionCollector {
                 // StressRowZ[3 * colIndex + 1] = block.stress[7];
                 // StressRowZ[3 * colIndex + 2] = block.stress[8];
                 for (int kk = 0; kk < 9; kk++) {
-                    Stress[9 * colIndex + kk] = block.stress[kk];
+                    Stress[9 * colIndex + kk] = block.stress[kk] * block.gamma;
                 }
             }
         }
