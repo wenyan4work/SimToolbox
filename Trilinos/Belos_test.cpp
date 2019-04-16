@@ -24,7 +24,7 @@ Teuchos::RCP<TCMAT> genMatrix(const int localSize, const double diagonal) {
     // set A and b randomly. maintain SPD of A
     // generate a local random matrix
 
-    std::mt19937 gen(1234); // Standard mersenne_twister_engine seeded with rd()
+    std::mt19937 gen(1234 + commRcp->getRank()); // Standard mersenne_twister_engine seeded with rd()
     std::uniform_real_distribution<> dis(-0.1, 0.1);
 
     // a random matrix
@@ -53,7 +53,7 @@ Teuchos::RCP<TCMAT> genMatrix(const int localSize, const double diagonal) {
 
     // use ALocal as local matrix to fill TCMAT A
     // block diagonal distribution of A
-    double droptol = 0;
+    double droptol = 1e-4;
     Kokkos::View<size_t *> rowCount("rowCount", localSize);
     Kokkos::View<size_t *> rowPointers("rowPointers", localSize + 1);
     for (int i = 0; i < localSize; i++) {
@@ -127,12 +127,12 @@ void genLinearProblem(const int dimension, const double diagonal, Teuchos::RCP<T
                       Teuchos::RCP<TV> &xTrueRcp, Teuchos::RCP<TV> &bRcp) {
     // Ax=b
     ARcp = genMatrix(dimension, diagonal);
-    xTrueRcp = genVector(dimension, 0);
+    xTrueRcp = genVector(dimension, 5678 + ARcp->getComm()->getRank());
     bRcp = Teuchos::rcp<TV>(new TV(xTrueRcp->getMap(), true));
     ARcp->apply(*xTrueRcp, *bRcp);
 
     // xguess, random
-    xRcp = genVector(dimension, 1);
+    xRcp = genVector(dimension, 1 + ARcp->getComm()->getRank());
     ARcp->getComm()->barrier();
     dumpTCMAT(ARcp, "A");
     dumpTV(bRcp, "b");
@@ -159,7 +159,9 @@ void testGMRES(Teuchos::RCP<TCMAT> &ARcp, Teuchos::RCP<TV> &xRcp, Teuchos::RCP<T
     solverParams->set("Explicit Residual Scaling", "Norm of RHS");
     // solverParams->set("Implicit Residual Scaling", "None"); // default is preconditioned initial residual
     // solverParams->set("Explicit Residual Scaling", "None");
-    solverParams->set("Verbosity", Belos::Errors + Belos::Warnings + Belos::TimingDetails + Belos::FinalSummary);
+    // all info except debug info
+    solverParams->set("Verbosity", Belos::Errors + Belos::Warnings + +Belos::IterationDetails + Belos::OrthoDetails +
+                                       Belos::FinalSummary + Belos::TimingDetails + Belos::StatusTestDetails);
     solverParams->set("Output Frequency", 1);
     Belos::SolverFactory<TOP::scalar_type, TMV, TOP> factory;
     auto solverRcp = factory.create("GMRES", solverParams); // recycle Krylov space for collision
@@ -171,26 +173,65 @@ void testGMRES(Teuchos::RCP<TCMAT> &ARcp, Teuchos::RCP<TV> &xRcp, Teuchos::RCP<T
     Belos::ReturnType result = solverRcp->solve();
     int numIters = solverRcp->getNumIters();
 
-    auto commRcp = getMPIWORLDTCOMM();
-    if (commRcp->getRank() == 0) {
-        std::cout << "RECORD: Num of Iterations in Mobility Matrix: " << numIters << std::endl;
-    }
+    dumpTV(xRcp, "xsolGMRES");
+}
 
-    dumpTV(xRcp, "xsol");
+void testBICGSTAB(Teuchos::RCP<TCMAT> &ARcp, Teuchos::RCP<TV> &xRcp, Teuchos::RCP<TV> &xTrueRcp,
+                  Teuchos::RCP<TV> &bRcp) {
+    auto problemRcp = Teuchos::rcp(new Belos::LinearProblem<TOP::scalar_type, TMV, TOP>(ARcp, xRcp, bRcp));
+
+    // Teuchos::RCP<Teuchos::ParameterList> solverParams = Teuchos::getParametersFromXmlFile("mobilitySolver.xml");
+    // Teuchos::RCP<Teuchos::ParameterList> solverParams = Teuchos::getParametersFromYamlFile("mobilitySolver.yaml");
+    Teuchos::RCP<Teuchos::ParameterList> solverParams = Teuchos::parameterList();
+    solverParams->set("Timer Label", "Iterative Mobility Solution");
+    solverParams->set("Maximum Iterations", 1000);
+    solverParams->set("Convergence Tolerance", 1e-7);
+    // solverParams->set("Maximum Restarts", 100);
+    // solverParams->set("Num Blocks", 100); // larger values might trigger a std::bad_alloc inside Kokkos.
+    solverParams->set("Orthogonalization", "IMGS");
+    // solverParams->set("Output Style", Belos::OutputType::General);
+    // solverParams->set("Implicit Residual Scaling", "Norm of Initial Residual");
+    // solverParams->set("Explicit Residual Scaling", "Norm of Initial Residual");
+    solverParams->set("Implicit Residual Scaling", "Norm of RHS");
+    solverParams->set("Explicit Residual Scaling", "Norm of RHS");
+    // solverParams->set("Implicit Residual Scaling", "None"); // default is preconditioned initial residual
+    // solverParams->set("Explicit Residual Scaling", "None");
+    // all info except debug info
+    solverParams->set("Verbosity", Belos::Errors + Belos::Warnings + +Belos::IterationDetails + Belos::OrthoDetails +
+                                       Belos::FinalSummary + Belos::TimingDetails + Belos::StatusTestDetails);
+    solverParams->set("Output Frequency", 1);
+    Belos::SolverFactory<TOP::scalar_type, TMV, TOP> factory;
+    auto solverRcp = factory.create("BICGSTAB", solverParams); // recycle Krylov space for collision
+
+    bool set = problemRcp->setProblem();
+    TEUCHOS_TEST_FOR_EXCEPTION(!set, std::runtime_error, "*** Belos::LinearProblem failed to set up correctly! ***");
+    solverRcp->setProblem(problemRcp);
+
+    Belos::ReturnType result = solverRcp->solve();
+    int numIters = solverRcp->getNumIters();
+
+    dumpTV(xRcp, "xsolBICGSTAB");
 }
 
 int main(int argc, char **argv) {
     MPI_Init(&argc, &argv);
     {
-        constexpr int dimension = 500;   // dimension per rank
-        constexpr double diagonal = 0.0; // added to matrix diagonel
+        constexpr int dimension = 500; // dimension per rank
+        constexpr double diagonal = 0.1;
+        // added to matrix diagonel, tune the condition number
+        // max eig ~ 10 + diagonal
+        // min eig ~ 1e-6 + diagonal
         Teuchos::RCP<TCMAT> ARcp;
         Teuchos::RCP<TV> xRcp;
         Teuchos::RCP<TV> xTrueRcp;
         Teuchos::RCP<TV> bRcp;
+        Teuchos::RCP<TV> xGuessRcp;
 
         genLinearProblem(dimension, diagonal, ARcp, xRcp, xTrueRcp, bRcp);
-        testGMRES(ARcp, xRcp, xTrueRcp, bRcp);
+        xGuessRcp = Teuchos::rcp<TV>(new TV(*xRcp, Teuchos::Copy));
+        testGMRES(ARcp, xGuessRcp, xTrueRcp, bRcp);
+        xGuessRcp = Teuchos::rcp<TV>(new TV(*xRcp, Teuchos::Copy));
+        testBICGSTAB(ARcp, xRcp, xTrueRcp, bRcp);
     }
     MPI_Finalize();
     return 0;
