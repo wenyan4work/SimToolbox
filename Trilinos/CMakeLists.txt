@@ -26,3 +26,12 @@ add_test(NAME TpetraUtil COMMAND TpetraUtil_test)
 # set_tests_properties(TpetraUtil PROPERTIES
 #   PASS_REGULAR_EXPRESSION "TestPassed;All ok"
 # )
+
+add_executable(Belos_test Belos_test.cpp TpetraUtil.cpp)
+target_compile_options(Belos_test PRIVATE ${OpenMP_CXX_FLAGS})
+target_include_directories(Belos_test PRIVATE ${PROJECT_SOURCE_DIR} ${Trilinos_INCLUDE_DIRS})
+target_link_libraries(Belos_test PRIVATE ${Trilinos_LIBRARIES})
+target_link_libraries(Belos_test PRIVATE ${Trilinos_TPL_LIBRARIES})
+target_link_libraries(Belos_test PRIVATE OpenMP::OpenMP_CXX)
+target_link_libraries(Belos_test PRIVATE MPI::MPI_CXX)
+add_test(NAME Belos COMMAND Belos_test)
