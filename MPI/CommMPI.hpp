@@ -38,6 +38,10 @@ inline MPI_Datatype createMPIStructType() {
     return type;
 };
 
+/**
+ * @brief utility class for mpi comm handling
+ *
+ */
 class CommMPI {
 
     int rank;
@@ -49,10 +53,12 @@ class CommMPI {
     std::vector<int> recvCounts;
     std::vector<int> recvDispls;
 
-    void clear();
-
   public:
-    CommMPI() {
+    /**
+     * @brief Construct a new CommMPI object
+     *
+     */
+    CommMPI() noexcept {
         MPI_Comm_rank(MPI_COMM_WORLD, &rank);
         MPI_Comm_size(MPI_COMM_WORLD, &nProcs);
         sendCounts.resize(nProcs, 0);
@@ -64,6 +70,37 @@ class CommMPI {
     int getRank() const { return rank; }
     int getSize() const { return nProcs; }
 
+    /**
+     * @brief clear internal counters
+     *
+     */
+    void clear() {
+        assert(sendCounts.size() == nProcs);
+        assert(recvCounts.size() == nProcs);
+        assert(sendDispls.size() == nProcs + 1);
+        assert(recvDispls.size() == nProcs + 1);
+#pragma omp parallel sections
+        {
+#pragma omp section
+            { std::fill(sendCounts.begin(), sendCounts.end(), 0); }
+#pragma omp section
+            { std::fill(sendDispls.begin(), sendDispls.end(), 0); }
+#pragma omp section
+            { std::fill(recvCounts.begin(), recvCounts.end(), 0); }
+#pragma omp section
+            { std::fill(recvDispls.begin(), recvDispls.end(), 0); }
+        }
+    }
+
+    /**
+     * @brief alltoallv for Data to each rank
+     *
+     * @tparam Data
+     * @param sendDestRank rank id for each data
+     * @param sendData data holder
+     * @param recvSrcRank the src rank id of each received data
+     * @param recvData received data
+     */
     template <class Data>
     void exchangeAllToAllV(std::vector<int> &sendDestRank, std::vector<Data> &sendData, //
                            std::vector<int> &recvSrcRank, std::vector<Data> &recvData);
@@ -124,24 +161,6 @@ void CommMPI::exchangeAllToAllV(std::vector<int> &sendDestRank, std::vector<Data
         int lb = recvDispls[i];
         int ub = recvDispls[i + 1];
         std::fill(recvSrcRank.begin() + lb, recvSrcRank.begin() + ub, i);
-    }
-}
-
-void CommMPI::clear() {
-    assert(sendCounts.size() == nProcs);
-    assert(recvCounts.size() == nProcs);
-    assert(sendDispls.size() == nProcs + 1);
-    assert(recvDispls.size() == nProcs + 1);
-#pragma omp parallel sections
-    {
-#pragma omp section
-        { std::fill(sendCounts.begin(), sendCounts.end(), 0); }
-#pragma omp section
-        { std::fill(sendDispls.begin(), sendDispls.end(), 0); }
-#pragma omp section
-        { std::fill(recvCounts.begin(), recvCounts.end(), 0); }
-#pragma omp section
-        { std::fill(recvDispls.begin(), recvDispls.end(), 0); }
     }
 }
 
