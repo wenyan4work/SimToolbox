@@ -25,25 +25,27 @@ Teuchos::RCP<TCMAT> genMatrix(const int localSize, const double diagonal) {
     // generate a local random matrix
 
     std::mt19937 gen(1234); // Standard mersenne_twister_engine seeded with rd()
-    std::uniform_real_distribution<> dis(-1, 1);
+    std::uniform_real_distribution<> dis(-0.1, 0.1);
 
     // a random matrix
     Teuchos::SerialDenseMatrix<int, double> BLocal(localSize, localSize, true); // zeroOut
     for (int i = 0; i < localSize; i++) {
         for (int j = 0; j < localSize; j++) {
-            BLocal(i, j) = dis(gen) * (j == i ? 1 : pow(fabs(j - i), -1));
+            // BLocal(i, j) = dis(gen) * (j == i ? 1 : pow(fabs(j - i), -1));
+            BLocal(i, j) = dis(gen);
         }
     }
     // a random diagonal matrix
     Teuchos::SerialDenseMatrix<int, double> ALocal(localSize, localSize, true);
+    Teuchos::SerialDenseMatrix<int, double> tempLocal(localSize, localSize, true);
     Teuchos::SerialDenseMatrix<int, double> DLocal(localSize, localSize, true);
     for (int i = 0; i < localSize; i++) {
-        DLocal(i, i) = fabs(dis(gen));
+        DLocal(i, i) = fabs(dis(gen)) + 2;
     }
 
     // compute B^T D B
-    ALocal.multiply(Teuchos::NO_TRANS, Teuchos::NO_TRANS, 1.0, DLocal, BLocal, 0.0); // A = DB
-    ALocal.multiply(Teuchos::TRANS, Teuchos::NO_TRANS, 1.0, BLocal, ALocal, 0.0);    // A = B^T DB
+    tempLocal.multiply(Teuchos::NO_TRANS, Teuchos::NO_TRANS, 1.0, DLocal, BLocal, 0.0); // temp = DB
+    ALocal.multiply(Teuchos::TRANS, Teuchos::NO_TRANS, 1.0, BLocal, tempLocal, 0.0);    // A = B^T DB
 
     for (int i = 0; i < localSize; i++) {
         ALocal(i, i) += diagonal;
@@ -51,7 +53,7 @@ Teuchos::RCP<TCMAT> genMatrix(const int localSize, const double diagonal) {
 
     // use ALocal as local matrix to fill TCMAT A
     // block diagonal distribution of A
-    double droptol = 1e-7;
+    double droptol = 0;
     Kokkos::View<size_t *> rowCount("rowCount", localSize);
     Kokkos::View<size_t *> rowPointers("rowPointers", localSize + 1);
     for (int i = 0; i < localSize; i++) {
@@ -180,7 +182,7 @@ void testGMRES(Teuchos::RCP<TCMAT> &ARcp, Teuchos::RCP<TV> &xRcp, Teuchos::RCP<T
 int main(int argc, char **argv) {
     MPI_Init(&argc, &argv);
     {
-        constexpr int dimension = 1000;  // dimension per rank
+        constexpr int dimension = 500;   // dimension per rank
         constexpr double diagonal = 0.0; // added to matrix diagonel
         Teuchos::RCP<TCMAT> ARcp;
         Teuchos::RCP<TV> xRcp;
