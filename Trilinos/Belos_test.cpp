@@ -31,7 +31,7 @@ Teuchos::RCP<TCMAT> genMatrix(const int localSize, const double diagonal) {
     Teuchos::SerialDenseMatrix<int, double> BLocal(localSize, localSize, true); // zeroOut
     for (int i = 0; i < localSize; i++) {
         for (int j = 0; j < localSize; j++) {
-            BLocal(i, j) = dis(gen);
+            BLocal(i, j) = dis(gen) * (j == i ? 1 : pow(fabs(j - i), -1));
         }
     }
     // a random diagonal matrix
@@ -144,7 +144,8 @@ void testGMRES(Teuchos::RCP<TCMAT> &ARcp, Teuchos::RCP<TV> &xRcp, Teuchos::RCP<T
     // Teuchos::RCP<Teuchos::ParameterList> solverParams = Teuchos::getParametersFromXmlFile("mobilitySolver.xml");
     // Teuchos::RCP<Teuchos::ParameterList> solverParams = Teuchos::getParametersFromYamlFile("mobilitySolver.yaml");
     Teuchos::RCP<Teuchos::ParameterList> solverParams = Teuchos::parameterList();
-    solverParams->set("Maximum Iterations", 200);
+    solverParams->set("Timer Label", "Iterative Mobility Solution");
+    solverParams->set("Maximum Iterations", 1000);
     solverParams->set("Convergence Tolerance", 1e-7);
     // solverParams->set("Maximum Restarts", 100);
     // solverParams->set("Num Blocks", 100); // larger values might trigger a std::bad_alloc inside Kokkos.
@@ -156,16 +157,13 @@ void testGMRES(Teuchos::RCP<TCMAT> &ARcp, Teuchos::RCP<TV> &xRcp, Teuchos::RCP<T
     solverParams->set("Explicit Residual Scaling", "Norm of RHS");
     // solverParams->set("Implicit Residual Scaling", "None"); // default is preconditioned initial residual
     // solverParams->set("Explicit Residual Scaling", "None");
-    solverParams->set("Output Frequency", 1);
-    solverParams->set("Timer Label", "Iterative Mobility Solution");
     solverParams->set("Verbosity", Belos::Errors + Belos::Warnings + Belos::TimingDetails + Belos::FinalSummary);
+    solverParams->set("Output Frequency", 1);
     Belos::SolverFactory<TOP::scalar_type, TMV, TOP> factory;
     auto solverRcp = factory.create("GMRES", solverParams); // recycle Krylov space for collision
 
     bool set = problemRcp->setProblem();
     TEUCHOS_TEST_FOR_EXCEPTION(!set, std::runtime_error, "*** Belos::LinearProblem failed to set up correctly! ***");
-    // do not reset the Krylov space, using GCRODR
-    // solverRcp->reset(Belos::Problem);
     solverRcp->setProblem(problemRcp);
 
     Belos::ReturnType result = solverRcp->solve();
@@ -183,7 +181,7 @@ int main(int argc, char **argv) {
     MPI_Init(&argc, &argv);
     {
         constexpr int dimension = 1000;  // dimension per rank
-        constexpr double diagonal = 5.0; // added to matrix diagonel
+        constexpr double diagonal = 0.0; // added to matrix diagonel
         Teuchos::RCP<TCMAT> ARcp;
         Teuchos::RCP<TV> xRcp;
         Teuchos::RCP<TV> xTrueRcp;
