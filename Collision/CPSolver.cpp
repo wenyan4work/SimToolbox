@@ -216,14 +216,16 @@ CPSolver::CPSolver(int localSize, double diagonal) {
         }
     }
     // a random diagonal matrix
-    Teuchos::SerialDenseMatrix<int, double> ALocal(localSize, localSize);
-    Teuchos::SerialDenseMatrix<int, double> DLocal(localSize, localSize);
+    Teuchos::SerialDenseMatrix<int, double> ALocal(localSize, localSize, true);
+    Teuchos::SerialDenseMatrix<int, double> tempLocal(localSize, localSize, true);
+    Teuchos::SerialDenseMatrix<int, double> DLocal(localSize, localSize, true);
     for (int i = 0; i < localSize; i++) {
-        DLocal(i, i) = fabs(dis(gen));
+        DLocal(i, i) = fabs(dis(gen)) + 2;
     }
-    // compute B^T A B
-    ALocal.multiply(Teuchos::NO_TRANS, Teuchos::NO_TRANS, 1.0, DLocal, BLocal, 0.0); // A = DB
-    ALocal.multiply(Teuchos::TRANS, Teuchos::NO_TRANS, 1.0, BLocal, ALocal, 0.0);    // A = B^T DB
+
+    // compute B^T D B
+    tempLocal.multiply(Teuchos::NO_TRANS, Teuchos::NO_TRANS, 1.0, DLocal, BLocal, 0.0); // temp = DB
+    ALocal.multiply(Teuchos::TRANS, Teuchos::NO_TRANS, 1.0, BLocal, tempLocal, 0.0);    // A = B^T DB
 
     for (int i = 0; i < localSize; i++) {
         ALocal(i, i) += diagonal;
