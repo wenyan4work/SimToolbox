@@ -308,7 +308,7 @@ void CollisionSolver::setupGammaVec(CollisionBlockPool &collision_) {
         const int colBlockNum = colBlockQue.size();
         const int colBlockIndexBase = queueThreadIndex[threadId];
         for (int j = 0; j < colBlockNum; j++) {
-            gamma_2d(colBlockIndexBase + j, 0) = colBlockQue[j].gamma;
+            gamma_2d(colBlockIndexBase + j, 0) = 0; // colBlockQue[j].gamma;
         }
     }
 
