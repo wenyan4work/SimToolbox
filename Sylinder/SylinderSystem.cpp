@@ -60,6 +60,7 @@ void SylinderSystem::initialize(const SylinderConfig &runConfig_, const std::str
     decomposeDomain();
     exchangeSylinder(); // distribute to ranks, initial domain decomposition
 
+    treeSylinderNumber = 0;
     setTreeSylinder();
 
     setPosWithWall();
