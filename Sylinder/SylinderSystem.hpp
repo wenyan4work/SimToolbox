@@ -357,7 +357,7 @@ class SylinderSystem {
 
     // expose raw vectors and operators
     Teuchos::RCP<TV> getForceNonBrown() const { return forceNonBrownRcp; }
-    Teuchos::RCP<TV> getVelocityNonBrown() const { return velocityKnownRcp; };
+    Teuchos::RCP<TV> getVelocityNonBrown() const { return velocityNonBrownRcp; };
     Teuchos::RCP<TV> getVelocityBrown() const { return velocityBrownRcp; };
     Teuchos::RCP<TV> getVelocityKnown() const { return velocityKnownRcp; };
     Teuchos::RCP<TV> getForceCol() const { return forceColRcp; };
