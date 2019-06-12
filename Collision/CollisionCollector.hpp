@@ -180,7 +180,8 @@ class CollisionCollector {
     /**
      * @brief compute the average of collision stress of all constraints (blocks)
      *
-     * @param stress the result
+     * @param stress the result for all threads on the local rank
+     * @param withOneSide include the stress (without proper definition) of one side collisions
      */
     void computeCollisionStress(Emat3 &stress, bool withOneSide = false) {
         const auto &colPool = *collisionPoolPtr;
@@ -191,16 +192,17 @@ class CollisionCollector {
         for (int que = 0; que < poolSize; que++) {
             Emat3 stress = Emat3::Zero();
             for (const auto &colBlock : colPool[que]) {
-                if (colBlock.oneSide && withOneSide) {
+                if (colBlock.oneSide && !withOneSide) {
                     continue;
+                } else {
+                    Emat3 stressColBlock;
+                    stressColBlock << colBlock.stress[0], colBlock.stress[1], colBlock.stress[2], //
+                        colBlock.stress[3], colBlock.stress[4], colBlock.stress[5],               //
+                        colBlock.stress[6], colBlock.stress[7], colBlock.stress[8];
+                    stress = stress + (stressColBlock * colBlock.gamma);
                 }
-                Emat3 stressColBlock;
-                stressColBlock << colBlock.stress[0], colBlock.stress[1], colBlock.stress[2], //
-                    colBlock.stress[3], colBlock.stress[4], colBlock.stress[5],               //
-                    colBlock.stress[6], colBlock.stress[7], colBlock.stress[8];
-                stress = stress + (stressColBlock * colBlock.gamma);
             }
-            stressPool[que] = stress * (1.0 / colPool.size());
+            stressPool[que] = stress * (1.0 / colPool[que].size());
         }
 
         stress = Emat3::Zero();
