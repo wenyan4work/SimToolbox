@@ -290,12 +290,14 @@ class SylinderSystem {
      * @param newSylinder
      */
     void addNewSylinder(std::vector<Sylinder> &newSylinder);
+
     /**
      * @brief calculate collision stress with solved collision problem
      *
      * The result is shown on screen
      */
     void calcColStress();
+
     /**
      * @brief calculate volume fraction
      *

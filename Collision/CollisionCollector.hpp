@@ -180,7 +180,7 @@ class CollisionCollector {
     /**
      * @brief compute the average of collision stress of all constraints (blocks)
      *
-     * @param stress the result for all threads on the local rank
+     * @param stress the sum of all stress blocks for all threads on the local rank
      * @param withOneSide include the stress (without proper definition) of one side collisions
      */
     void computeCollisionStress(Emat3 &stress, bool withOneSide = false) {
@@ -193,8 +193,9 @@ class CollisionCollector {
             Emat3 stress = Emat3::Zero();
             for (const auto &colBlock : colPool[que]) {
                 if (colBlock.oneSide && !withOneSide) {
+                    // skip counting oneside collision blocks
                     continue;
-                } else {
+                } else if (colBlock.gamma > 0) {
                     Emat3 stressColBlock;
                     stressColBlock << colBlock.stress[0], colBlock.stress[1], colBlock.stress[2], //
                         colBlock.stress[3], colBlock.stress[4], colBlock.stress[5],               //
@@ -202,14 +203,15 @@ class CollisionCollector {
                     stress = stress + (stressColBlock * colBlock.gamma);
                 }
             }
-            stressPool[que] = stress * (1.0 / colPool[que].size());
+            stressPool[que] = stress; // sum
         }
 
         stress = Emat3::Zero();
         for (int i = 0; i < poolSize; i++) {
             stress = stress + stressPool[i];
         }
-        stress = stress * (1.0 / poolSize);
+
+        // std::cout << stress << std::endl;
     }
 
     /**
