@@ -44,6 +44,7 @@ SylinderConfig::SylinderConfig(std::string filename) {
     viscosity = config["viscosity"].as<double>();
     KBT = config["KBT"].as<double>();
 
+    sylinderFixed = config["sylinderFixed"].as<bool>();
     sylinderNumber = config["sylinderNumber"].as<int>();
     sylinderLength = config["sylinderLength"].as<double>();
     sylinderLengthSigma = config["sylinderLengthSigma"].as<double>();

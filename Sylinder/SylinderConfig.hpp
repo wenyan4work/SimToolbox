@@ -39,6 +39,7 @@ class SylinderConfig {
     double viscosity = 1.0; // pN/(um^2 s)
     double KBT = 0.00411;   // pN.um
 
+    bool sylinderFixed = false;
     int sylinderNumber = 100;
     double sylinderLength = 2.0;
     double sylinderLengthSigma = 0;

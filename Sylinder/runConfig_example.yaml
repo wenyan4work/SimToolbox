@@ -18,6 +18,7 @@ initOrient: [2,2,2]
 viscosity: 0.001   #pN/(um^2.s)
 KBT: 0.00411       #pN.um, 300K
 # Sylinder
+sylinderFixed: true
 sylinderNumber: 100
 sylinderLength: 1.0
 sylinderLengthSigma: -1.0

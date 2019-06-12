@@ -9,13 +9,14 @@ void test(int argc, char **argv) {
     runConfig.simBoxHigh[0] = runConfig.simBoxHigh[1] = runConfig.simBoxHigh[2] = 100.0;
     runConfig.initBoxHigh[0] = runConfig.initBoxHigh[1] = runConfig.initBoxHigh[2] = 100.0;
     runConfig.sylinderNumber = 4096;
+    // runConfig.sylinderFixed = true;
     runConfig.wallLowZ = true;
     runConfig.wallHighZ = true;
     runConfig.dt = 0.001;
     runConfig.timeSnap = 0.001;
-    runConfig.simBoxPBC[0] = false;
-    runConfig.simBoxPBC[1] = false;
-    runConfig.simBoxPBC[2] = false;
+    runConfig.simBoxPBC[0] = true;
+    runConfig.simBoxPBC[1] = true;
+    runConfig.simBoxPBC[2] = true;
 
     SylinderSystem sylinderSystem(runConfig, "posInitial.dat", argc, argv);
     for (int i = 0; i < 10; i++) {

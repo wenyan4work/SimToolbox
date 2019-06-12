@@ -70,19 +70,21 @@ void SylinderSystem::initialize(const SylinderConfig &runConfig_, const std::str
         writeBox();
     }
 
-    // 100 NON-B steps to resolve initial configuration collisions
-    // no output
-    printf("-------------------------------------\n");
-    printf("-Initial Collision Resolution Begin--\n");
-    printf("-------------------------------------\n");
-    for (int i = 0; i < 100; i++) {
-        prepareStep();
-        calcVelocityKnown();
-        resolveCollision();
-        stepEuler();
+    if (!runConfig.sylinderFixed) {
+        // 100 NON-B steps to resolve initial configuration collisions
+        // no output
+        printf("-------------------------------------\n");
+        printf("-Initial Collision Resolution Begin--\n");
+        printf("-------------------------------------\n");
+        for (int i = 0; i < 100; i++) {
+            prepareStep();
+            calcVelocityKnown();
+            resolveCollision();
+            stepEuler();
+        }
+        printf("--Initial Collision Resolution End---\n");
+        printf("-------------------------------------\n");
     }
-    printf("--Initial Collision Resolution End---\n");
-    printf("-------------------------------------\n");
 
     calcVolFrac();
     printf("SylinderSystem Initialized. %d sylinders on process %d\n", sylinderContainer.getNumberOfParticleLocal(),
@@ -586,7 +588,14 @@ void SylinderSystem::stepEuler() {
             sy.vel[k] = sy.velNonB[k] + sy.velBrown[k] + sy.velCol[k];
             sy.omega[k] = sy.omegaNonB[k] + sy.omegaBrown[k] + sy.omegaCol[k];
         }
-        sy.stepEuler(dt);
+    }
+
+    if (!runConfig.sylinderFixed) {
+#pragma omp parallel for
+        for (int i = 0; i < nLocal; i++) {
+            auto &sy = sylinderContainer[i];
+            sy.stepEuler(dt);
+        }
     }
 }
 
