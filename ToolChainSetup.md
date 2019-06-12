@@ -444,13 +444,11 @@ ccmake  \
   -D CMAKE_INSTALL_PREFIX:FILEPATH="/Users/wyan/local/" \
   -D CMAKE_BUILD_TYPE:STRING=Release \
   -D BUILD_SHARED_LIBS=OFF \
+  -D Trilinos_HIDE_DEPRECATED_CODE=ON \
   -D CMAKE_C_FLAGS:STRING="-O3 -march=native" \
   -D CMAKE_CXX_FLAGS:STRING="-O3 -march=native" \
-  -D OpenMP_C_FLAGS:STRING="-fopenmp=libiomp5" \
-  -D OpenMP_CXX_FLAGS:STRING="-fopenmp=libiomp5" \
-  -D OpenMP_C_LIB_NAMES:STRING="iomp5" \
-  -D OpenMP_CXX_LIB_NAMES:STRING="iomp5" \
-  -D OpenMP_iomp5_LIBRARY="/opt/intel/lib/libiomp5.dylib" \
+  -D OpenMP_C_FLAGS:STRING="-fopenmp" \
+  -D OpenMP_CXX_FLAGS:STRING="-fopenmp" \
   -D Kokkos_ENABLE_HWLOC:BOOL=OFF \
   -D Kokkos_ENABLE_OPENMP:BOOL=ON \
   -D Trilinos_ENABLE_EXPLICIT_INSTANTIATION=ON \
