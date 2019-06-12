@@ -329,6 +329,9 @@ LDFLAGS = -fopenmp=libiomp5 -L/opt/intel/lib -liomp5 -Wl,-rpath,/opt/intel/lib
 
 The `-Wl,-rpath` is necessary on Mac. More about this in the next section.
 
+### Remark in 2019
+As of llvm 8 and Intel MKL 2019, libomp seems to be working fine with MKL. There is no need to play the above tricks about omp libs when using clang with MKL. You can simply add `-fopenmp` to both compiling and linking flags.
+
 ## RPATH
 Traditionally on Mac, the dynamic libraries can be searched through the environment variable `DYLD_LIBRARY_PATH`. However, in new versions of Mac because of the new SIP security system, this environment variable will be purged in many cases.
 Here is the official description:
