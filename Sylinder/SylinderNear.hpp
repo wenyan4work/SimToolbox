@@ -252,9 +252,9 @@ class CalcSylinderNearForce {
      * @param Qloc
      * @param StressIJ
      */
-    void collideStress(const Evec3 &dirI, const Evec3 &dirJ, const Evec3 &centerI, const Evec3 &centerJ, //
-                       double hI, double hJ, const double rI, const double rJ, const double rho,         //
-                       const Evec3 &Ploc, const Evec3 &Qloc, Emat3 &StressIJ) const {
+    static void collideStress(const Evec3 &dirI, const Evec3 &dirJ, const Evec3 &centerI, const Evec3 &centerJ, //
+                              double hI, double hJ, const double rI, const double rJ, const double rho,         //
+                              const Evec3 &Ploc, const Evec3 &Qloc, Emat3 &StressIJ) {
         Emat3 NI, GAMMAI, NJ, GAMMAJ, InvGAMMAI, InvGAMMAJ;
         InitializeSyN(NI, rI, hI, rho);
         InitializeSyGA(GAMMAI, rI, hI, rho);
@@ -304,7 +304,7 @@ class CalcSylinderNearForce {
         StressIJ = rIf + rJf + SGI + SGJ;
     }
 
-    void InitializeSyN(Emat3 &NI, double r, double h, double rho) const {
+    static void InitializeSyN(Emat3 &NI, double r, double h, double rho) {
         NI.setZero();
         double beta = h / 2.0 / r;
         NI(0, 0) = 1.0 / 30.0 * (15.0 * beta + 8);
@@ -313,7 +313,7 @@ class CalcSylinderNearForce {
         NI = NI * rho * r * r * r * r * r * M_PI;
     }
 
-    void InitializeSyGA(Emat3 &GAMMAI, double r, double h, double rho) const {
+    static void InitializeSyGA(Emat3 &GAMMAI, double r, double h, double rho) {
         GAMMAI.setZero();
         double beta = h / 2.0 / r;
         GAMMAI(0, 0) = 1.0 / 30.0 * (20.0 * beta * beta * beta + 40.0 * beta * beta + 45.0 * beta + 16.0);

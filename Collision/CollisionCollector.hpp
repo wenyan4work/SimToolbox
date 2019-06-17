@@ -178,7 +178,7 @@ class CollisionCollector {
     }
 
     /**
-     * @brief compute the average of collision stress of all constraints (blocks)
+     * @brief compute the total collision stress of all constraints (blocks)
      *
      * @param stress the sum of all stress blocks for all threads on the local rank
      * @param withOneSide include the stress (without proper definition) of one side collisions
@@ -260,9 +260,12 @@ class CollisionCollector {
         // cellDataFields.emplace_back(3, IOHelper::IOTYPE::Float32, "StressRowZ");
         cellDataFields.emplace_back(9, IOHelper::IOTYPE::Float32, "Stress");
 
+        auto const pos = prefix.find_last_of('/');
+        const std::string leaf = prefix.substr(pos + 1);
+
         for (int i = 0; i < nProcs; i++) {
-            pieceNames.emplace_back(std::string("ColBlock_") + std::string("r") + std::to_string(i) + "_" + postfix +
-                                    ".vtp");
+            pieceNames.emplace_back(leaf + std::string("ColBlock_") + std::string("r") + std::to_string(i) + "_" +
+                                    postfix + ".vtp");
         }
 
         IOHelper::writePVTPFile(prefix + "ColBlock_" + postfix + ".pvtp", pointDataFields, cellDataFields, pieceNames);
