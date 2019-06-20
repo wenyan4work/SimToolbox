@@ -1,3 +1,5 @@
+[![Codacy Badge](https://api.codacy.com/project/badge/Grade/f387b1d7c5534099a139ce707fe6de8e)](https://www.codacy.com/app/wenyan4work/SimToolbox?utm_source=github.com&amp;utm_medium=referral&amp;utm_content=wenyan4work/SimToolbox&amp;utm_campaign=Badge_Grade)
+
 # SimToolBox
 A toolbox for object-tracking simulation. 
 This toolbox contains a collection of useful tools for different tasks involved in a particle-tracking type simulation.
