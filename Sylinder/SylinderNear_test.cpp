@@ -107,8 +107,70 @@ void testFixedPair() {
     }
 }
 
+void testParallel() {
+    omp_set_num_threads(1);
+    Evec3 P0(0.9942362769247484, 1.486372506783908, 1.499998650123065);
+    Evec3 P1(1.994235986439871, 1.487134714472271, 1.500001668306246);
+    Evec3 Q0(1.005687630910662, 1.464364624867677, 1.500001338752708);
+    Evec3 Q1(2.005685087440173, 1.462109203504082, 1.4999983414464);
+
+    CalcSylinderNearForce calc;
+    calc.colPoolPtr = std::make_shared<CollisionBlockPool>();
+    calc.colPoolPtr->resize(1);
+
+    std::vector<SylinderNearEP> sylinderP(1);
+    std::vector<SylinderNearEP> sylinderQ(1);
+
+    { // setup P
+        Evec3 center = (P0 + P1) / 2;
+        Evec3 direction = (P1 - P0).normalized();
+        double length = (P1 - P0).norm();
+        sylinderP[0].gid = 0;
+        sylinderP[0].globalIndex = 0;
+        sylinderP[0].rank = 0;
+        sylinderP[0].radius = 0.4;
+        sylinderP[0].radiusCollision = 0.4;
+        sylinderP[0].length = length;
+        sylinderP[0].lengthCollision = length;
+        sylinderP[0].pos[0] = center[0];
+        sylinderP[0].pos[1] = center[1];
+        sylinderP[0].pos[2] = center[2];
+        sylinderP[0].direction[0] = direction[0];
+        sylinderP[0].direction[1] = direction[1];
+        sylinderP[0].direction[2] = direction[2];
+    }
+    { // setup Q
+        Evec3 center = (Q0 + Q1) / 2;
+        Evec3 direction = (Q1 - Q0).normalized();
+        double length = (Q1 - Q0).norm();
+        sylinderQ[0].gid = 1;
+        sylinderQ[0].globalIndex = 1;
+        sylinderQ[0].rank = 0;
+        sylinderQ[0].radius = 0.5;
+        sylinderQ[0].radiusCollision = 0.5;
+        sylinderQ[0].length = length;
+        sylinderQ[0].lengthCollision = length;
+        sylinderQ[0].pos[0] = center[0];
+        sylinderQ[0].pos[1] = center[1];
+        sylinderQ[0].pos[2] = center[2];
+        sylinderQ[0].direction[0] = direction[0];
+        sylinderQ[0].direction[1] = direction[1];
+        sylinderQ[0].direction[2] = direction[2];
+    }
+    ForceNear fnear;
+    calc(sylinderP.data(), 1, sylinderQ.data(), 1, &fnear);
+    printf("%d collisions recorded\n", calc.colPoolPtr->front().size());
+    auto stress = calc.colPoolPtr->front().front().stress;
+    auto block = calc.colPoolPtr->front().front();
+    printf("%g,%g,%g,%g,%g,%g,%g,%g,%g\n", stress[0], stress[1], stress[2], stress[3], stress[4], stress[5], stress[6],
+           stress[7], stress[8]);
+    printf("posI %18.16g %18.16g %18.16g, posJ %18.16g %18.16g %18.16g\n", block.posI[0], block.posI[1], block.posI[2],
+           block.posJ[0], block.posJ[1], block.posJ[2]);
+}
+
 int main() {
     testEpsilon();
     testFixedPair();
+    testParallel();
     return 0;
 }
