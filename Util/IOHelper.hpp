@@ -318,13 +318,14 @@ class IOHelper {
      * VTK ImageData         *
      * equispacing rectilinear grid*
      ********************************/
-    static void writeHeadVTI(std::ofstream &vtkfile, int boxLow[3], int boxHigh[3], double spacing[3]) {
+    static void writeHeadVTI(std::ofstream &vtkfile, int boxLow[3], int boxHigh[3], double spacing[3],
+                             double origin[3]) {
         vtkfile << "<?xml version=\"1.0\"?>\n";
         vtkfile << "<VTKFile type=\"ImageData\" version=\"1.0\" byte_order=\"LittleEndian\"  "
                    "header_type=\"UInt32\">\n";
         vtkfile << "<ImageData WholeExtent=\"" << boxLow[0] << " " << boxHigh[0] << " " << boxLow[1] << " "
                 << boxHigh[1] << " " << boxLow[2] << " " << boxHigh[2] << "\""                //
-                << " Origin=\" " << boxLow[0] << " " << boxLow[1] << " " << boxLow[2] << "\"" //
+                << " Origin=\" " << origin[0] << " " << origin[1] << " " << origin[2] << "\"" //
                 << " Spacing=\" " << spacing[0] << " " << spacing[1] << " " << spacing[2]     //
                 << "\">\n";
     }
