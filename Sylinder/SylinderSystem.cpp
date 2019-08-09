@@ -32,11 +32,6 @@ void SylinderSystem::initialize(const SylinderConfig &runConfig_, const std::str
     TEUCHOS_ASSERT(mpiflag);
     commRcp = getMPIWORLDTCOMM();
 
-    // set openmp
-    if (runConfig.ompThreads > 0) {
-        omp_set_num_threads(runConfig.ompThreads);
-    }
-
     // TRNG pool must be initialized after mpi is initialized
     rngPoolPtr = std::make_shared<TRngPool>(runConfig.rngSeed);
     collisionSolverPtr = std::make_shared<CollisionSolver>();

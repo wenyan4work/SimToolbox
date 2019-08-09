@@ -1,5 +1,4 @@
 # program settings
-ompThreads: -1
 rngSeed: 1234
 # simulation box
 simBoxLow: [0.0,0.0,0.0]
@@ -28,6 +27,7 @@ dt: 0.001 # s
 timeTotal: 1.0 # s
 timeSnap: 0.1 # s
 # CollisionSolver
+usePotential: false
 colResTol: 0.00001 # 1e-5 format may be incompatible
 colMaxIte: 8000
 colNewtonRefine: false

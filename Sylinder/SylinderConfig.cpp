@@ -6,7 +6,6 @@ SylinderConfig::SylinderConfig(std::string filename) {
 
     YAML::Node config = YAML::LoadFile("runConfig.yaml");
 
-    ompThreads = config["ompThreads"].as<int>();
     rngSeed = config["rngSeed"].as<int>();
 
     YAML::Node seq;
@@ -56,6 +55,7 @@ SylinderConfig::SylinderConfig(std::string filename) {
     timeTotal = config["timeTotal"].as<double>();
     timeSnap = config["timeSnap"].as<double>();
 
+    usePotential = config["usePotential"].as<bool>();
     colResTol = config["colResTol"].as<double>();
     colMaxIte = config["colMaxIte"].as<int>();
     colNewtonRefine = config["colNewtonRefine"].as<bool>();
@@ -65,7 +65,6 @@ void SylinderConfig::dump() const {
     {
         printf("-------------------------------------------\n");
         printf("Run Setting: \n");
-        printf("OpenMP thread number: %d\n", ompThreads);
         printf("Random number seed: %d\n", rngSeed);
         printf("Simulation box Low: %g,%g,%g\n", simBoxLow[0], simBoxLow[1], simBoxLow[2]);
         printf("Simulation box High: %g,%g,%g\n", simBoxHigh[0], simBoxHigh[1], simBoxHigh[2]);

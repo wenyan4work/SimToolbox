@@ -20,7 +20,6 @@
 class SylinderConfig {
   public:
     // parallel setting
-    int ompThreads = -1;
     unsigned int rngSeed = 0;
 
     // domain setting
@@ -53,6 +52,7 @@ class SylinderConfig {
     double timeSnap = 0.01;
 
     // collision solver
+    bool usePotential = false; // use repulsive potential
     double colResTol = 0.00001;
     int colMaxIte = 8000;
     bool colNewtonRefine = false;
