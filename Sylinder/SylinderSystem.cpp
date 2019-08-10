@@ -967,26 +967,6 @@ void SylinderSystem::updateSylinderRank() {
 void SylinderSystem::applyBoxBC() { sylinderContainer.adjustPositionIntoRootDomain(dinfo); }
 
 void SylinderSystem::calcColStress() {
-    //     // average all two-side collisions
-    //     const auto &colPool = *(collisionCollectorPtr->collisionPoolPtr);
-    //     const int poolSize = colPool.size();
-
-    //     // reduction of stress
-    //     std::vector<Emat3> stressPool(poolSize);
-    // #pragma omp parallel for schedule(static, 1)
-    //     for (int que = 0; que < poolSize; que++) {
-    //         Emat3 stress = Emat3::Zero();
-    //         for (const auto &col : colPool[que]) {
-    //             if (col.oneSide == false && col.gamma > 0)
-    //                 stress = stress + (col.stress * col.gamma);
-    //         }
-    //         stressPool[que] = stress;
-    //     }
-
-    //     Emat3 sumStress = Emat3::Zero();
-    //     for (int i = 0; i < poolSize; i++) {
-    //         sumStress = sumStress + stressPool[i];
-    //     }
 
     Emat3 meanStress = Emat3::Zero();
     collisionCollectorPtr->computeCollisionStress(meanStress, false);

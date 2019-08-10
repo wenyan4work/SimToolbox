@@ -146,6 +146,9 @@ static_assert(std::is_default_constructible<ForceNear>::value, "");
  *
  */
 class CalcSylinderNearForce {
+    // TODO:
+    const bool usePotential = false; ///< switch of using repulsive potential instead of constraints
+
   public:
     std::shared_ptr<CollisionBlockPool> colPoolPtr; ///< shared object for collecting collision constraints
 
@@ -153,21 +156,21 @@ class CalcSylinderNearForce {
      * @brief Construct a new CalcSylinderNearForce object
      *
      */
-    CalcSylinderNearForce() {}
+    CalcSylinderNearForce(const bool usePotential_ = false) : usePotential(usePotential_) {}
 
     /**
      * @brief Construct a new CalcSylinderNearForce object
      *
      * @param colPoolPtr_ the CollisionBlockPool object to write to
      */
-    CalcSylinderNearForce(std::shared_ptr<CollisionBlockPool> &colPoolPtr_) {
-        assert(colPoolPtr_);
-
-        int totalThreads = omp_get_max_threads();
-        colPoolPtr = colPoolPtr_;
-#ifdef DEBUGLCPCOL
-        std::cout << "stress recoder size:" << colPoolPtr->size() << std::endl;
+    CalcSylinderNearForce(std::shared_ptr<CollisionBlockPool> &colPoolPtr_, const bool usePotential_ = false)
+        : usePotential(usePotential_) {
+#ifdef DEBUG
+        std::cout << "stress recoder size:" << colPoolPtr_->size() << std::endl;
 #endif
+
+        assert(colPoolPtr_);
+        colPoolPtr = colPoolPtr_;
     }
 
     /**
