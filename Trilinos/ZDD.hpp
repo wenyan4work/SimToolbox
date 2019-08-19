@@ -15,9 +15,10 @@
 #include <type_traits>
 #include <vector>
 
-#include <mpi.h>
 #include <zoltan_dd_cpp.h>
 #include <zoltan_types.h>
+
+#include <mpi.h>
 
 /**
  * @brief A wrapper for Zoltan Data directory
@@ -37,6 +38,9 @@ class ZDD {
     std::vector<ID_TYPE> localID;     ///< ID located on local mpi rank
     std::vector<DATA_TYPE> localData; ///< data associated with ID on local mpi rank
 
+    ZDD(const ZDD &) = delete;
+    ZDD &operator=(const ZDD &a) = delete;
+
     /**
      * @brief Construct a new ZDD object with an estimate of buffer list size
      *
@@ -46,15 +50,20 @@ class ZDD {
         MPI_Comm_rank(MPI_COMM_WORLD, &myRank);
         MPI_Comm_size(MPI_COMM_WORLD, &rankSize);
 
-        this->findZDD.Create(MPI_COMM_WORLD, 1, 0, sizeof(DATA_TYPE), 0, 0);
+        int error = 0;
 #ifdef ZDDDEBUG
-        this->findZDD.Create(MPI_COMM_WORLD, 1, 0, sizeof(DATA_TYPE), 0, 9); // debug verbose level 9
+        // debug verbose level 9
+        error = this->findZDD.Create(MPI_COMM_WORLD, 1, 0, 0, 0, 9);
+        findZDD.Print();
         findZDD.Stats();
+#else
+        // normal mode, debug verbose level 0
+        error = this->findZDD.Create(MPI_COMM_WORLD, 1, 0, 0, 0, 0);
 #endif
-        findID.reserve(nEst);
-        findData.reserve(nEst);
-        localID.reserve(nEst);
-        localData.reserve(nEst);
+        if (error != ZOLTAN_OK) {
+            printf("ZDD Create error %d\n", error);
+            exit(1);
+        }
 
         static_assert(std::is_trivially_copyable<ID_TYPE>::value, "");
         static_assert(std::is_trivially_copyable<DATA_TYPE>::value, "");
@@ -70,6 +79,10 @@ class ZDD {
         findData.clear();
         localID.clear();
         localData.clear();
+#ifdef ZDDDEBUG
+        findZDD.Print();
+        findZDD.Stats();
+#endif
     }
 
     /**
@@ -78,8 +91,9 @@ class ZDD {
      */
     ~ZDD() {
         MPI_Barrier(MPI_COMM_WORLD);
-//	this->nbFindZDD.~Zoltan_DD();
 #ifdef ZDDDEBUG
+        findZDD.Print();
+        findZDD.Stats();
         std::cout << "ZDD destructed" << std::endl;
 #endif
     }
@@ -93,20 +107,27 @@ class ZDD {
     int buildIndex() {
 
 #ifdef ZDDDEBUG
-        printf("zoltan print 1 buildIndex\n");
-        this->findZDD.Print();
+        std::cout << localID.size() << std::endl;
+        for (auto &id : localID) {
+            std::cout << "id " << id << std::endl;
+        }
+        printf("ZDD before Update\n");
+        findZDD.Print();
+        findZDD.Stats();
 #endif
 
-        auto *idPtr = this->localID.data();
-        auto *dataPtr = this->localData.data();
+        ZOLTAN_ID_PTR idPtr = localID.data();
+        DATA_TYPE *dataPtr = localData.data();
         int error;
-        //	error = nbFindZDD.Remove(idPtr, nbLocalID.size()); // remove the old info
-        error = findZDD.Update(idPtr, NULL, (char *)dataPtr, NULL, localID.size());
+        error = findZDD.Update(idPtr, NULL, NULL, NULL, localID.size());
+        if (error != ZOLTAN_OK) {
+            printf("ZDD Update error %d\n", error);
+            exit(1);
+        }
 
 #ifdef ZDDDEBUG
-        printf("zoltan print 2 fildIndex\n");
+        printf("ZDD after update\n");
         findZDD.Print();
-        printf("%d\n", error);
         findZDD.Stats();
 #endif
 
