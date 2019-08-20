@@ -12,6 +12,9 @@
 #ifndef ZDD_HPP_
 #define ZDD_HPP_
 
+#include <cstdio>
+#include <cstdlib>
+#include <iostream>
 #include <type_traits>
 #include <vector>
 
@@ -32,11 +35,12 @@ class ZDD {
     Zoltan_DD findZDD; ///< Zoltan_DD object
 
   public:
-    typedef ZOLTAN_ID_TYPE ID_TYPE;   ///< ID type of each gid
-    std::vector<ID_TYPE> findID;      ///< a list of ID to find
-    std::vector<DATA_TYPE> findData;  ///< data associated with ID to find
-    std::vector<ID_TYPE> localID;     ///< ID located on local mpi rank
-    std::vector<DATA_TYPE> localData; ///< data associated with ID on local mpi rank
+    using GID_TYPE = ZOLTAN_ID_TYPE; ///< ID type of each gid
+
+    std::vector<GID_TYPE> gidToFind;    ///< a list of ID to find
+    std::vector<DATA_TYPE> dataToFind;  ///< data associated with ID to find
+    std::vector<GID_TYPE> gidOnLocal;   ///< ID located on local mpi rank
+    std::vector<DATA_TYPE> dataOnLocal; ///< data associated with ID on local mpi rank
 
     ZDD(const ZDD &) = delete;
     ZDD &operator=(const ZDD &a) = delete;
@@ -50,40 +54,43 @@ class ZDD {
         MPI_Comm_rank(MPI_COMM_WORLD, &myRank);
         MPI_Comm_size(MPI_COMM_WORLD, &rankSize);
 
+        gidToFind.reserve(nEst);
+        dataToFind.reserve(nEst);
+        gidOnLocal.reserve(nEst);
+        dataOnLocal.reserve(nEst);
+
         int error = 0;
 #ifdef ZDDDEBUG
         // debug verbose level 9
-        error = this->findZDD.Create(MPI_COMM_WORLD, 1, 0, 0, 0, 9);
+        error = this->findZDD.Create(MPI_COMM_WORLD, 1, 0, sizeof(DATA_TYPE) / sizeof(char), 0, 9);
         findZDD.Print();
         findZDD.Stats();
 #else
         // normal mode, debug verbose level 0
-        error = this->findZDD.Create(MPI_COMM_WORLD, 1, 0, 0, 0, 0);
+        error = this->findZDD.Create(MPI_COMM_WORLD, 1, 0, sizeof(DATA_TYPE) / sizeof(char), 0, 0);
 #endif
         if (error != ZOLTAN_OK) {
             printf("ZDD Create error %d\n", error);
+            findZDD.Print();
+            findZDD.Stats();
             exit(1);
         }
 
-        static_assert(std::is_trivially_copyable<ID_TYPE>::value, "");
+        static_assert(std::is_trivially_copyable<GID_TYPE>::value, "");
         static_assert(std::is_trivially_copyable<DATA_TYPE>::value, "");
         static_assert(std::is_default_constructible<DATA_TYPE>::value, "");
     }
 
-    /**
-     * @brief clean all ID and Data lists
-     *
-     */
-    void clearAll() {
-        findID.clear();
-        findData.clear();
-        localID.clear();
-        localData.clear();
-#ifdef ZDDDEBUG
-        findZDD.Print();
-        findZDD.Stats();
-#endif
-    }
+    // /**
+    //  * @brief clean all ID and Data lists
+    //  *
+    //  */
+    // void clearAll() {
+    //     gidOnLocal.clear();
+    //     gidToFind.clear();
+    //     dataOnLocal.clear();
+    //     dataToFind.clear();
+    // }
 
     /**
      * @brief Destroy the ZDD object
@@ -107,19 +114,17 @@ class ZDD {
     int buildIndex() {
 
 #ifdef ZDDDEBUG
-        std::cout << localID.size() << std::endl;
-        for (auto &id : localID) {
-            std::cout << "id " << id << std::endl;
+        for (auto &id : gidOnLocal) {
+            printf("local ID %u on rank %d\n", id, myRank);
         }
         printf("ZDD before Update\n");
         findZDD.Print();
         findZDD.Stats();
 #endif
 
-        ZOLTAN_ID_PTR idPtr = localID.data();
-        DATA_TYPE *dataPtr = localData.data();
-        int error;
-        error = findZDD.Update(idPtr, NULL, NULL, NULL, localID.size());
+        ZOLTAN_ID_PTR idPtr = gidOnLocal.data();
+        DATA_TYPE *dataPtr = dataOnLocal.data();
+        int error = findZDD.Update(idPtr, NULL, (char *)dataPtr, NULL, gidOnLocal.size());
         if (error != ZOLTAN_OK) {
             printf("ZDD Update error %d\n", error);
             exit(1);
@@ -140,14 +145,14 @@ class ZDD {
      * @return int the error code returned by Zoltan_DD.Find()
      */
     int find() {
-        if (findData.size() < findID.size()) {
-            findData.resize(findID.size()); // make sure size match
+        if (dataToFind.size() < gidToFind.size()) {
+            dataToFind.resize(gidToFind.size()); // make sure size match
         }
-        auto *idPtr = findID.data();
-        auto *dataPtr = findData.data();
+        ZOLTAN_ID_PTR idPtr = gidToFind.data();
+        DATA_TYPE *dataPtr = dataToFind.data();
         // ZOLTAN_ID_PTR gid, ZOLTAN_ID_PTR lid, char *data, int *part, const int &
         // count, int *owner
-        int status = findZDD.Find(idPtr, NULL, (char *)dataPtr, NULL, findID.size(), NULL);
+        int status = findZDD.Find(idPtr, NULL, (char *)dataPtr, NULL, gidToFind.size(), NULL);
         return status;
     }
 };
