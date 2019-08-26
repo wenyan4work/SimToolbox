@@ -427,6 +427,8 @@ Remember to add `PVFMM_DIR` to your `~/.bashrc`:
 echo "export PVFMM_DIR=${HOME}/local/share/pvfmm" >> ~/.bashrc
 ```
 
+Depending on your use case, you may need to install the precomputed PVFMM data files for various kernels. If you need, contact me or generate those files as described in the [PeriodicFMM repo](https://github.com/wenyan4work/PeriodicFMM.git) 
+
 ## 2.6 Boost
 
 ```
