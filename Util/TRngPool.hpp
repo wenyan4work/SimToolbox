@@ -17,7 +17,7 @@
 #include <mpi.h>
 #include <omp.h>
 
-#include <trng/config.hpp>
+// #include <trng/config.hpp>
 #include <trng/lcg64_shift.hpp>
 #include <trng/lognormal_dist.hpp>
 #include <trng/mrg5.hpp>

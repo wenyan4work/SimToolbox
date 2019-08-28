@@ -85,7 +85,7 @@ void testFixedPair() {
     }
     ForceNear fnear;
     calc(sylinderP.data(), 1, sylinderQ.data(), 1, &fnear);
-    printf("%d collisions recorded\n", calc.colPoolPtr->front().size());
+    printf("%zu collisions recorded\n", calc.colPoolPtr->front().size());
     auto stress = calc.colPoolPtr->front().front().stress;
     printf("%g,%g,%g,%g,%g,%g,%g,%g,%g\n", stress[0], stress[1], stress[2], stress[3], stress[4], stress[5], stress[6],
            stress[7], stress[8]);
@@ -159,7 +159,7 @@ void testParallel() {
     }
     ForceNear fnear;
     calc(sylinderP.data(), 1, sylinderQ.data(), 1, &fnear);
-    printf("%d collisions recorded\n", calc.colPoolPtr->front().size());
+    printf("%zu collisions recorded\n", calc.colPoolPtr->front().size());
     auto stress = calc.colPoolPtr->front().front().stress;
     auto block = calc.colPoolPtr->front().front();
     printf("%g,%g,%g,%g,%g,%g,%g,%g,%g\n", stress[0], stress[1], stress[2], stress[3], stress[4], stress[5], stress[6],
