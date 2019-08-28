@@ -127,54 +127,96 @@ MKL_THREADING_LAYE=GNU
 ```
 
 ## 2.1 TRNG
+As of late Aug 2019, TRNG has been updated to a cmake build system. This document is updated accordingly:
+
+Create a folder and pull `trng`:
 ```
 mkdir ~/software/TRNG && cd ~/software/TRNG
 git clone https://github.com/rabauke/trng4.git
-cd trng4
 ```
-Then, configure and compile it.
+
+Create a cmake build script `~/software/TRNG/do-configure-TRNG4.sh` as the following:
+```bash
+#!/bin/bash
+
+SOURCE_PATH=../trng4
+
+EXTRA_ARGS=$@
+
+rm -f CMakeCache.txt
+
+cmake  \
+  -D CMAKE_INSTALL_PREFIX:FILEPATH="$HOME/local/" \
+  -D CMAKE_BUILD_TYPE:STRING="Release" \
+  -D CMAKE_CXX_COMPILER:STRING="mpicxx" \
+  -D CMAKE_C_COMPILER:STRING="mpicc" \
+  -D CMAKE_CXX_FLAGS:STRING="-O3 -march=native -DNDEBUG" \
+  -D CMAKE_C_FLAGS:STRING="-O3 -march=native -DNDEBUG" \
+$EXTRA_ARGS \
+$SOURCE_PATH
 ```
-autoreconf -f -i
-export CC=mpicc && export CXX=mpicxx && ./configure CFLAGS="-O3 -march=native -DNDEBUG -std=c99" CXXFLAGS="-O3 -march=native -DNDEBUG -std=c++14" --prefix=$HOME/local
-make -j4
-make -j4 examples
+
+Then configure with cmake and compile it:
+``` bash
+cd ~/software/TRNG/build
+bash ../do-configure-TRNG4.sh
+make
 ```
-Then, test it:
-```
-wyan@DESKTOP-U6JNAI0:~/software/TRNG/trng4$ ./examples/time
+Note: if you use `make -jN` for parallel compiling, you may see errors because the cmake file is not fully correct.
+The compiled library is not affected and works fine.
+After compilation, test it:
+
+```bash
+wyan@ccblin014:~/software/TRNG/build$ ./examples/time 
                                             10^6 random numbers per second
 generator                       [min,max] [0,1]     [0,1)     (0,1]     (0,1)     canonical
 =============================================================================================
-trng::lcg64                     1080.6    1071.21   462.195   477.209   471.324   481.124
-trng::lcg64_shift               908.934   475.87    462.642   480.379   471.123   465.309
-trng::mrg2                      213.274   212.235   212.445   203.269   210.377   201.611
-trng::mrg3                      188.159   180.429   182.673   175.941   177.779   177.552
-trng::mrg3s                     181.808   180.109   185.85    176.526   181.599   176.714
-trng::mrg4                      188.61    182.898   176.156   177.238   187.223   185.776
-trng::mrg5                      225.585   247.018   249.408   241.548   240.251   239.326
-trng::mrg5s                     130.991   133.852   136.904   137.348   133.505   136.231
-trng::yarn2                     232.117   219.744   217.169   215.563   212.912   218.127
-trng::yarn3                     213.932   201.611   201.911   191.346   198.505   201.25
-trng::yarn3s                    164.117   142.575   152.107   151.435   149.87    152.301
-trng::yarn4                     147.333   140.544   145.279   141.569   144.293   144.109
-trng::yarn5                     165.963   155.6     161.75    162.962   159.879   161.163
-trng::yarn5s                    123.378   123.616   127.116   124.753   124.04    124.764
-trng::mt19937                   425.019   340.391   334.782   323.41    343.712   338.837
-trng::mt19937_64                403.833   332.11    217.764   201.212   207.68    206.098
-trng::lagfib2xor_19937_64       1106.76   438.333   474.711   475.76    469.714   471.138
-trng::lagfib4xor_19937_64       762.078   467.424   472.667   463.767   465.605   467.281
-trng::lagfib2plus_19937_64      1064.55   467.694   472.784   471.64    471.947   471.309
-trng::lagfib4plus_19937_64      810.224   464.741   458.871   407.708   474.605   457.047
-std::minstd_rand0               292.688   293.823   301.396   288.715   291.437   286.839
-std::minstd_rand                296.05    295.873   295.259   280.214   287.32    290.068
-std::mt19937                    223.851   211.467   208.979   195.86    184.268   202.481
-std::mt19937_64                 208.25    191.418   206.113   198.787   199.112   196.666
-std::ranlux24_base              173.544   171.833   172.879   171.636   171.878   176.882
-std::ranlux48_base              205.684   211.791   206.983   213.093   213.772   206.631
-std::ranlux24                   17.3029   16.91     16.9856   16.9126   17.1392   17.3823
-std::ranlux48                   5.88981   5.83369   5.77585   5.82133   5.82979   5.86228
-std::knuth_b                    95.8879   95.3803   94.6033   93.8408   93.3119   92.975
+trng::lcg64                     845.2     845.711   316.958   408.941   409.32    409.28    
+trng::lcg64_shift               777.371   333.497   334.774   409.131   409.32    409.85    
+trng::mrg2                      189.657   183.35    182.796   179.986   184.584   178.563   
+trng::mrg3                      164.974   158.232   156.608   157.488   156.409   157.042   
+trng::mrg3s                     163.588   158.11    160.697   161.234   163.264   160.977   
+trng::mrg4                      176.135   121.85    122.798   172.329   170.196   170.795   
+trng::mrg5                      186.648   195.356   195.302   195.034   195.685   195.266   
+trng::mrg5s                     113.785   116.477   116.741   103.928   112.579   114.281   
+trng::yarn2                     155.607   153.163   152.159   153.28    153.4     152.746   
+trng::yarn3                     142.407   140.198   140.157   140.062   140.066   140.169   
+trng::yarn3s                    119.172   112.93    113.354   113.789   113.603   113.639   
+trng::yarn4                     129.869   122.226   121.494   108.032   120.007   119.515   
+trng::yarn5                     112.872   106.347   115.468   113.89    114.416   106.162   
+trng::yarn5s                    90.579    91.135    91.0583   90.1768   91.1176   91.2266   
+trng::mt19937                   373.126   250.743   250.395   289.822   289.322   289.717   
+trng::mt19937_64                318.65    257.363   209.726   280.148   286.296   285.944   
+trng::lagfib2xor_19937_64       1071.21   335.022   334.467   408.981   409.66    407.996   
+trng::lagfib4xor_19937_64       699.371   333.417   333.344   409.39    407.986   409.52    
+trng::lagfib2plus_19937_64      1074.5    334.594   335.109   408.991   409.68    409.57    
+trng::lagfib4plus_19937_64      696.41    332.189   333.47    409.131   409.43    409.131   
+std::minstd_rand0               260.698   256.227   256.121   253.647   253.8     253.463   
+std::minstd_rand                260.257   255.906   255.973   253.781   253.835   253.67    
+std::mt19937                    233.305   208.594   208.247   204.858   203.733   204.89    
+std::mt19937_64                 233.845   202.604   203.136   201.134   200.973   201.826   
+std::ranlux24_base              203.05    189.045   186.723   192.569   187.635   187.191   
+std::ranlux48_base              246.3     237.54    227.475   233.93    234.725   235.374   
+std::ranlux24                   20.1553   20.1358   19.7287   19.2087   20.2037   19.642    
+std::ranlux48                   7.21006   6.94696   6.94541   6.95043   6.48851   6.67138   
+std::knuth_b                    66.3966   64.3456   64.4135   64.355    64.4695   64.3562   
+boost::minstd_rand              253.582   
+boost::ecuyer1988               141.231   
+boost::kreutzer1986             214.856   
+boost::hellekalek1995           7.88665   
+boost::mt11213b                 484.163   
+boost::mt19937                  487.214   
+boost::lagged_fibonacci607      173.818   
+boost::lagged_fibonacci1279     173.279   
+boost::lagged_fibonacci2281     173.875   
+boost::lagged_fibonacci3217     173.209   
+boost::lagged_fibonacci4423     173.489   
+boost::lagged_fibonacci9689     172.297   
+boost::lagged_fibonacci19937    173.444   
+boost::lagged_fibonacci23209    172.138   
+boost::lagged_fibonacci44497    172.737   
 ```
+Note: if the boost headers are not found, you will not see the last several lines using boost::random. This does not affect the functionality of the compiled library.
 
 Finally, install it.
 ```
