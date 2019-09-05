@@ -156,6 +156,8 @@ $EXTRA_ARGS \
 $SOURCE_PATH
 ```
 
+
+
 Then configure with cmake and compile it:
 ``` bash
 cd ~/software/TRNG/build
@@ -216,7 +218,31 @@ boost::lagged_fibonacci19937    173.444
 boost::lagged_fibonacci23209    172.138   
 boost::lagged_fibonacci44497    172.737   
 ```
-Note: if the boost headers are not found, you will not see the last several lines using boost::random. This does not affect the functionality of the compiled library.
+Note 1: if the boost headers are not found, you will not see the last several lines using boost::random. This does not affect the functionality of the compiled library.
+
+Note 2: if you are using `boost`>=1.7.0, you may see errors during the cmake or compiling phase. In this case, add two more switchs during the cmake phase to disable boost. `boost` is only used in the testing routines and does not affect the functionality of the `trng` library. The script looks like this:
+
+```bash
+#!/bin/bash
+
+SOURCE_PATH=../trng4
+
+EXTRA_ARGS=$@
+
+rm -f CMakeCache.txt
+
+cmake  \
+        -D Boost_NO_BOOST_CMAKE=ON \
+        -D Boost_NO_SYSTEM_PATHS=ON \
+        -D CMAKE_INSTALL_PREFIX:FILEPATH="$HOME/local/" \
+        -D CMAKE_BUILD_TYPE:STRING="Release" \
+        -D CMAKE_CXX_COMPILER:STRING="mpicxx" \
+        -D CMAKE_C_COMPILER:STRING="mpicc" \
+        -D CMAKE_CXX_FLAGS:STRING="-O3 -march=native -DNDEBUG" \
+        -D CMAKE_C_FLAGS:STRING="-O3 -march=native -DNDEBUG" \
+$EXTRA_ARGS \
+$SOURCE_PATH
+```
 
 Finally, install it.
 ```
