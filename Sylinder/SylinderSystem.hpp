@@ -299,6 +299,13 @@ class SylinderSystem {
     void calcColStress();
 
     /**
+     * @brief calculate polar and nematic order parameter
+     *
+     * The result is shown on screen 
+     */
+    void calcOrderParameter();
+
+    /**
      * @brief calculate volume fraction
      *
      */

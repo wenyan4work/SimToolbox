@@ -60,6 +60,8 @@ void SylinderSystem::initialize(const SylinderConfig &runConfig_, const std::str
 
     setPosWithWall();
 
+    calcVolFrac();
+
     if (commRcp->getRank() == 0) {
         IOHelper::makeSubFolder("./result"); // prepare the output directory
         writeBox();
@@ -81,7 +83,6 @@ void SylinderSystem::initialize(const SylinderConfig &runConfig_, const std::str
         printf("-------------------------------------\n");
     }
 
-    calcVolFrac();
     printf("SylinderSystem Initialized. %d sylinders on process %d\n", sylinderContainer.getNumberOfParticleLocal(),
            commRcp->getRank());
 }
@@ -991,6 +992,52 @@ void SylinderSystem::calcColStress() {
                meanStressGlobal[0], meanStressGlobal[1], meanStressGlobal[2], //
                meanStressGlobal[3], meanStressGlobal[4], meanStressGlobal[5], //
                meanStressGlobal[6], meanStressGlobal[7], meanStressGlobal[8]);
+}
+
+void SylinderSystem::calcOrderParameter() {
+    double px = 0, py = 0, pz = 0;    // pvec
+    double Qxx = 0, Qxy = 0, Qxz = 0; // Qtensor
+    double Qyx = 0, Qyy = 0, Qyz = 0; // Qtensor
+    double Qzx = 0, Qzy = 0, Qzz = 0; // Qtensor
+
+    const int nLocal = sylinderContainer.getNumberOfParticleLocal();
+
+#pragma omp parallel for reduction(+ : px, py, pz, Qxx, Qxy, Qxz, Qyx, Qyy, Qyz, Qzx, Qzy, Qzz)
+    for (int i = 0; i < nLocal; i++) {
+        const auto &sy = sylinderContainer[i];
+        const Evec3 direction = ECmapq(sy.orientation) * Evec3(0, 0, 1);
+        px += direction.x();
+        py += direction.y();
+        pz += direction.z();
+        const Emat3 Q = direction * direction.transpose() - Emat3::Identity() * (1 / 3.0);
+        Qxx += Q(0, 0);
+        Qxy += Q(0, 1);
+        Qxz += Q(0, 2);
+        Qyx += Q(1, 0);
+        Qyy += Q(1, 1);
+        Qyz += Q(1, 2);
+        Qzx += Q(2, 0);
+        Qzy += Q(2, 1);
+        Qzz += Q(2, 2);
+    }
+
+    // global average
+    const int nGlobal = sylinderContainer.getNumberOfParticleGlobal();
+    double pQ[12] = {px, py, pz, Qxx, Qxy, Qxz, Qyx, Qyy, Qyz, Qzx, Qzy, Qzz};
+    MPI_Allreduce(MPI_IN_PLACE, pQ, 12, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
+
+    for (int i = 0; i < 12; i++) {
+        pQ[i] *= (1.0 / nGlobal);
+    }
+
+    if (commRcp()->getRank() == 0) {
+        printf("Order P: %6g %6g %6g Q: %6g %6g %6g %6g %6g %6g %6g %6g %6g\n", //
+               pQ[0], pQ[1], pQ[2],                                             // pvec
+               pQ[3], pQ[4], pQ[5],                                             // Qtensor
+               pQ[6], pQ[7], pQ[8],                                             // Qtensor
+               pQ[9], pQ[10], pQ[11]                                            // Qtensor
+        );
+    }
 }
 
 void SylinderSystem::setPosWithWall() {
