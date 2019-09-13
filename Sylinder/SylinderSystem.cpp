@@ -103,17 +103,17 @@ void SylinderSystem::setTreeSylinder() {
 void SylinderSystem::getOrient(Equatn &orient, const double px, const double py, const double pz, const int threadId) {
     Evec3 pvec;
     if (px < -1 || px > 1) {
-        pvec[0] = rngPoolPtr->getU01(threadId);
+        pvec[0] = 2 * rngPoolPtr->getU01(threadId) - 1;
     } else {
         pvec[0] = px;
     }
     if (py < -1 || py > 1) {
-        pvec[1] = rngPoolPtr->getU01(threadId);
+        pvec[1] = 2 * rngPoolPtr->getU01(threadId) - 1;
     } else {
         pvec[1] = py;
     }
     if (pz < -1 || pz > 1) {
-        pvec[2] = rngPoolPtr->getU01(threadId);
+        pvec[2] = 2 * rngPoolPtr->getU01(threadId) - 1;
     } else {
         pvec[2] = pz;
     }
