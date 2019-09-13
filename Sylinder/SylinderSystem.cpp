@@ -70,17 +70,21 @@ void SylinderSystem::initialize(const SylinderConfig &runConfig_, const std::str
     if (!runConfig.sylinderFixed) {
         // 100 NON-B steps to resolve initial configuration collisions
         // no output
-        printf("-------------------------------------\n");
-        printf("-Initial Collision Resolution Begin--\n");
-        printf("-------------------------------------\n");
+        if (commRcp->getRank() == 0) {
+            printf("-------------------------------------\n");
+            printf("-Initial Collision Resolution Begin--\n");
+            printf("-------------------------------------\n");
+        }
         for (int i = 0; i < 100; i++) {
             prepareStep();
             calcVelocityKnown();
             resolveCollision();
             stepEuler();
         }
-        printf("--Initial Collision Resolution End---\n");
-        printf("-------------------------------------\n");
+        if (commRcp->getRank() == 0) {
+            printf("--Initial Collision Resolution End---\n");
+            printf("-------------------------------------\n");
+        }
     }
 
     printf("SylinderSystem Initialized. %d sylinders on process %d\n", sylinderContainer.getNumberOfParticleLocal(),
@@ -988,7 +992,7 @@ void SylinderSystem::calcColStress() {
     Teuchos::reduceAll(*commRcp, Teuchos::SumValueReductionOp<int, double>(), 9, meanStressLocal, meanStressGlobal);
 
     if (commRcp->getRank() == 0)
-        printf("RECORD: ColXF %7g,%7g,%7g,%7g,%7g,%7g,%7g,%7g,%7g\n",         //
+        printf("RECORD: ColXF,%7g,%7g,%7g,%7g,%7g,%7g,%7g,%7g,%7g\n",         //
                meanStressGlobal[0], meanStressGlobal[1], meanStressGlobal[2], //
                meanStressGlobal[3], meanStressGlobal[4], meanStressGlobal[5], //
                meanStressGlobal[6], meanStressGlobal[7], meanStressGlobal[8]);
@@ -1031,11 +1035,11 @@ void SylinderSystem::calcOrderParameter() {
     }
 
     if (commRcp()->getRank() == 0) {
-        printf("Order P: %6g %6g %6g Q: %6g %6g %6g %6g %6g %6g %6g %6g %6g\n", //
-               pQ[0], pQ[1], pQ[2],                                             // pvec
-               pQ[3], pQ[4], pQ[5],                                             // Qtensor
-               pQ[6], pQ[7], pQ[8],                                             // Qtensor
-               pQ[9], pQ[10], pQ[11]                                            // Qtensor
+        printf("RECORD: Order P,%6g,%6g,%6g,Q,%6g,%6g,%6g,%6g,%6g,%6g,%6g,%6g,%6g\n", //
+               pQ[0], pQ[1], pQ[2],                                                   // pvec
+               pQ[3], pQ[4], pQ[5],                                                   // Qtensor
+               pQ[6], pQ[7], pQ[8],                                                   // Qtensor
+               pQ[9], pQ[10], pQ[11]                                                  // Qtensor
         );
     }
 }
