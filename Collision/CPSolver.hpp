@@ -4,9 +4,9 @@
  * @brief LCP Solver
  * @version 0.1
  * @date 2018-12-14
- * 
+ *
  * @copyright Copyright (c) 2018
- * 
+ *
  */
 #ifndef CPSOLVER_HPP_
 #define CPSOLVER_HPP_
@@ -16,6 +16,8 @@
 #include <array>
 #include <deque>
 #include <vector>
+
+#include <Tpetra_RowMatrixTransposer_decl.hpp>
 
 using IteHistory = std::deque<std::array<double, 6>>; ///< recording iteration history
 
@@ -38,8 +40,9 @@ class CPMatOp : public TOP {
         this->forceVecRcp = Teuchos::rcp(new TV(mobRcp->getRangeMap().getConst(), true));
         this->velVecRcp = Teuchos::rcp(new TV(mobRcp->getRangeMap().getConst(), true));
         // explicit transpose
-        // Tpetra::RowMatrixTransposer<TCMAT::scalar_type, TCMAT::local_ordinal_type, TCMAT::global_ordinal_type>
-        // transposer(fcTransRcp); fcRcp = transposer.createTranspose();
+        Tpetra::RowMatrixTransposer<TCMAT::scalar_type, TCMAT::local_ordinal_type, TCMAT::global_ordinal_type>
+            transposer(fcTransRcp);
+        fcRcp = transposer.createTranspose();
     }
 
     /**
@@ -65,27 +68,27 @@ class CPMatOp : public TOP {
             const Teuchos::RCP<const TV> XcolRcp = X.getVector(i);
             Teuchos::RCP<TV> YcolRcp = Y.getVectorNonConst(i);
             // step 1 force=Fc * Xcol
-            // Teuchos::RCP<Teuchos::Time> transTimer = Teuchos::TimeMonitor::getNewCounter("BBPGD::OP::FcTrans Apply");
-            // {
-            //     Teuchos::TimeMonitor mon(*transTimer);
-            //     fcTransRcp->apply(*XcolRcp, *forceVecRcp, Teuchos::TRANS);
-            //     // fcRcp->apply(*XcolRcp, *forceVecRcp);
-            // }
-            // // step 2 vel = mob * Force
-            // Teuchos::RCP<Teuchos::Time> mobTimer = Teuchos::TimeMonitor::getNewCounter("BBPGD::OP::Mob Apply");
-            // {
-            //     Teuchos::TimeMonitor mon(*mobTimer);
-            //     mobRcp->apply(*forceVecRcp, *velVecRcp);
-            // }
-            // // step 3 Ycol = Fc^T * vel
-            // Teuchos::RCP<Teuchos::Time> fcTimer = Teuchos::TimeMonitor::getNewCounter("BBPGD::OP::Fc Apply");
-            // {
-            //     Teuchos::TimeMonitor mon(*fcTimer);
-            //     fcTransRcp->apply(*velVecRcp, *YcolRcp);
-            // }
-            fcTransRcp->apply(*XcolRcp, *forceVecRcp, Teuchos::TRANS);
-            mobRcp->apply(*forceVecRcp, *velVecRcp);
-            fcTransRcp->apply(*velVecRcp, *YcolRcp);
+            Teuchos::RCP<Teuchos::Time> transTimer = Teuchos::TimeMonitor::getNewCounter("BBPGD::OP::Fc Apply");
+            {
+                Teuchos::TimeMonitor mon(*transTimer);
+                // fcTransRcp->apply(*XcolRcp, *forceVecRcp, Teuchos::TRANS);
+                fcRcp->apply(*XcolRcp, *forceVecRcp);
+            }
+            // step 2 vel = mob * Force
+            Teuchos::RCP<Teuchos::Time> mobTimer = Teuchos::TimeMonitor::getNewCounter("BBPGD::OP::Mob Apply");
+            {
+                Teuchos::TimeMonitor mon(*mobTimer);
+                mobRcp->apply(*forceVecRcp, *velVecRcp);
+            }
+            // step 3 Ycol = Fc^T * vel
+            Teuchos::RCP<Teuchos::Time> fcTimer = Teuchos::TimeMonitor::getNewCounter("BBPGD::OP::FcTrans Apply");
+            {
+                Teuchos::TimeMonitor mon(*fcTimer);
+                fcTransRcp->apply(*velVecRcp, *YcolRcp);
+            }
+            // fcTransRcp->apply(*XcolRcp, *forceVecRcp, Teuchos::TRANS);
+            // mobRcp->apply(*forceVecRcp, *velVecRcp);
+            // fcTransRcp->apply(*velVecRcp, *YcolRcp);
         }
     }
     /**
@@ -116,7 +119,7 @@ class CPMatOp : public TOP {
     Teuchos::RCP<TCMAT> fcTransRcp; ///< \f$F_c^T\f$ matrix
     Teuchos::RCP<TV> forceVecRcp;   ///< force vector
     Teuchos::RCP<TV> velVecRcp;     ///< velocity vector \f$ V = M F\f$
-    // Teuchos::RCP<TCMAT> fcRcp;
+    Teuchos::RCP<TCMAT> fcRcp;      ///< explicit transpose of fcTrans
 };
 
 /**

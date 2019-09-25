@@ -25,6 +25,7 @@
  *
  */
 class SylinderSystem {
+    bool enableTimer = false;
     int snapID;    ///< the current id of the snapshot file to be saved. sequentially numbered from 0
     int stepCount; ///< timestep Count. sequentially numbered from 0
 
@@ -192,6 +193,13 @@ class SylinderSystem {
     void initialize(const SylinderConfig &config, const std::string &posFile, int argc, char **argv);
 
     /**
+     * @brief enable the timer in step()
+     *
+     * @param value
+     */
+    void setTimer(bool value) { enableTimer = value; }
+
+    /**
      * @brief compute axis-aligned bounding box of sylinders
      *
      * @param localLow
@@ -301,7 +309,7 @@ class SylinderSystem {
     /**
      * @brief calculate polar and nematic order parameter
      *
-     * The result is shown on screen 
+     * The result is shown on screen
      */
     void calcOrderParameter();
 

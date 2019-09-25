@@ -601,17 +601,37 @@ void SylinderSystem::stepEuler() {
 
 void SylinderSystem::resolveCollision() {
     // collect constraints
-    collectPairCollision();
-    collectWallCollision();
+
+    Teuchos::RCP<Teuchos::Time> collectTimer = Teuchos::TimeMonitor::getNewCounter("SylinderSystem::CollectCollision");
+    if (enableTimer) {
+        collectTimer->enable();
+    } else {
+        collectTimer->disable();
+    }
+    {
+        Teuchos::TimeMonitor mon(*collectTimer);
+        collectPairCollision();
+        collectWallCollision();
+    }
 
     // solve collision
     // positive buffer value means collision radius is effectively smaller
     // i.e., less likely to collide
-    const double buffer = 0;
-    collisionSolverPtr->setup(*(collisionCollectorPtr->collisionPoolPtr), sylinderMobilityMapRcp, runConfig.dt, buffer);
-    collisionSolverPtr->setControlLCP(runConfig.colResTol, runConfig.colMaxIte, runConfig.colNewtonRefine);
-    collisionSolverPtr->solveCollision(mobilityOperatorRcp, velocityKnownRcp);
-    collisionSolverPtr->writebackGamma(*(collisionCollectorPtr->collisionPoolPtr));
+    Teuchos::RCP<Teuchos::Time> solveTimer = Teuchos::TimeMonitor::getNewCounter("SylinderSystem::SolveCollision");
+    if (enableTimer) {
+        solveTimer->enable();
+    } else {
+        solveTimer->disable();
+    }
+    {
+        Teuchos::TimeMonitor mon(*solveTimer);
+        const double buffer = 0;
+        collisionSolverPtr->setup(*(collisionCollectorPtr->collisionPoolPtr), sylinderMobilityMapRcp, runConfig.dt,
+                                  buffer);
+        collisionSolverPtr->setControlLCP(runConfig.colResTol, runConfig.colMaxIte, runConfig.colNewtonRefine);
+        collisionSolverPtr->solveCollision(mobilityOperatorRcp, velocityKnownRcp);
+        collisionSolverPtr->writebackGamma(*(collisionCollectorPtr->collisionPoolPtr));
+    }
 
     // save results
     forceColRcp = collisionSolverPtr->getForceCol();
