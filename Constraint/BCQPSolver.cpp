@@ -369,10 +369,10 @@ int BCQPSolver::selfTest(double tol, int maxIte, int solverChoice) {
     prepareSolver();
 
     if (!lbRcp.is_null() && lbRcp.is_valid_ptr()) {
-        dumpTV(lbRcp, "lbVec");
+        dumpTV(lbRcp, "lbvec");
     }
     if (!ubRcp.is_null() && ubRcp.is_valid_ptr()) {
-        dumpTV(ubRcp, "ubVec");
+        dumpTV(ubRcp, "ubvec");
     }
 
     if (commRcp->getRank() == 0) {
