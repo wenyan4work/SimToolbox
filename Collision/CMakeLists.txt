@@ -12,6 +12,3 @@ target_link_libraries(CPSolver_test PRIVATE ${TRNG_LIBRARY})
 target_link_libraries(CPSolver_test PRIVATE OpenMP::OpenMP_CXX)
 target_link_libraries(CPSolver_test PRIVATE MPI::MPI_CXX)
 add_test(NAME CPSolver COMMAND CPSolver_test)
-# set_tests_properties(ZDD PROPERTIES
-#   PASS_REGULAR_EXPRESSION "TestPassed;All ok"
-# )
