@@ -12,3 +12,14 @@ target_link_libraries(BCQPSolver_test PRIVATE ${TRNG_LIBRARY})
 target_link_libraries(BCQPSolver_test PRIVATE OpenMP::OpenMP_CXX)
 target_link_libraries(BCQPSolver_test PRIVATE MPI::MPI_CXX)
 add_test(NAME BCQPSolver COMMAND BCQPSolver_test)
+
+# copy the BCQPverify.py file to the build directory
+add_custom_command(
+  OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/BCQPverify.py
+  COMMAND ${CMAKE_COMMAND} -E copy
+  ${CMAKE_CURRENT_SOURCE_DIR}/BCQPverify.py
+  ${CMAKE_CURRENT_BINARY_DIR}
+  DEPENDS "${CMAKE_CURRENT_SOURCE_DIR}/BCQPverify.py")
+# Custom target for activate the custom command above
+add_custom_target(copy_file DEPENDS ${CMAKE_CURRENT_BINARY_DIR}/BCQPverify.py)
+add_dependencies(BCQPSolver_test copy_file)

@@ -17,14 +17,16 @@
 
 int main(int argc, char **argv) {
     MPI_Init(&argc, &argv);
+    int nprocs = 0;
+    MPI_Comm_size(MPI_COMM_WORLD, &nprocs);
     {
-        const int globalSize = argc > 1 ? atoi(argv[1]) : 500;
+        const int localSize = argc > 1 ? atoi(argv[1]) : 500;
         const double diagonal = argc > 2 ? atof(argv[2]) : 0.0;
         // generate a test problem
-        BCQPSolver test(globalSize, diagonal);
+        BCQPSolver test(localSize, diagonal);
 
         double tol = 1e-5;
-        int maxIte = 1000;
+        int maxIte = std::max(localSize * nprocs, 1000);
 
         test.selfTest(tol, maxIte, 0); // BBPGD
         test.selfTest(tol, maxIte, 1); // APGD

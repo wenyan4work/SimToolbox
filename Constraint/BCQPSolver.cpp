@@ -124,6 +124,8 @@ BCQPSolver::BCQPSolver(int localSize, double diagonal) {
     // dump matrix
     dumpTCMAT(Atemp, "Amat");
     dumpTV(bRcp, "bvec");
+
+    generateRandomBounds();
 }
 
 int BCQPSolver::solveBBPGD(Teuchos::RCP<TV> &xsolRcp, const double tol, const int iteMax, IteHistory &history) const {
@@ -365,15 +367,7 @@ int BCQPSolver::selfTest(double tol, int maxIte, int solverChoice) {
     IteHistory history;
 
     Teuchos::RCP<TV> xsolRcp = Teuchos::rcp(new TV(this->mapRcp.getConst(), true)); // zero initial guess
-    generateRandomBounds();
     prepareSolver();
-
-    if (!lbRcp.is_null() && lbRcp.is_valid_ptr()) {
-        dumpTV(lbRcp, "lbvec");
-    }
-    if (!ubRcp.is_null() && ubRcp.is_valid_ptr()) {
-        dumpTV(ubRcp, "ubvec");
-    }
 
     if (commRcp->getRank() == 0) {
         printf("START TEST\n");
@@ -447,7 +441,8 @@ double BCQPSolver::checkProjectionResidual(const Teuchos::RCP<const TV> &XRcp, c
     const int c = 0; // vecRcp, lbRcp, ubRcp have only 1 column
 
     bool projectionError = false;
-    // EQ 2.2 of Dai & Fletcher 2005
+// EQ 2.2 of Dai & Fletcher 2005
+#pragma omp parallel for
     for (int i = 0; i < ibound; i++) {
         if (xPtr(i, c) < lbPtr(i, c) + eps) {
             qPtr(i, c) = std::min(yPtr(i, c), 0.0);
@@ -485,11 +480,28 @@ void BCQPSolver::setDefaultBounds() {
 }
 
 void BCQPSolver::generateRandomBounds() {
-    const auto &vec1 = Teuchos::rcp(new TV(bRcp->getMap(), false));
-    vec1->randomize(-10, -2);
-    setLowerBound(vec1);
+    const auto &vec1 = Teuchos::rcp(new TV(bRcp->getMap(), true));
+    vec1->randomize(-0.1, 0.1);
 
-    const auto &vec2 = Teuchos::rcp(new TV(bRcp->getMap(), false));
-    vec2->randomize(2, 10);
+    const auto &vec2 = Teuchos::rcp(new TV(bRcp->getMap(), true));
+    vec2->randomize(-0.1, 0.1);
+
+    auto vec1Ptr = vec1->getLocalView<Kokkos::HostSpace>(); // LeftLayout
+    auto vec2Ptr = vec2->getLocalView<Kokkos::HostSpace>(); // LeftLayout
+    vec1->modify<Kokkos::HostSpace>();
+    vec2->modify<Kokkos::HostSpace>();
+    const int ibound = vec1Ptr.dimension_0();
+#pragma omp parallel for
+    for (int i = 0; i < ibound; i++) {
+        double a = vec1Ptr(i, 0);
+        double b = vec2Ptr(i, 0);
+        vec1Ptr(i, 0) = std::min(a, b);
+        vec2Ptr(i, 0) = std::max(a, b);
+    }
+
+    setLowerBound(vec1);
     setUpperBound(vec2);
+
+    dumpTV(lbRcp, "lbvec");
+    dumpTV(ubRcp, "ubvec");
 }
