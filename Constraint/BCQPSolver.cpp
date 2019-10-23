@@ -165,17 +165,21 @@ int BCQPSolver::solveBBPGD(Teuchos::RCP<TV> &xsolRcp, const double tol, const in
 
     // first step, simple Gradient Descent stepsize = g^T g / g^T A g
     // use xkdiffRcp as temporary space
-    ARcp->apply(*gradkm1Rcp, *xkdiffRcp); // Avec = A * gkm1
-    mvCount++;
+    // ARcp->apply(*gradkm1Rcp, *xkdiffRcp); // Avec = A * gkm1
+    // mvCount++;
 
-    double gTAg = gradkm1Rcp->dot(*xkdiffRcp);
-    double gTg = pow(gradkm1Rcp->norm2(), 2);
+    // double gTAg = gradkm1Rcp->dot(*xkdiffRcp);
+    // double gTg = pow(gradkm1Rcp->norm2(), 2);
 
-    if (fabs(gTAg) < 10 * std::numeric_limits<double>::epsilon()) {
-        gTAg += 10 * std::numeric_limits<double>::epsilon(); // prevent div 0 error
-    }
+    // if (fabs(gTAg) < 10 * std::numeric_limits<double>::epsilon()) {
+    //     gTAg += 10 * std::numeric_limits<double>::epsilon(); // prevent div 0 error
+    // }
 
-    double alpha = gTg / gTAg;
+    // double alpha = gTg / gTAg;
+
+    // first step, Dai&Fletcher2005 Section 5.
+    // xkdiffRcp is the prjected vector, after checkProjectionResidual
+    double alpha = 1.0 / xkdiffRcp->normInf();
 
     while (iteCount < iteMax) {
         iteCount++;
