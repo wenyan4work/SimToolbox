@@ -121,7 +121,7 @@ BCQPSolver::BCQPSolver(int localSize, double diagonal) {
     // ARcp = Atemp;
     std::cout << "ARcp" << ARcp->description() << std::endl;
 
-    // dump matrix
+    // dump problem
     dumpTCMAT(Atemp, "Amat");
     dumpTV(bRcp, "bvec");
 
@@ -369,6 +369,10 @@ int BCQPSolver::selfTest(double tol, int maxIte, int solverChoice) {
     Teuchos::RCP<TV> xsolRcp = Teuchos::rcp(new TV(this->mapRcp.getConst(), true)); // zero initial guess
     prepareSolver();
 
+    // dump problem
+    dumpTV(lbRcp, "lbvec");
+    dumpTV(ubRcp, "ubvec");
+
     if (commRcp->getRank() == 0) {
         printf("START TEST\n");
     }
@@ -384,16 +388,20 @@ int BCQPSolver::selfTest(double tol, int maxIte, int solverChoice) {
         break;
     }
 
-    // dump iterative history
+    // dump iterative history to csv format
     if (commRcp->getRank() == 0) {
         for (const auto &record : history) {
+            if (solverChoice == 1) {
+                printf("APGD_HISTORY,");
+            } else {
+                printf("BBPGD_HISTORY,");
+            }
             for (const auto &v : record) {
-                std::cout << v << " ";
+                std::cout << v << ",";
             }
             std::cout << std::endl;
         }
     }
-    // dump result
 
     return 0;
 }
@@ -481,10 +489,10 @@ void BCQPSolver::setDefaultBounds() {
 
 void BCQPSolver::generateRandomBounds() {
     const auto &vec1 = Teuchos::rcp(new TV(bRcp->getMap(), true));
-    vec1->randomize(-0.1, 0.1);
+    vec1->randomize(-1, 1);
 
     const auto &vec2 = Teuchos::rcp(new TV(bRcp->getMap(), true));
-    vec2->randomize(-0.1, 0.1);
+    vec2->randomize(-1, 1);
 
     auto vec1Ptr = vec1->getLocalView<Kokkos::HostSpace>(); // LeftLayout
     auto vec2Ptr = vec2->getLocalView<Kokkos::HostSpace>(); // LeftLayout
@@ -501,7 +509,4 @@ void BCQPSolver::generateRandomBounds() {
 
     setLowerBound(vec1);
     setUpperBound(vec2);
-
-    dumpTV(lbRcp, "lbvec");
-    dumpTV(ubRcp, "ubvec");
 }
