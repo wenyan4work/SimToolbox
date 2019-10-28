@@ -25,8 +25,8 @@ int main(int argc, char **argv) {
         // generate a test problem
         BCQPSolver test(localSize, diagonal);
 
-        double tol = 1e-5;
-        int maxIte = std::max(localSize * nprocs, 1000);
+        double tol = 1e-6;
+        int maxIte = std::max(localSize * nprocs, 10000);
 
         test.selfTest(tol, maxIte, 0); // BBPGD
         test.selfTest(tol, maxIte, 1); // APGD

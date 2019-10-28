@@ -41,29 +41,30 @@ BCQPSolver::BCQPSolver(int localSize, double diagonal) {
 
     // generate a local random matrix
 
-    std::random_device rd;  // Will be used to obtain a seed for the random number engine
-    std::mt19937 gen(rd()); // Standard mersenne_twister_engine seeded with rd()
-    std::uniform_real_distribution<> dis(0, 1);
+    std::random_device rd;                       // Will be used to obtain a seed for the random number engine
+    std::mt19937 gen(rd());                      // Standard mersenne_twister_engine seeded with rd()
+    std::uniform_real_distribution<> dis(-1, 1); // U(-1,1)
 
-    // a random matrix
+    // a random matrix B
     Teuchos::SerialDenseMatrix<int, double> BLocal(localSize, localSize, true); // zeroOut
     for (int i = 0; i < localSize; i++) {
         for (int j = 0; j < localSize; j++) {
             BLocal(i, j) = dis(gen);
         }
     }
-    // a random diagonal matrix
+    // a random diagonal matrix D. D entries all positive
     Teuchos::SerialDenseMatrix<int, double> ALocal(localSize, localSize, true);
     Teuchos::SerialDenseMatrix<int, double> tempLocal(localSize, localSize, true);
     Teuchos::SerialDenseMatrix<int, double> DLocal(localSize, localSize, true);
     for (int i = 0; i < localSize; i++) {
-        DLocal(i, i) = fabs(dis(gen)) + 2;
+        DLocal(i, i) = pow(10, dis(gen)); // D in [10^(-1),10]
     }
 
     // compute B^T D B
     tempLocal.multiply(Teuchos::NO_TRANS, Teuchos::NO_TRANS, 1.0, DLocal, BLocal, 0.0); // temp = DB
     ALocal.multiply(Teuchos::TRANS, Teuchos::NO_TRANS, 1.0, BLocal, tempLocal, 0.0);    // A = B^T DB
 
+    // extra additions to the diagonal entries of A
     for (int i = 0; i < localSize; i++) {
         ALocal(i, i) += diagonal;
     }
@@ -185,8 +186,8 @@ int BCQPSolver::solveBBPGD(Teuchos::RCP<TV> &xsolRcp, const double tol, const in
         iteCount++;
 
         // update xk
-        xkRcp->update(-alpha, *gradkm1Rcp, 1.0, *xkm1Rcp, 0.0); //  xk = xkm1 - alpha*gkm1
-        boundProjection(xkRcp);                                 // Projection xk >= 0
+        xkRcp->update(-alpha, *gradkm1Rcp, 1.0, *xkm1Rcp, 0.0); // xk = xkm1 - alpha*gkm1
+        boundProjection(xkRcp);                                 // Projection xk
 
         // compute new grad with xk
         ARcp->apply(*xkRcp, *gradkRcp); // gk = A.dot(xk)
@@ -205,13 +206,17 @@ int BCQPSolver::solveBBPGD(Teuchos::RCP<TV> &xsolRcp, const double tol, const in
         gkdiffRcp->update(1.0, *gradkRcp, -1.0, *gradkm1Rcp, 0.0); // gk - gkm1
 
         double a = 0, b = 0;
-        // Barzilai-Borwein step size Choice 1
-        a = pow(xkdiffRcp->norm2(), 2);
-        b = xkdiffRcp->dot(*gkdiffRcp);
 
-        // Barzilai-Borwein step size Choice 2
-        // a = xkdiffRcp->dot(*gkdiffRcp);
-        // b = pow(gkdiffRcp->norm2(),2);
+        // alternating bb1 and bb2 methods
+        if (iteCount % 2 == 0) {
+            // Barzilai-Borwein step size Choice 1
+            a = pow(xkdiffRcp->norm2(), 2);
+            b = xkdiffRcp->dot(*gkdiffRcp);
+        } else {
+            // Barzilai-Borwein step size Choice 2
+            a = xkdiffRcp->dot(*gkdiffRcp);
+            b = pow(gkdiffRcp->norm2(), 2);
+        }
 
         if (fabs(b) < 10 * std::numeric_limits<double>::epsilon()) {
             b += 10 * std::numeric_limits<double>::epsilon(); // prevent div 0 error

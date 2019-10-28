@@ -7,7 +7,7 @@ import sys
 import matplotlib.pyplot as plt
 
 localSize = 200
-diagAdd = 0.5
+diagAdd = 0
 
 if len(sys.argv) > 1:
     localSize = sys.argv[1]
@@ -42,6 +42,8 @@ bound = so.Bounds(lb, ub)
 res = so.minimize(func, xguess, jac=grad, bounds=bound,
                   tol=1e-8, method='L-BFGS-B')
 
+print('scipy optimization func eval:', res.nfev)
+
 if res.success:
     print('reference min:', res.fun)
     print('BBPGD min:', func(xsolBBPGD))
@@ -67,3 +69,11 @@ plt.xlabel('MV Count')
 plt.legend()
 plt.show()
 plt.savefig('testBCQP.png', dpi=150)
+
+plt.loglog(bbhistory[:, 1], bbhistory[:, 0], label='BBPGD')
+plt.loglog(ahistory[:, 1], ahistory[:, 0], label='APGD')
+plt.ylabel('residual')
+plt.xlabel('MV Count')
+plt.legend()
+plt.show()
+plt.savefig('testBCQP-log.png', dpi=150)
