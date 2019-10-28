@@ -8,11 +8,14 @@ import matplotlib.pyplot as plt
 
 localSize = 200
 diagAdd = 0
+maxIte = localSize
 
 if len(sys.argv) > 1:
     localSize = sys.argv[1]
 if len(sys.argv) > 2:
     diagAdd = sys.argv[2]
+if len(sys.argv) > 3:
+    maxIte = sys.argv[3]
 
 print('mpirun -n 2 --map-by numa ./BCQPSolver_test ' +
       str(localSize)+' '+str(diagAdd)+' > ./testLog')

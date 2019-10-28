@@ -182,6 +182,8 @@ int BCQPSolver::solveBBPGD(Teuchos::RCP<TV> &xsolRcp, const double tol, const in
     // xkdiffRcp is the prjected vector, after checkProjectionResidual
     double alpha = 1.0 / xkdiffRcp->normInf();
 
+    bool stagFlag = false;
+
     while (iteCount < iteMax) {
         iteCount++;
 
@@ -224,6 +226,12 @@ int BCQPSolver::solveBBPGD(Teuchos::RCP<TV> &xsolRcp, const double tol, const in
 
         alpha = a / b; // new step size
 
+        if (alpha < std::numeric_limits<double>::epsilon() * 10) {
+            printf("BBPGD Stagnate");
+            stagFlag = true;
+            break;
+        }
+
         // prepare next iteration
         // swap the contents of pointers directly, be careful
         xkm1Rcp.swap(xkRcp);
@@ -231,8 +239,11 @@ int BCQPSolver::solveBBPGD(Teuchos::RCP<TV> &xsolRcp, const double tol, const in
     }
 
     xsolRcp = xkRcp; // return solution
-
-    return 0;
+    if (stagFlag) {
+        return 1;
+    } else {
+        return 0;
+    }
 }
 
 int BCQPSolver::solveAPGD(Teuchos::RCP<TV> &xsolRcp, const double tol, const int iteMax, IteHistory &history) const {
@@ -282,6 +293,7 @@ int BCQPSolver::solveAPGD(Teuchos::RCP<TV> &xsolRcp, const double tol, const int
     // enter main loop
     int iteCount = 0;
     double resmin = std::numeric_limits<double>::max();
+    bool stagFlag = false;
 
     while (iteCount < iteMax) {
         iteCount++;
@@ -317,14 +329,17 @@ int BCQPSolver::solveAPGD(Teuchos::RCP<TV> &xsolRcp, const double tol, const int
             tk = 1 / Lk;
 
             // print Lk and tk for debugging
-            // if (tk < std::numeric_limits<double>::epsilon() * 10) {
-            //     tk += std::numeric_limits<double>::epsilon() * 10;
-            // }
             // std::cout << Lk << " " << tk << std::endl;
 
             // line 12 of Mazhar, 2015
             xkp1Rcp->update(1.0, *ykRcp, -tk, *gVecRcp, 0.0);
             boundProjection(xkp1Rcp);
+        }
+
+        if (tk < std::numeric_limits<double>::epsilon() * 10) {
+            printf("APGD Stagnate");
+            stagFlag = true;
+            break;
         }
 
         // line 14-16, Mazhar, 2015
@@ -368,8 +383,11 @@ int BCQPSolver::solveAPGD(Teuchos::RCP<TV> &xsolRcp, const double tol, const int
         thetak = thetakp1;
     }
     xsolRcp = xhatkRcp;
-
-    return 0;
+    if (stagFlag) {
+        return 1;
+    } else {
+        return 0;
+    }
 }
 
 int BCQPSolver::selfTest(double tol, int maxIte, int solverChoice) {
