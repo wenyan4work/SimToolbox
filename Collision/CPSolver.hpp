@@ -46,7 +46,7 @@ class CPMatOp : public TOP {
     }
 
     /**
-     * @brief apply this operator. \f$Y = \alpha F_c^T M F_c + \beta Y\f$
+     * @brief apply this operator. 
      *
      * @param X
      * @param Y
