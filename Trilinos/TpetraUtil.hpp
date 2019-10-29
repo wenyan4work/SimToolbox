@@ -26,6 +26,7 @@
 #include <Tpetra_Map.hpp>
 #include <Tpetra_MultiVector.hpp>
 #include <Tpetra_Operator.hpp>
+#include <Tpetra_RowMatrixTransposer_decl.hpp>
 #include <Tpetra_Vector.hpp>
 #include <Tpetra_Version.hpp>
 

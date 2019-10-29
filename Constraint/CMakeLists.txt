@@ -23,3 +23,13 @@ add_custom_command(
 # Custom target for activate the custom command above
 add_custom_target(copy_file DEPENDS ${CMAKE_CURRENT_BINARY_DIR}/BCQPverify.py)
 add_dependencies(BCQPSolver_test copy_file)
+
+add_executable(SubView_test SubView_test.cpp ${PROJECT_SOURCE_DIR}/Trilinos/TpetraUtil.cpp)
+target_compile_options(SubView_test PRIVATE ${OpenMP_CXX_FLAGS})
+target_include_directories(SubView_test PRIVATE ${PROJECT_SOURCE_DIR} ${Trilinos_INCLUDE_DIRS} ${TRNG_INCLUDE_DIR})
+target_link_libraries(SubView_test PRIVATE ${Trilinos_LIBRARIES})
+target_link_libraries(SubView_test PRIVATE ${Trilinos_TPL_LIBRARIES})
+target_link_libraries(SubView_test PRIVATE ${TRNG_LIBRARY})
+target_link_libraries(SubView_test PRIVATE OpenMP::OpenMP_CXX)
+target_link_libraries(SubView_test PRIVATE MPI::MPI_CXX)
+add_test(NAME SubView COMMAND SubView_test)
