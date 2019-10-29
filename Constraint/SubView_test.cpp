@@ -13,7 +13,9 @@ int main(int argc, char **argv) {
         auto commRcp = getMPIWORLDTCOMM();
         auto map1 = getTMAPFromLocalSize(localSize1, commRcp);
         auto map2 = getTMAPFromLocalSize(localSize2, commRcp);
-        auto totalMap = getTMAPFromLocalSize(localSize1 + localSize2, commRcp);
+
+        TEUCHOS_TEST_FOR_EXCEPTION(!map1->isContiguous(), std::invalid_argument, "map1 must be contiguous");
+        TEUCHOS_TEST_FOR_EXCEPTION(!map2->isContiguous(), std::invalid_argument, "map2 must be contiguous")
 
         std::vector<double> vecOnLocal(localSize1 + localSize2);
         int count = 1;
@@ -24,11 +26,14 @@ int main(int argc, char **argv) {
         auto vec = getTVFromVector(vecOnLocal, commRcp);
 
         auto vecSubView1 = vec->offsetView(map1, 0);
-        auto vecSubView2 = vec->offsetView(map2, localSize1);
+        auto vecSubView2 = vec->offsetViewNonConst(map2, localSize1);
 
-        std::cout << vec->description() << std::endl;
-        std::cout << vecSubView1->description() << std::endl;
-        std::cout << vecSubView2->description() << std::endl;
+        auto vecSubView2Ptr = vecSubView2->getLocalView<Kokkos::HostSpace>();
+        vecSubView2->modify<Kokkos::HostSpace>();
+        for (int i = 0; i < vecSubView2Ptr.dimension_0(); i++) {
+            vecSubView2Ptr(i, 0) = i;
+        }
+
         dumpTV(vec, "vec");
         dumpTV(vecSubView1, "vecSubView1");
         dumpTV(vecSubView2, "vecSubView2");
