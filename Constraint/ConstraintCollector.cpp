@@ -11,6 +11,29 @@ ConstraintCollector::ConstraintCollector() {
     std::cout << "ConstraintCollector constructed for:" << constraintPoolPtr->size() << " threads" << std::endl;
 }
 
+bool ConstraintCollector::valid() const { return constraintPoolPtr->empty(); }
+
+void ConstraintCollector::clear() {
+    assert(constraintPoolPtr);
+    for (int i = 0; i < constraintPoolPtr->size(); i++) {
+        (*constraintPoolPtr)[i].clear();
+    }
+
+    // keep the total number of queues
+    const int totalThreads = omp_get_max_threads();
+    constraintPoolPtr->resize(totalThreads);
+}
+
+void ConstraintCollector::completeCollecting() { setupBlockQueThreadIndex(); }
+
+int ConstraintCollector::getLocalNumberOfConstraints() {
+    int sum = 0;
+    for (int i = 0; i < constraintPoolPtr->size(); i++) {
+        sum += (*constraintPoolPtr)[i].size();
+    }
+    return sum;
+}
+
 void ConstraintCollector::sumLocalConstraintStress(Emat3 &stress, bool withOneSide = false) const {
     const auto &cPool = *constraintPoolPtr;
     const int poolSize = cPool.size();
@@ -189,4 +212,15 @@ void ConstraintCollector::writeVTP(const std::string &folder, const std::string 
 
     IOHelper::writeTailVTP(file);
     file.close();
+}
+
+void ConstraintCollector::dumpBlocks() const {
+    std::cout << "number of collision queues: " << constraintPoolPtr->size() << std::endl;
+    // dump constraint blocks
+    for (const auto &blockQue : (*constraintPoolPtr)) {
+        std::cout << blockQue.size() << " constraints in this queue" << std::endl;
+        for (const auto &block : blockQue) {
+            std::cout << block.globalIndexI << " " << block.globalIndexJ << "  phi0:" << block.phi0 << std::endl;
+        }
+    }
 }
