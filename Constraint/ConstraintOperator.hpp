@@ -19,10 +19,10 @@
 
 /**
  * @brief Constraint Operator is a block matrix assembled from four blocks:
- *    [Dc^T M Dc       Dc^T M Db           ]
- *    [Db^T M Dc       Db^T M Db  +  K^{-1}]
+ *    [Du^T M Du       Du^T M Db           ]
+ *    [Db^T M Du       Db^T M Db  +  K^{-1}]
  *
- * Dc^T, Db^T, M, and K^{-1} are explicitly constructed before constructing this object
+ * Du^T, Db^T, M, and K^{-1} are explicitly constructed before constructing this object
  */
 class ConstraintOperator : public TOP {
   public:
@@ -30,11 +30,11 @@ class ConstraintOperator : public TOP {
      * @brief Construct a new ConstraintOperator object
      *
      * @param mobOp
-     * @param uniDcMat
+     * @param uniDuMat
      * @param biDbMat
      * @param invKappaDiagMat
      */
-    ConstraintOperator(Teuchos::RCP<TOP> &mobOp, Teuchos::RCP<TCMAT> &uniDcMatTrans, Teuchos::RCP<TCMAT> &biDbMatTrans,
+    ConstraintOperator(Teuchos::RCP<TOP> &mobOp, Teuchos::RCP<TCMAT> &uniDuMatTrans, Teuchos::RCP<TCMAT> &biDbMatTrans,
                        std::vector<double> &invKappaDiagMat);
 
     /**
@@ -77,8 +77,8 @@ class ConstraintOperator : public TOP {
     Teuchos::RCP<TCOMM> commRcp; ///< the mpi communicator
     // constant operators
     Teuchos::RCP<TOP> mobOpRcp;           ///< mobility matrix
-    Teuchos::RCP<TCMAT> uniDcMatRcp;      ///< unilateral (collision) constraint geometry matrix D_c
-    Teuchos::RCP<TCMAT> uniDcMatTransRcp; ///< explicit transpose of D_c
+    Teuchos::RCP<TCMAT> uniDuMatRcp;      ///< unilateral (collision) constraint geometry matrix D_c
+    Teuchos::RCP<TCMAT> uniDuMatTransRcp; ///< explicit transpose of D_c
     Teuchos::RCP<TCMAT> biDbMatRcp;       ///< bilateral (spring) constraint geometry matrix D_b
     Teuchos::RCP<TCMAT> biDbMatTransRcp;  ///< explicit transpose of D_b
     std::vector<double> invKappaDiagMat;  ///< 1/h K^{-1} diagonal matrix, in std::vector format

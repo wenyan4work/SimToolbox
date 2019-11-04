@@ -24,8 +24,6 @@ void ConstraintCollector::clear() {
     constraintPoolPtr->resize(totalThreads);
 }
 
-void ConstraintCollector::completeCollecting() { setupBlockQueThreadIndex(); }
-
 int ConstraintCollector::getLocalNumberOfConstraints() {
     int sum = 0;
     for (int i = 0; i < constraintPoolPtr->size(); i++) {

@@ -1,14 +1,14 @@
 #include "ConstraintOperator.hpp"
 
-ConstraintOperator::ConstraintOperator(Teuchos::RCP<TOP> &mobOp_, Teuchos::RCP<TCMAT> &uniDcMatTrans_,
+ConstraintOperator::ConstraintOperator(Teuchos::RCP<TOP> &mobOp_, Teuchos::RCP<TCMAT> &uniDuMatTrans_,
                                        Teuchos::RCP<TCMAT> &biDbMatTrans_, std::vector<double> &invKappaDiagMat_)
-    : commRcp(mobOp_->getDomainMap()->getComm()), mobOpRcp(mobOp_), uniDcMatTransRcp(uniDcMatTrans_),
+    : commRcp(mobOp_->getDomainMap()->getComm()), mobOpRcp(mobOp_), uniDuMatTransRcp(uniDuMatTrans_),
       biDbMatTransRcp(biDbMatTrans_), invKappaDiagMat(invKappaDiagMat_) {
 
     // explicit transpose
-    Tpetra::RowMatrixTransposer<TCMAT::scalar_type, TCMAT::local_ordinal_type, TCMAT::global_ordinal_type> transposerDc(
-        uniDcMatTransRcp);
-    uniDcMatRcp = transposerDc.createTranspose();
+    Tpetra::RowMatrixTransposer<TCMAT::scalar_type, TCMAT::local_ordinal_type, TCMAT::global_ordinal_type> transposerDu(
+        uniDuMatTransRcp);
+    uniDuMatRcp = transposerDu.createTranspose();
     Tpetra::RowMatrixTransposer<TCMAT::scalar_type, TCMAT::local_ordinal_type, TCMAT::global_ordinal_type> transposerDb(
         biDbMatTransRcp);
     biDbMatRcp = transposerDb.createTranspose();
@@ -17,15 +17,15 @@ ConstraintOperator::ConstraintOperator(Teuchos::RCP<TOP> &mobOp_, Teuchos::RCP<T
     mobMapRcp = mobOpRcp->getDomainMap(); // symmetric & domainmap=rangemap
 
     // setup global map
-    // both Dc and Db are globally & contiguously partitioned by rows
-    // The total map should include rows from both Dc and Db, where Db follows Dc
+    // both Du and Db are globally & contiguously partitioned by rows
+    // The total map should include rows from both Du and Db, where Db follows Du
     buildBlockMaps();
 
     // initialize working multivectors, zero out
-    gammaForceRcp = Teuchos::rcp(new TMV(mobMapRcp, 2, true)); // two columns: Dc gammac,  Db gammab
-    mobVelRcp = Teuchos::rcp(new TMV(mobMapRcp, 2, true));     // two columns: M Dc gamma, M Db gammab
-    deltaUniRcp = Teuchos::rcp(new TMV(uniDcMatTransRcp->getRangeMap(), 2, true)); // two columns: DcT M Dc, DcT M Db
-    deltaBiRcp = Teuchos::rcp(new TMV(biDbMatTransRcp->getRangeMap(), 2, true));   // two columns: DbT M Dc, DbT M Db
+    gammaForceRcp = Teuchos::rcp(new TMV(mobMapRcp, 2, true)); // two columns: Du gammac,  Db gammab
+    mobVelRcp = Teuchos::rcp(new TMV(mobMapRcp, 2, true));     // two columns: M Du gamma, M Db gammab
+    deltaUniRcp = Teuchos::rcp(new TMV(uniDuMatTransRcp->getRangeMap(), 2, true)); // two columns: DuT M Du, DuT M Db
+    deltaBiRcp = Teuchos::rcp(new TMV(biDbMatTransRcp->getRangeMap(), 2, true));   // two columns: DbT M Du, DbT M Db
 }
 
 void ConstraintOperator::apply(const TMV &X, TMV &Y, Teuchos::ETransp mode = Teuchos::NO_TRANS,
@@ -46,17 +46,17 @@ void ConstraintOperator::apply(const TMV &X, TMV &Y, Teuchos::ETransp mode = Teu
         auto deltaUniBlock = Y.offsetViewNonConst(gammaUniBlockMapRcp, 0);
         auto deltaBiBlock = Y.offsetViewNonConst(gammaBiBlockMapRcp, blockoffset);
 
-        // step 1, Dc and Db multiply X, block by block
+        // step 1, Du and Db multiply X, block by block
         auto ftCol0 = gammaForceRcp->getVectorNonConst(0);
-        uniDcMatRcp->apply(*gammaUniBlock, *ftCol0); // Dc gammac
+        uniDuMatRcp->apply(*gammaUniBlock, *ftCol0); // Du gammac
         auto ftCol1 = gammaForceRcp->getVectorNonConst(1);
         biDbMatRcp->apply(*gammaBiBlock, *ftCol1); // Db gammab
 
         // step 2, FT multiply mobility
         mobOpRcp->apply(*gammaForceRcp, *mobVelRcp);
 
-        // step 3, Dc^T and Db^T multiply velocity
-        uniDcMatTransRcp->apply(*mobVelRcp, *deltaUniRcp);
+        // step 3, Du^T and Db^T multiply velocity
+        uniDuMatTransRcp->apply(*mobVelRcp, *deltaUniRcp);
         biDbMatTransRcp->apply(*mobVelRcp, *deltaBiRcp);
 
         // step 4, add spring constant effect: K^{-1}gammab
@@ -83,7 +83,7 @@ void ConstraintOperator::buildBlockMaps() {
      *  For details about this sub map, see Tpetra::MultiVector::offsetView() and ::offsetViewNonConst()
      */
 
-    auto map1 = uniDcMatRcp->getDomainMap(); // the first map, starting from 0, contiguous
+    auto map1 = uniDuMatRcp->getDomainMap(); // the first map, starting from 0, contiguous
     auto map2 = biDbMatRcp->getDomainMap();  // the second map, starting from 0, contiguous
 
     // assumption: both map1 and map2 are contiguous and start from 0-indexbase

@@ -70,12 +70,6 @@ class ConstraintCollector {
     void clear();
 
     /**
-     * @brief build necessary data structures for follow-up work
-     * 
-     */
-    void completeCollecting();
-
-    /**
      * @brief get the number of collision constraints on the local node
      *
      * @return int
@@ -126,11 +120,6 @@ class ConstraintCollector {
      *
      */
     void dumpBlocks() const;
-
-  private:
-    std::vector<int> queueThreadIndex; ///< The sequential index for constraint blocks in the queue and pool
-
-    void setupBlockQueThreadIndex();
 };
 
 #endif
