@@ -120,6 +120,20 @@ class ConstraintCollector {
      *
      */
     void dumpBlocks() const;
+
+    /**
+     * @brief build the D^Transpose matrix and delta^0 vector
+     *
+     * @param mobMapRcp
+     * @param DMatTransRcp
+     * @param delta0VecRcp
+     * @return int error code (future)
+     */
+    int buildConstraintMatrixVector(Teuchos::RCP<const TMAP> &mobMapRcp, Teuchos::RCP<TCMAT> &DMatTransRcp,
+                                    Teuchos::RCP<TV> &delta0VecRcp) const;
+    int buildInvKappa(std::vector<double> &invKappa) const;
+
+  private:
 };
 
 #endif

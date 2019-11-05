@@ -38,8 +38,8 @@ struct ConstraintBlock {
     double normJ[3] = {0, 0, 0}; ///< surface norm vector at the location of constraints (minimal separation).
     double posI[3] = {0, 0, 0};
     double posJ[3] = {0, 0, 0}; ///< the relative constraint position on bodies I and J.
-    double endI[3] = {0, 0, 0};
-    double endJ[3] = {0, 0, 0}; ///< the labframe location of collision points endI and endJ
+    double labI[3] = {0, 0, 0};
+    double labJ[3] = {0, 0, 0}; ///< the labframe location of collision points endI and endJ
     double stress[9] = {0, 0, 0, 0, 0, 0, 0, 0, 0};
     ///< stress 3x3 matrix (row-major) for unit constraint force gamma
 
@@ -70,13 +70,13 @@ struct ConstraintBlock {
      */
     ConstraintBlock(double phi0_, double gamma_, int gidI_, int gidJ_, int globalIndexI_, int globalIndexJ_,
                     const Evec3 &normI_, const Evec3 &normJ_, const Evec3 &posI_, const Evec3 &posJ_,
-                    const Evec3 &endI_, const Evec3 &endJ_, bool oneSide_ = false)
+                    const Evec3 &labI_, const Evec3 &labJ_, bool oneSide_ = false)
         : ConstraintBlock(phi0_, gamma_, gidI_, gidJ_, globalIndexI_, globalIndexJ_, normI_.data(), normJ_.data(),
-                          posI_.data(), posJ_.data(), endI_.data(), endJ_.data(), oneSide_) {}
+                          posI_.data(), posJ_.data(), labI_.data(), labJ_.data(), oneSide_) {}
 
     ConstraintBlock(double phi0_, double gamma_, int gidI_, int gidJ_, int globalIndexI_, int globalIndexJ_,
                     const double normI_[3], const double normJ_[3], const double posI_[3], const double posJ_[3],
-                    const double endI_[3], const double endJ_[3], bool oneSide_ = false)
+                    const double labI_[3], const double labJ_[3], bool oneSide_ = false)
         : phi0(phi0_), gamma(gamma_), gidI(gidI_), gidJ(gidJ_), globalIndexI(globalIndexI_),
           globalIndexJ(globalIndexJ_), oneSide(oneSide_) {
         for (int d = 0; d < 3; d++) {
@@ -84,8 +84,8 @@ struct ConstraintBlock {
             normJ[d] = normJ_[d];
             posI[d] = posI_[d];
             posJ[d] = posJ_[d];
-            endI[d] = endI_[d];
-            endJ[d] = endJ_[d];
+            labI[d] = labI_[d];
+            labJ[d] = labJ_[d];
         }
         std::fill(stress, stress + 9, 0);
     }
