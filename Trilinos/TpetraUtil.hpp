@@ -108,14 +108,6 @@ class OperatorTraits<::TOP::scalar_type, ::TMV, ::TOP> {
 void dumpTCMAT(const Teuchos::RCP<const TCMAT> &A, std::string filename);
 
 /**
- * @brief write TMV A to a file in MatrixMarket format
- *
- * @param A
- * @param filename
- */
-void dumpTMV(const Teuchos::RCP<const TMV> &A, std::string filename);
-
-/**
  * @brief write TOP A to a file in MatrixMarket format
  *
  * TOP will be applied dim(A) times to compute the entries
@@ -130,15 +122,6 @@ void dumpTV(const Teuchos::RCP<const TV> &A, std::string filename);
  * @return Teuchos::RCP<const TCOMM>
  */
 Teuchos::RCP<const TCOMM> getMPIWORLDTCOMM();
-
-/**
- * @brief return a fully copied TMAP with a given global size
- *
- * @param globalSize
- * @param commRcp
- * @return Teuchos::RCP<TMAP>
- */
-Teuchos::RCP<TMAP> getFullCopyTMAPFromGlobalSize(const int &globalSize, Teuchos::RCP<const TCOMM> &commRcp);
 
 /**
  * @brief return a contiguous TMAP from local Size
@@ -157,14 +140,5 @@ Teuchos::RCP<TMAP> getTMAPFromLocalSize(const int &localSize, Teuchos::RCP<const
  * @return Teuchos::RCP<TV> the local part of this TV will contain the same entries as given in the input vector
  */
 Teuchos::RCP<TV> getTVFromVector(const std::vector<double> &in, Teuchos::RCP<const TCOMM> &commRcp);
-
-/**
- * @brief contiguous TMV init from a vector of vector. localsize= min_k in[k].size()
- *
- * @param in
- * @param commRcp
- * @return Teuchos::RCP<TMV>
- */
-Teuchos::RCP<TMV> getTMVFromVector(const std::vector<std::vector<double>> &in, Teuchos::RCP<const TCOMM> &commRcp);
 
 #endif /* TPETRAUTIL_HPP_ */
