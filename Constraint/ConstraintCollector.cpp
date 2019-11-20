@@ -224,8 +224,8 @@ void ConstraintCollector::dumpBlocks() const {
 }
 
 int ConstraintCollector::buildConstraintMatrixVector(Teuchos::RCP<const TMAP> &mobMapRcp,
-                                                     Teuchos::RCP<TCMAT> &DMatTransRcp,
-                                                     Teuchos::RCP<TV> &delta0VecRcp) const {
+                                                     Teuchos::RCP<TCMAT> &DMatTransRcp, Teuchos::RCP<TV> &delta0VecRcp,
+                                                     Teuchos::RCP<TV> &gammaGuessRcp) const {
 
     const auto &cPool = *constraintPoolPtr; // the constraint pool
     Teuchos::RCP<const TCOMM> commRcp = mobMapRcp->getComm();
@@ -376,6 +376,20 @@ int ConstraintCollector::buildConstraintMatrixVector(Teuchos::RCP<const TMAP> &m
     }
 
     delta0VecRcp = getTVFromVector(delta0, commRcp);
+
+    // step 6, allocate the gammaGuess vector
+    std::vector<double> gammaGuess(localGammaSize);
+#pragma omp parallel for
+    for (int que = 0; que < poolSize; que++) {
+        const auto &cQue = cPool[que];
+        const int cIndexBase = queThreadIndex[que];
+        const int queSize = cQue.size();
+        for (int j = 0; j < queSize; j++) {
+            delta0[cIndexBase + j] = cQue[j].gamma;
+        }
+    }
+
+    gammaGuessRcp = getTVFromVector(gammaGuess, commRcp);
 
     return 0;
 }

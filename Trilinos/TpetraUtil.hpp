@@ -132,6 +132,9 @@ Teuchos::RCP<const TCOMM> getMPIWORLDTCOMM();
  */
 Teuchos::RCP<TMAP> getTMAPFromLocalSize(const int &localSize, Teuchos::RCP<const TCOMM> &commRcp);
 
+Teuchos::RCP<TMAP> getTMAPFromGlobalIndexOnLocal(const std::vector<int> &gidOnLocal, const int globalIndex,
+                                                 Teuchos::RCP<const TCOMM> &commRcp);
+
 /**
  * @brief contiguous TV from a local vector
  *

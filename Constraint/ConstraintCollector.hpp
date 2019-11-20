@@ -30,6 +30,8 @@ using ConstraintBlockPool = std::vector<ConstraintBlockQue>; ///< a pool contain
 /**
  * @brief collecter of collision blocks
  *
+ * This class must have very low copy overhead dueto the design of FDPS
+ *
  */
 class ConstraintCollector {
   public:
@@ -130,7 +132,7 @@ class ConstraintCollector {
      * @return int error code (future)
      */
     int buildConstraintMatrixVector(Teuchos::RCP<const TMAP> &mobMapRcp, Teuchos::RCP<TCMAT> &DMatTransRcp,
-                                    Teuchos::RCP<TV> &delta0VecRcp) const;
+                                    Teuchos::RCP<TV> &delta0VecRcp, Teuchos::RCP<TV> &gammaGuessRcp) const;
     int buildInvKappa(std::vector<double> &invKappa) const;
 
   private:

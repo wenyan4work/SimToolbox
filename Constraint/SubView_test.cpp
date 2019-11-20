@@ -17,59 +17,20 @@
 #include <Tpetra_Vector.hpp>
 #include <Tpetra_Version.hpp>
 
-// int main(int argc, char **argv) {
-//     MPI_Init(&argc, &argv);
-//     int rank, nprocs;
-//     MPI_Comm_rank(MPI_COMM_WORLD, &rank);
-//     MPI_Comm_size(MPI_COMM_WORLD, &nprocs);
-
-//     MPI_Finalize();
-// }
-
-// Teuchos utility
-
 void test() {
 
-    using TMAP = Tpetra::Map<int, int>;          ///< default Teuchos::Map type
-    using TV = Tpetra::Vector<double, int, int>; ///< default to Tpetra::Vector type
+    /**
+     * vec = [vec1;vec2]. vec, vec1, vec2 are all partitioned across ranks
+     * vec1 = [0,1,1,2,2,2,3,3,3,3,...]
+     * vec2 = [0,0,1,1,1,1,2,2,2,2,2,2,...]
+     * vec = [0,1,1,...,0,0,1,1,1,1,...]
+     */
 
     int rank, nprocs;
     MPI_Comm_rank(MPI_COMM_WORLD, &rank);
     MPI_Comm_size(MPI_COMM_WORLD, &nprocs);
-    const int localSize1 = 1;
-    const int localSize2 = 2;
-    const int globalSize1 = localSize1 * nprocs;
-    const int globalSize2 = localSize2 * nprocs;
-
-    std::vector<int> vecGlobalIndexOnLocal(localSize1 + localSize2);
-    for (int i = 0; i < localSize1; i++) {
-        vecGlobalIndexOnLocal[i] = rank * localSize1 + i;
-    }
-    for (int i = 0; i < localSize2; i++) {
-        vecGlobalIndexOnLocal[i + localSize1] = rank * localSize2 + i + globalSize1;
-    }
-    auto commRcp = Teuchos::rcp(new Teuchos::MpiComm<int>(MPI_COMM_WORLD));
-    auto map = Teuchos::rcp(
-        new TMAP(globalSize1 + globalSize2, vecGlobalIndexOnLocal.data(), localSize1 + localSize2, 0, commRcp));
-
-    auto vec = Teuchos::rcp(new TV(map, true));
-    for (int i = 0; i < localSize1 + localSize2; i++) {
-        vec->replaceLocalValue(i, rank);
-    }
-
-    Teuchos::RCP<Teuchos::FancyOStream> out = Teuchos::VerboseObjectBase::getDefaultOStream();
-
-    Tpetra::MatrixMarket::Writer<TV> writer;
-    writer.writeMapFile("map.mtx", *map);
-    dumpTV(vec, "vec");
-}
-
-void test2() {
-    int rank, nprocs;
-    MPI_Comm_rank(MPI_COMM_WORLD, &rank);
-    MPI_Comm_size(MPI_COMM_WORLD, &nprocs);
-    const int localSize1 = 5 * rank;       // [0,5,10,15,...]
-    const int localSize2 = 3 * (rank + 1); // [3,6,9,12,15,...]
+    const int localSize1 = 1 * (rank + 1);
+    const int localSize2 = 2 * (rank + 1);
 
     auto commRcp = getMPIWORLDTCOMM();
     auto map1 = getTMAPFromLocalSize(localSize1, commRcp);
@@ -78,33 +39,44 @@ void test2() {
     TEUCHOS_TEST_FOR_EXCEPTION(!map1->isContiguous(), std::invalid_argument, "map1 must be contiguous");
     TEUCHOS_TEST_FOR_EXCEPTION(!map2->isContiguous(), std::invalid_argument, "map2 must be contiguous")
 
-    std::vector<double> vecOnLocal(localSize1 + localSize2);
-    int count = 1;
-    for (auto &v : vecOnLocal) {
-        v = (count *= (rank + 1));
+    // create map for vec
+    auto gid1 = map1->getMyGlobalIndices();
+    auto gid2 = map2->getMyGlobalIndices();
+    std::vector<int> gidOnLocal(map1->getNodeNumElements() + map2->getNodeNumElements(), 0);
+    for (int i = 0; i < localSize1; i++) {
+        gidOnLocal[i] = gid1[i];
     }
+    for (int i = 0; i < localSize2; i++) {
+        gidOnLocal[i + localSize1] = gid2[i] + map1->getGlobalNumElements();
+    }
+    auto map = Teuchos::rcp(new TMAP(map1->getGlobalNumElements() + map2->getGlobalNumElements(), gidOnLocal.data(),
+                                     gidOnLocal.size(), 0, commRcp));
 
-    auto vec = getTVFromVector(vecOnLocal, commRcp);
+    auto vec = Teuchos::rcp(new TV(map, true));
 
-    auto vecSubView1 = vec->offsetView(map1, 0);
+    auto vecSubView1 = vec->offsetViewNonConst(map1, 0);
     auto vecSubView2 = vec->offsetViewNonConst(map2, localSize1);
 
+    auto vecSubView1Ptr = vecSubView1->getLocalView<Kokkos::HostSpace>();
     auto vecSubView2Ptr = vecSubView2->getLocalView<Kokkos::HostSpace>();
+    vecSubView1->modify<Kokkos::HostSpace>();
     vecSubView2->modify<Kokkos::HostSpace>();
-    for (int i = 0; i < vecSubView2Ptr.dimension_0(); i++) {
-        vecSubView2Ptr(i, 0) = i;
+    for (int i = 0; i < vecSubView1Ptr.dimension_0(); i++) {
+        vecSubView1Ptr(i, 0) = rank;
     }
-
-    dumpTV(vec, "vec");
+    for (int i = 0; i < vecSubView2Ptr.dimension_0(); i++) {
+        vecSubView2Ptr(i, 0) = rank;
+    }
+    commRcp->barrier();
     dumpTV(vecSubView1, "vecSubView1");
     dumpTV(vecSubView2, "vecSubView2");
+    dumpTV(vec, "vec");
 }
 
 int main(int argc, char **argv) {
     MPI_Init(&argc, &argv);
 
-    // test();
-    test2();
+    test();
 
     MPI_Finalize();
     return 0;

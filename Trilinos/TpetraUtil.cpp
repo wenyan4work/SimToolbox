@@ -33,9 +33,12 @@ Teuchos::RCP<const TCOMM> getMPIWORLDTCOMM() { return Teuchos::rcp(new Teuchos::
 
 // return a contiguous TMAP from local Size
 Teuchos::RCP<TMAP> getTMAPFromLocalSize(const int &localSize, Teuchos::RCP<const TCOMM> &commRcp) {
-    int globalSize = localSize;
-    MPI_Allreduce(MPI_IN_PLACE, &globalSize, 1, MPI_INT, MPI_SUM, MPI_COMM_WORLD);
-    return Teuchos::rcp(new TMAP(globalSize, localSize, 0, commRcp));
+    return Teuchos::rcp(new TMAP(Teuchos::OrdinalTraits<Tpetra::global_size_t>::invalid(), localSize, 0, commRcp));
+}
+
+Teuchos::RCP<TMAP> getTMAPFromGlobalIndexOnLocal(const std::vector<int> &gidOnLocal, const int globalSize,
+                                                 Teuchos::RCP<const TCOMM> &commRcp) {
+    return Teuchos::rcp(new TMAP(globalSize, gidOnLocal.data(), gidOnLocal.size(), 0, commRcp));
 }
 
 Teuchos::RCP<TV> getTVFromVector(const std::vector<double> &in, Teuchos::RCP<const TCOMM> &commRcp) {
