@@ -39,19 +39,8 @@ void test() {
     TEUCHOS_TEST_FOR_EXCEPTION(!map1->isContiguous(), std::invalid_argument, "map1 must be contiguous");
     TEUCHOS_TEST_FOR_EXCEPTION(!map2->isContiguous(), std::invalid_argument, "map2 must be contiguous")
 
-    // create map for vec
-    auto gid1 = map1->getMyGlobalIndices();
-    auto gid2 = map2->getMyGlobalIndices();
-    std::vector<int> gidOnLocal(map1->getNodeNumElements() + map2->getNodeNumElements(), 0);
-    for (int i = 0; i < localSize1; i++) {
-        gidOnLocal[i] = gid1[i];
-    }
-    for (int i = 0; i < localSize2; i++) {
-        gidOnLocal[i + localSize1] = gid2[i] + map1->getGlobalNumElements();
-    }
-    auto map = Teuchos::rcp(new TMAP(map1->getGlobalNumElements() + map2->getGlobalNumElements(), gidOnLocal.data(),
-                                     gidOnLocal.size(), 0, commRcp));
-
+    // create map and vec
+    auto map = getTMAPFromTwoBlockTMAP(map1, map2);
     auto vec = Teuchos::rcp(new TV(map, true));
 
     auto vecSubView1 = vec->offsetViewNonConst(map1, 0);
@@ -67,10 +56,12 @@ void test() {
     for (int i = 0; i < vecSubView2Ptr.dimension_0(); i++) {
         vecSubView2Ptr(i, 0) = rank;
     }
+
     commRcp->barrier();
     dumpTV(vecSubView1, "vecSubView1");
     dumpTV(vecSubView2, "vecSubView2");
     dumpTV(vec, "vec");
+    dumpTMAP(map, "map");
 }
 
 int main(int argc, char **argv) {

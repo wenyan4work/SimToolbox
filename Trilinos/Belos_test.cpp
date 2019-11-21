@@ -137,34 +137,35 @@ void genLinearProblem(const int dimension, const double diagonal, Teuchos::RCP<T
     dumpTCMAT(ARcp, "A");
     dumpTV(bRcp, "b");
     dumpTV(xTrueRcp, "xTrue");
-    dumpTV(xRcp, "x");
+    dumpTV(xRcp, "xGuess");
 }
 
-void testGMRES(Teuchos::RCP<TCMAT> &ARcp, Teuchos::RCP<TV> &xRcp, Teuchos::RCP<TV> &xTrueRcp, Teuchos::RCP<TV> &bRcp) {
+void testBelosSolver(Teuchos::RCP<TCMAT> &ARcp, Teuchos::RCP<TV> &xRcp, Teuchos::RCP<TV> &xTrueRcp,
+                     Teuchos::RCP<TV> &bRcp, std::string solver) {
     auto problemRcp = Teuchos::rcp(new Belos::LinearProblem<TOP::scalar_type, TMV, TOP>(ARcp, xRcp, bRcp));
 
-    // Teuchos::RCP<Teuchos::ParameterList> solverParams = Teuchos::getParametersFromXmlFile("mobilitySolver.xml");
-    // Teuchos::RCP<Teuchos::ParameterList> solverParams = Teuchos::getParametersFromYamlFile("mobilitySolver.yaml");
     Teuchos::RCP<Teuchos::ParameterList> solverParams = Teuchos::parameterList();
-    solverParams->set("Timer Label", "Iterative Mobility Solution");
+    solverParams->set("Timer Label", solver);
     solverParams->set("Maximum Iterations", 1000);
-    solverParams->set("Convergence Tolerance", 1e-7);
+    solverParams->set("Convergence Tolerance", 1e-6);
     // solverParams->set("Maximum Restarts", 100);
     // solverParams->set("Num Blocks", 100); // larger values might trigger a std::bad_alloc inside Kokkos.
     solverParams->set("Orthogonalization", "IMGS");
     // solverParams->set("Output Style", Belos::OutputType::General);
-    // solverParams->set("Implicit Residual Scaling", "Norm of Initial Residual");
-    // solverParams->set("Explicit Residual Scaling", "Norm of Initial Residual");
     solverParams->set("Implicit Residual Scaling", "Norm of RHS");
     solverParams->set("Explicit Residual Scaling", "Norm of RHS");
-    // solverParams->set("Implicit Residual Scaling", "None"); // default is preconditioned initial residual
+    // default is preconditioned initial residual
+    // solverParams->set("Implicit Residual Scaling", "Norm of Initial Residual");
+    // solverParams->set("Explicit Residual Scaling", "Norm of Initial Residual");
+    // solverParams->set("Implicit Residual Scaling", "None");
     // solverParams->set("Explicit Residual Scaling", "None");
+
     // all info except debug info
     solverParams->set("Verbosity", Belos::Errors + Belos::Warnings + +Belos::IterationDetails + Belos::OrthoDetails +
                                        Belos::FinalSummary + Belos::TimingDetails + Belos::StatusTestDetails);
-    solverParams->set("Output Frequency", 1);
+    // solverParams->set("Output Frequency", 1);
     Belos::SolverFactory<TOP::scalar_type, TMV, TOP> factory;
-    auto solverRcp = factory.create("GMRES", solverParams); // recycle Krylov space for collision
+    auto solverRcp = factory.create(solver, solverParams); // recycle Krylov space for collision
 
     bool set = problemRcp->setProblem();
     TEUCHOS_TEST_FOR_EXCEPTION(!set, std::runtime_error, "*** Belos::LinearProblem failed to set up correctly! ***");
@@ -172,55 +173,16 @@ void testGMRES(Teuchos::RCP<TCMAT> &ARcp, Teuchos::RCP<TV> &xRcp, Teuchos::RCP<T
 
     Belos::ReturnType result = solverRcp->solve();
     int numIters = solverRcp->getNumIters();
+    dumpTV(xRcp, std::string("xsol_") + solver);
 
-    dumpTV(xRcp, "xsolGMRES");
-}
-
-void testBICGSTAB(Teuchos::RCP<TCMAT> &ARcp, Teuchos::RCP<TV> &xRcp, Teuchos::RCP<TV> &xTrueRcp,
-                  Teuchos::RCP<TV> &bRcp) {
-    auto problemRcp = Teuchos::rcp(new Belos::LinearProblem<TOP::scalar_type, TMV, TOP>(ARcp, xRcp, bRcp));
-
-    // Teuchos::RCP<Teuchos::ParameterList> solverParams = Teuchos::getParametersFromXmlFile("mobilitySolver.xml");
-    // Teuchos::RCP<Teuchos::ParameterList> solverParams = Teuchos::getParametersFromYamlFile("mobilitySolver.yaml");
-    Teuchos::RCP<Teuchos::ParameterList> solverParams = Teuchos::parameterList();
-    solverParams->set("Timer Label", "Iterative Mobility Solution");
-    solverParams->set("Maximum Iterations", 1000);
-    solverParams->set("Convergence Tolerance", 1e-7);
-    // solverParams->set("Maximum Restarts", 100);
-    // solverParams->set("Num Blocks", 100); // larger values might trigger a std::bad_alloc inside Kokkos.
-    solverParams->set("Orthogonalization", "IMGS");
-    // solverParams->set("Output Style", Belos::OutputType::General);
-    // solverParams->set("Implicit Residual Scaling", "Norm of Initial Residual");
-    // solverParams->set("Explicit Residual Scaling", "Norm of Initial Residual");
-    solverParams->set("Implicit Residual Scaling", "Norm of RHS");
-    solverParams->set("Explicit Residual Scaling", "Norm of RHS");
-    // solverParams->set("Implicit Residual Scaling", "None"); // default is preconditioned initial residual
-    // solverParams->set("Explicit Residual Scaling", "None");
-    // all info except debug info
-    solverParams->set("Verbosity", Belos::Errors + Belos::Warnings + +Belos::IterationDetails + Belos::OrthoDetails +
-                                       Belos::FinalSummary + Belos::TimingDetails + Belos::StatusTestDetails);
-    solverParams->set("Output Frequency", 1);
-    Belos::SolverFactory<TOP::scalar_type, TMV, TOP> factory;
-    auto solverRcp = factory.create("BICGSTAB", solverParams); // recycle Krylov space for collision
-
-    bool set = problemRcp->setProblem();
-    TEUCHOS_TEST_FOR_EXCEPTION(!set, std::runtime_error, "*** Belos::LinearProblem failed to set up correctly! ***");
-    solverRcp->setProblem(problemRcp);
-
-    Belos::ReturnType result = solverRcp->solve();
-    int numIters = solverRcp->getNumIters();
-
-    dumpTV(xRcp, "xsolBICGSTAB");
+    Teuchos::TimeMonitor::zeroOutTimers();
 }
 
 int main(int argc, char **argv) {
     MPI_Init(&argc, &argv);
     {
-        constexpr int dimension = 500; // dimension per rank
-        constexpr double diagonal = 0.1;
-        // added to matrix diagonel, tune the condition number
-        // max eig ~ 10 + diagonal
-        // min eig ~ 1e-6 + diagonal
+        constexpr int dimension = 500;   // dimension per rank
+        constexpr double diagonal = 0.1; // added to matrix diagonel, tune the condition number
         Teuchos::RCP<TCMAT> ARcp;
         Teuchos::RCP<TV> xRcp;
         Teuchos::RCP<TV> xTrueRcp;
@@ -229,9 +191,9 @@ int main(int argc, char **argv) {
 
         genLinearProblem(dimension, diagonal, ARcp, xRcp, xTrueRcp, bRcp);
         xGuessRcp = Teuchos::rcp<TV>(new TV(*xRcp, Teuchos::Copy));
-        testGMRES(ARcp, xGuessRcp, xTrueRcp, bRcp);
+        testBelosSolver(ARcp, xGuessRcp, xTrueRcp, bRcp, "BICGSTAB");
         xGuessRcp = Teuchos::rcp<TV>(new TV(*xRcp, Teuchos::Copy));
-        testBICGSTAB(ARcp, xRcp, xTrueRcp, bRcp);
+        testBelosSolver(ARcp, xGuessRcp, xTrueRcp, bRcp, "GMRES");
     }
     MPI_Finalize();
     return 0;
