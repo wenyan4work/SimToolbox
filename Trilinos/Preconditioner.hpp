@@ -91,13 +91,13 @@ class PrecondUtil {
      * @return Teuchos::RCP<TOP>
      */
     static Teuchos::RCP<TOP> createILUTPreconditioner(const Teuchos::RCP<const TCMAT> &A, double tol, double fill) {
-        using std::cout;
-        using std::endl;
         using Teuchos::ParameterList;
         using Teuchos::RCP;
         using Teuchos::rcp;
         using Teuchos::Time;
         using Teuchos::TimeMonitor;
+
+        auto commRcp = A->getComm();
 
         // set parameter list
         // The name of the type of preconditioner to use.
@@ -113,7 +113,6 @@ class PrecondUtil {
         typedef typename TCMAT::scalar_type scalar_type;
         typedef typename TCMAT::local_ordinal_type local_ordinal_type;
         typedef typename TCMAT::global_ordinal_type global_ordinal_type;
-        //	typedef typename TpetraMatrixType::node_type node_type;
 
         typedef Tpetra::Operator<scalar_type, local_ordinal_type, global_ordinal_type> op_type;
 
@@ -122,10 +121,10 @@ class PrecondUtil {
         typedef typename STS::magnitudeType magnitude_type;
         typedef Teuchos::ScalarTraits<magnitude_type> STM;
 
-        // An Ifpack2::Preconditioner is-a Tpetra::Operator.  Ifpack2
-        // creates a Preconditioner object, but users of iterative methods
-        // want a Tpetra::Operator.  That's why create() returns an Operator
-        // instead of a Preconditioner.
+        /* An Ifpack2::Preconditioner is-a Tpetra::Operator.
+         * Ifpack2 creates a Preconditioner object, but users of iterative methods want a Tpetra::Operator.
+         * That's why create() returns an Operator instead of a Preconditioner.
+         */
         typedef Ifpack2::Preconditioner<scalar_type, local_ordinal_type, global_ordinal_type> prec_type;
 
         // Create timers to show how long it takes for Ifpack2 to do various operations.
@@ -133,21 +132,17 @@ class PrecondUtil {
         RCP<Time> computeTimer = TimeMonitor::getNewCounter("Ifpack2::Preconditioner::compute");
         RCP<Time> condestTimer = TimeMonitor::getNewCounter("Ifpack2::Preconditioner::condest");
 
-        cout << "Creating ILUT preconditioner\n "
-             << "-- Configuring" << endl;
-        //
         // Create the preconditioner and set parameters.
-        //
         // This doesn't actually _compute_ the preconditioner.
         // It just sets up the specific type of preconditioner and
         // its associated parameters (which depend on the type).
         RCP<prec_type> prec;
         Ifpack2::Factory factory;
+
         // Set up the preconditioner of the given type.
         prec = factory.create(precondType, A);
         prec->setParameters(plist);
 
-        cout << "-- Initializing" << endl;
         {
             TimeMonitor mon(*initTimer);
             prec->initialize();
@@ -155,7 +150,7 @@ class PrecondUtil {
 
         // THIS ACTUALLY COMPUTES THE PRECONDITIONER
         // (e.g., does the incomplete factorization).
-        cout << "-- Computing" << endl;
+
         {
             TimeMonitor mon(*computeTimer);
             prec->compute();
@@ -163,6 +158,8 @@ class PrecondUtil {
 
         showPrecDebugInfo(A, prec);
 
+        if (commRcp->getRank() == 0)
+            std::cout << "Prec setup" << std::endl;
         return prec;
     }
 
@@ -175,13 +172,14 @@ class PrecondUtil {
     static Teuchos::RCP<TOP> createPlnPreconditioner(const Teuchos::RCP<const TCMAT> &A) {
         // get a CrsMatrix A, return a Polynomial (Relaxation, Chebyshev, etc) Preconditioner for A represented by a
         // Operator
-        using std::cout;
-        using std::endl;
         using Teuchos::ParameterList;
         using Teuchos::RCP;
         using Teuchos::rcp;
         using Teuchos::Time;
         using Teuchos::TimeMonitor;
+
+        auto commRcp = A->getComm();
+
         // set parameter list
         // The name of the type of preconditioner to use.
         //	Teuchos::ParameterList plistSWZ; // SCHWARZ domain decomposition -> block diagonal
@@ -192,14 +190,14 @@ class PrecondUtil {
         //	plistSWZ.set("schwarz: combine mode", "ADD");
 
         Teuchos::ParameterList plist; // method for each local diagonal block
-                                      //	plist.set("fact: ilut level-of-fill",5);
-                                      //	plist.set("fact: drop tolerance", 1e-3);
-                                      //	plist.set("fact: absolute threshold", 1e-5);
 
         plist.set("relaxation: type", "Jacobi"); // relaxation effective only for intermediate volume fraction without
                                                  // Schwarz. Jacobi shows good threading in this case
         plist.set("relaxation: sweeps", 5);      // further increase sweeps is probably useless
-        plist.set("relaxation: damping factor", 1.0);
+        plist.set("relaxation: damping factor", 2.0);
+        //	plist.set("fact: ilut level-of-fill",5);
+        //	plist.set("fact: drop tolerance", 1e-3);
+        //	plist.set("fact: absolute threshold", 1e-5);
         // reference: for two fibers close to each other
         // Jacobi sweep = 5:
         // damping 1 -> 2 iterations
@@ -246,8 +244,8 @@ class PrecondUtil {
         RCP<Time> initTimer = TimeMonitor::getNewCounter("Ifpack2::Preconditioner::initialize");
         RCP<Time> computeTimer = TimeMonitor::getNewCounter("Ifpack2::Preconditioner::compute");
 
-        cout << "Creating preconditioner\n"
-             << "-- Configuring" << endl;
+        // cout << "Creating preconditioner\n"
+        //      << "-- Configuring" << endl;
 
         // Create the preconditioner and set parameters.
         //
@@ -259,7 +257,7 @@ class PrecondUtil {
         // Set up the preconditioner of the given type.
         prec = factory.create(precondType, A);
         prec->setParameters(plist);
-        cout << "-- Initializing" << endl;
+        // cout << "-- Initializing" << endl;
         {
             TimeMonitor mon(*initTimer);
             prec->initialize();
@@ -267,13 +265,15 @@ class PrecondUtil {
 
         // THIS ACTUALLY COMPUTES THE PRECONDITIONER
         // (e.g., does the incomplete factorization).
-        cout << "-- Computing" << endl;
+        // cout << "-- Computing" << endl;
         {
             TimeMonitor mon(*computeTimer);
             prec->compute();
         }
 
         showPrecDebugInfo(A, prec);
+        if (commRcp->getRank() == 0)
+            std::cout << "Prec setup" << std::endl;
         return prec;
     }
 

@@ -34,7 +34,6 @@ target_link_libraries(Belos_test PRIVATE ${Trilinos_LIBRARIES})
 target_link_libraries(Belos_test PRIVATE ${Trilinos_TPL_LIBRARIES})
 target_link_libraries(Belos_test PRIVATE OpenMP::OpenMP_CXX)
 target_link_libraries(Belos_test PRIVATE MPI::MPI_CXX)
-add_test(NAME Belos COMMAND Belos_test)
 
 # copy the Belos_verify.py file to the build directory
 add_custom_command(
@@ -46,6 +45,9 @@ add_custom_command(
 # Custom target for activate the custom command above
 add_custom_target(copy_Belos_verify DEPENDS ${CMAKE_CURRENT_BINARY_DIR}/Belos_verify.py)
 add_dependencies(Belos_test copy_Belos_verify)
+
+add_test(NAME Belos COMMAND python Belos_verify.py)
+set_tests_properties(Belos PROPERTIES PASS_REGULAR_EXPRESSION "Converged")
 
 add_executable(SubView_test SubView_test.cpp ${PROJECT_SOURCE_DIR}/Trilinos/TpetraUtil.cpp)
 target_compile_options(SubView_test PRIVATE ${OpenMP_CXX_FLAGS})

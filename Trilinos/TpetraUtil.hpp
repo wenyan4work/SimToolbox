@@ -118,11 +118,11 @@ void dumpTV(const Teuchos::RCP<const TV> &A, std::string filename);
 
 /**
  * @brief write TMAP map to a file in MatrixMarket format
- * 
- * @param map 
- * @param filename 
+ *
+ * @param map
+ * @param filename
  */
-void dumpTMAP(const Teuchos::RCP<const TMAP>&map, std::string filename);
+void dumpTMAP(const Teuchos::RCP<const TMAP> &map, std::string filename);
 
 /**
  * @brief the default TCOMM corresponding to MPI_COMM_WORLD
@@ -142,21 +142,21 @@ Teuchos::RCP<TMAP> getTMAPFromLocalSize(const int &localSize, Teuchos::RCP<const
 
 /**
  * @brief get a TMAP from arbitrary global index on local
- * 
- * @param gidOnLocal 
+ *
+ * @param gidOnLocal
  * @param globalSize total global size
- * @param commRcp 
- * @return Teuchos::RCP<TMAP> 
+ * @param commRcp
+ * @return Teuchos::RCP<TMAP>
  */
 Teuchos::RCP<TMAP> getTMAPFromGlobalIndexOnLocal(const std::vector<int> &gidOnLocal, const int globalSize,
                                                  Teuchos::RCP<const TCOMM> &commRcp);
 /**
- * @brief create a map for vector with two blocks X=[X1;X2], 
+ * @brief create a map for vector with two blocks X=[X1;X2],
  * where X1, X2 are both partitioned with maps map1 and map2, respectively
- * 
- * @param map1 
- * @param map2 
- * @return Teuchos::RCP<TMAP> 
+ *
+ * @param map1
+ * @param map2
+ * @return Teuchos::RCP<TMAP>
  */
 Teuchos::RCP<TMAP> getTMAPFromTwoBlockTMAP(const Teuchos::RCP<const TMAP> &map1, const Teuchos::RCP<const TMAP> &map2);
 
@@ -168,5 +168,14 @@ Teuchos::RCP<TMAP> getTMAPFromTwoBlockTMAP(const Teuchos::RCP<const TMAP> &map1,
  * @return Teuchos::RCP<TV> the local part of this TV will contain the same entries as given in the input vector
  */
 Teuchos::RCP<TV> getTVFromVector(const std::vector<double> &in, Teuchos::RCP<const TCOMM> &commRcp);
+
+/**
+ * @brief Get the RandomMatrix object
+ *
+ * @param localSize local number of rows of matrix (same for all rank)
+ * @param commRcp
+ * @return Teuchos::RCP<TCMAT>
+ */
+Teuchos::RCP<TCMAT> getRandomMatrix(const int localSize, Teuchos::RCP<TCOMM> &commRcp);
 
 #endif /* TPETRAUTIL_HPP_ */
