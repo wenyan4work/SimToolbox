@@ -169,13 +169,4 @@ Teuchos::RCP<TMAP> getTMAPFromTwoBlockTMAP(const Teuchos::RCP<const TMAP> &map1,
  */
 Teuchos::RCP<TV> getTVFromVector(const std::vector<double> &in, Teuchos::RCP<const TCOMM> &commRcp);
 
-/**
- * @brief Get the RandomMatrix object
- *
- * @param localSize local number of rows of matrix (same for all rank)
- * @param commRcp
- * @return Teuchos::RCP<TCMAT>
- */
-Teuchos::RCP<TCMAT> getRandomMatrix(const int localSize, Teuchos::RCP<TCOMM> &commRcp);
-
 #endif /* TPETRAUTIL_HPP_ */

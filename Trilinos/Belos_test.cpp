@@ -8,6 +8,10 @@ void genLinearProblem(Teuchos::RCP<TCMAT> &ARcp, Teuchos::RCP<TV> &xRcp, Teuchos
     // A read from MatrixMarket mtx file
     Tpetra::MatrixMarket::Reader<TCMAT> mmReader;
     ARcp = mmReader.readSparseFile("A_TCMAT.mtx", commRcp);
+    // dumpTMAP(ARcp->getDomainMap(), "A_DomainMap");
+    // dumpTMAP(ARcp->getRangeMap(), "A_RangeMap");
+    // dumpTMAP(ARcp->getRowMap(), "A_RowMap");
+    // dumpTMAP(ARcp->getColMap(), "A_ColMap");
 
     // b, x
     auto xmap = ARcp->getDomainMap();
