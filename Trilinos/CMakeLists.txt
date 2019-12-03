@@ -37,16 +37,16 @@ target_link_libraries(Belos_test PRIVATE MPI::MPI_CXX)
 
 # copy the Belos_verify.py file to the build directory
 add_custom_command(
-  OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/Belos_verify.py
+  OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/Belos_test.py
   COMMAND ${CMAKE_COMMAND} -E copy
-  ${CMAKE_CURRENT_SOURCE_DIR}/Belos_verify.py
+  ${CMAKE_CURRENT_SOURCE_DIR}/Belos_test.py
   ${CMAKE_CURRENT_BINARY_DIR}
-  DEPENDS "${CMAKE_CURRENT_SOURCE_DIR}/Belos_verify.py")
+  DEPENDS "${CMAKE_CURRENT_SOURCE_DIR}/Belos_test.py")
 # Custom target for activate the custom command above
-add_custom_target(copy_Belos_verify DEPENDS ${CMAKE_CURRENT_BINARY_DIR}/Belos_verify.py)
-add_dependencies(Belos_test copy_Belos_verify)
+add_custom_target(copy_Belos_test DEPENDS ${CMAKE_CURRENT_BINARY_DIR}/Belos_test.py)
+add_dependencies(Belos_test copy_Belos_test)
 
-add_test(NAME Belos COMMAND python Belos_verify.py)
+add_test(NAME Belos COMMAND python Belos_test.py)
 set_tests_properties(Belos PROPERTIES PASS_REGULAR_EXPRESSION "Converged")
 
 add_executable(SubView_test SubView_test.cpp ${PROJECT_SOURCE_DIR}/Trilinos/TpetraUtil.cpp)

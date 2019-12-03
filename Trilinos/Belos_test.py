@@ -3,7 +3,10 @@ import os
 link="ftp://math.nist.gov/pub/MatrixMarket2/misc/cylshell/s1rmq4m1.mtx.gz"
 file = os.path.basename(link)
 print(file)
-os.system('wget '+link)
+if os.path.exists(file):
+    pass
+else:
+    os.system('wget '+link)
 os.system('gunzip -cd ./'+file+' > ./A_TCMAT.mtx')
 
 # 4 mpi rank, 3 thread
