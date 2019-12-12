@@ -50,12 +50,17 @@ Teuchos::RCP<TMAP> getTMAPFromGlobalIndexOnLocal(const std::vector<int> &gidOnLo
 }
 
 Teuchos::RCP<TMAP> getTMAPFromTwoBlockTMAP(const Teuchos::RCP<const TMAP> &map1, const Teuchos::RCP<const TMAP> &map2) {
+    // assumption: both map1 and map2 are contiguous and start from 0-indexbase
+    TEUCHOS_TEST_FOR_EXCEPTION(!map1->isContiguous(), std::invalid_argument, "map1 must be contiguous");
+    TEUCHOS_TEST_FOR_EXCEPTION(!map2->isContiguous(), std::invalid_argument, "map2 must be contiguous");
+
     auto gid1 = map1->getMyGlobalIndices();
     auto gid2 = map2->getMyGlobalIndices();
     const int localSize1 = map1->getNodeNumElements();
     const int localSize2 = map2->getNodeNumElements();
     const int globalSize1 = map1->getGlobalNumElements();
     const int globalSize2 = map2->getGlobalNumElements();
+
     std::vector<int> gidOnLocal(localSize1 + localSize2, 0);
     for (int i = 0; i < localSize1; i++) {
         gidOnLocal[i] = gid1[i];
@@ -63,6 +68,7 @@ Teuchos::RCP<TMAP> getTMAPFromTwoBlockTMAP(const Teuchos::RCP<const TMAP> &map1,
     for (int i = 0; i < localSize2; i++) {
         gidOnLocal[i + localSize1] = gid2[i] + map1->getGlobalNumElements();
     }
+
     auto commRcp = map1->getComm();
     auto map = Teuchos::rcp(new TMAP(globalSize1 + globalSize2, gidOnLocal.data(), gidOnLocal.size(), 0, commRcp));
     return map;

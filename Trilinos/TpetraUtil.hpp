@@ -150,9 +150,15 @@ Teuchos::RCP<TMAP> getTMAPFromLocalSize(const int &localSize, Teuchos::RCP<const
  */
 Teuchos::RCP<TMAP> getTMAPFromGlobalIndexOnLocal(const std::vector<int> &gidOnLocal, const int globalSize,
                                                  Teuchos::RCP<const TCOMM> &commRcp);
+
 /**
  * @brief create a map for vector with two blocks X=[X1;X2],
  * where X1, X2 are both partitioned with maps map1 and map2, respectively
+ *
+ * assuming both map1 and map2 are contiguous and start from 0-indexbase
+ * assuming vec1=[0,1,2 | 3,4,5], vec2=[a,b | c]
+ * newvec = [0,1,2|3,4,5 | a,b|c] (math order)
+ * newmap = [0,1,2,a,b | 3,4,5,c]
  *
  * @param map1
  * @param map2
