@@ -133,6 +133,7 @@ class ConstraintCollector {
      */
     int buildConstraintMatrixVector(Teuchos::RCP<const TMAP> &mobMapRcp, Teuchos::RCP<TCMAT> &DMatTransRcp,
                                     Teuchos::RCP<TV> &delta0VecRcp, Teuchos::RCP<TV> &gammaGuessRcp) const;
+
     int buildInvKappa(std::vector<double> &invKappa) const;
 
   private:

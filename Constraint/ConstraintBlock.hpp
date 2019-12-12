@@ -28,7 +28,7 @@
  */
 struct ConstraintBlock {
   public:
-    double phi0 = 0;                        ///< constraint initial value
+    double delta0 = 0;                      ///< constraint initial value
     double gamma = 0;                       ///< force magnitude, could be an initial guess
     int gidI = 0, gidJ = 0;                 ///< global ID of the two constrained objects
     int globalIndexI = 0, globalIndexJ = 0; ///< the global index of the two objects in mobility matrix
@@ -74,10 +74,10 @@ struct ConstraintBlock {
         : ConstraintBlock(phi0_, gamma_, gidI_, gidJ_, globalIndexI_, globalIndexJ_, normI_.data(), normJ_.data(),
                           posI_.data(), posJ_.data(), labI_.data(), labJ_.data(), oneSide_) {}
 
-    ConstraintBlock(double phi0_, double gamma_, int gidI_, int gidJ_, int globalIndexI_, int globalIndexJ_,
+    ConstraintBlock(double delta0_, double gamma_, int gidI_, int gidJ_, int globalIndexI_, int globalIndexJ_,
                     const double normI_[3], const double normJ_[3], const double posI_[3], const double posJ_[3],
                     const double labI_[3], const double labJ_[3], bool oneSide_ = false)
-        : phi0(phi0_), gamma(gamma_), gidI(gidI_), gidJ(gidJ_), globalIndexI(globalIndexI_),
+        : delta0(delta0_), gamma(gamma_), gidI(gidI_), gidJ(gidJ_), globalIndexI(globalIndexI_),
           globalIndexJ(globalIndexJ_), oneSide(oneSide_) {
         for (int d = 0; d < 3; d++) {
             normI[d] = normI_[d];

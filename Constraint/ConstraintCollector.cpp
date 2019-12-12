@@ -72,7 +72,7 @@ void ConstraintCollector::writePVTP(const std::string &folder, const std::string
 
     std::vector<IOHelper::FieldVTU> cellDataFields;
     cellDataFields.emplace_back(1, IOHelper::IOTYPE::Int32, "oneSide");
-    cellDataFields.emplace_back(1, IOHelper::IOTYPE::Float32, "phi0");
+    cellDataFields.emplace_back(1, IOHelper::IOTYPE::Float32, "delta0");
     cellDataFields.emplace_back(1, IOHelper::IOTYPE::Float32, "gamma");
     cellDataFields.emplace_back(1, IOHelper::IOTYPE::Float32, "kappa");
     cellDataFields.emplace_back(9, IOHelper::IOTYPE::Float32, "Stress");
@@ -117,7 +117,7 @@ void ConstraintCollector::writeVTP(const std::string &folder, const std::string 
 
     // cell data for ColBlock
     std::vector<int32_t> oneSide(cBlockNum);
-    std::vector<float> phi0(cBlockNum);
+    std::vector<float> delta0(cBlockNum);
     std::vector<float> gamma(cBlockNum);
     std::vector<float> kappa(cBlockNum);
     std::vector<float> Stress(9 * cBlockNum);
@@ -164,7 +164,7 @@ void ConstraintCollector::writeVTP(const std::string &folder, const std::string 
             normIJ[6 * cIndex + 5] = block.normJ[2];
             // cell data
             oneSide[cIndex] = block.oneSide ? 1 : 0;
-            phi0[cIndex] = block.phi0;
+            delta0[cIndex] = block.delta0;
             gamma[cIndex] = block.gamma;
             kappa[cIndex] = block.kappa;
             for (int kk = 0; kk < 9; kk++) {
@@ -200,7 +200,7 @@ void ConstraintCollector::writeVTP(const std::string &folder, const std::string 
     // cell data
     file << "<CellData Scalars=\"scalars\">\n";
     IOHelper::writeDataArrayBase64(oneSide, "oneSide", 1, file);
-    IOHelper::writeDataArrayBase64(phi0, "phi0", 1, file);
+    IOHelper::writeDataArrayBase64(delta0, "delta0", 1, file);
     IOHelper::writeDataArrayBase64(gamma, "gamma", 1, file);
     IOHelper::writeDataArrayBase64(kappa, "kappa", 1, file);
     IOHelper::writeDataArrayBase64(Stress, "Stress", 9, file);
@@ -218,7 +218,7 @@ void ConstraintCollector::dumpBlocks() const {
     for (const auto &blockQue : (*constraintPoolPtr)) {
         std::cout << blockQue.size() << " constraints in this queue" << std::endl;
         for (const auto &block : blockQue) {
-            std::cout << block.globalIndexI << " " << block.globalIndexJ << "  phi0:" << block.phi0 << std::endl;
+            std::cout << block.globalIndexI << " " << block.globalIndexJ << "  delta0:" << block.delta0 << std::endl;
         }
     }
 }
@@ -339,15 +339,29 @@ int ConstraintCollector::buildConstraintMatrixVector(Teuchos::RCP<const TMAP> &m
 
     // step 3 prepare the partitioned column map
     // Each process own some columns. In the map, processes share entries.
-    const int colIndexCount = rowPointers[localGammaSize];
-    std::vector<int> colMapIndex(colIndexCount);
+    // 3.1 column map has to cover the contiguous range of the mobility map locally owned
+    const int mobMinLID = mobMapRcp->getMinLocalIndex();
+    const int mobMaxLID = mobMapRcp->getMaxLocalIndex();
+    std::vector<int> colMapIndex(mobMaxLID - mobMinLID + 1);
 #pragma omp parallel for
-    for (int i = 0; i < colIndexCount; i++) {
-        colMapIndex[i] = columnIndices[i];
+    for (int i = mobMinLID; i < mobMaxLID; i++) {
+        colMapIndex[i - mobMinLID] = i;
     }
+    // this is the list of the columns that have nnz entries
+    // if the column index is out of [mobMinLID, mobMaxLID], add it to the map
+    const int colIndexCount = rowPointers[localGammaSize];
+    for (int i = 0; i < colIndexCount; i++) {
+        if (columnIndices[i] < mobMinLID || columnIndices[i] > mobMaxLID)
+            colMapIndex.push_back(columnIndices[i]);
+    }
+
     // sort and unique
     std::sort(colMapIndex.begin(), colMapIndex.end());
     colMapIndex.erase(std::unique(colMapIndex.begin(), colMapIndex.end()), colMapIndex.end());
+
+    for (auto &colId : colMapIndex) {
+        printf("%d,%d\n", commRcp->getRank(), colId);
+    }
 
     Teuchos::RCP<TMAP> colMapRcp = Teuchos::rcp(
         new TMAP(Teuchos::OrdinalTraits<int>::invalid(), colMapIndex.data(), colMapIndex.size(), 0, commRcp));
@@ -371,7 +385,7 @@ int ConstraintCollector::buildConstraintMatrixVector(Teuchos::RCP<const TMAP> &m
         const int cIndexBase = queThreadIndex[que];
         const int queSize = cQue.size();
         for (int j = 0; j < queSize; j++) {
-            delta0[cIndexBase + j] = cQue[j].phi0;
+            delta0[cIndexBase + j] = cQue[j].delta0;
         }
     }
 
