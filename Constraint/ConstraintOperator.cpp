@@ -20,8 +20,8 @@ ConstraintOperator::ConstraintOperator(Teuchos::RCP<TOP> &mobOp_, Teuchos::RCP<T
     buildBlockMaps();
 
     // initialize working multivectors, zero out
-    gammaForceRcp = Teuchos::rcp(new TMV(mobMapRcp, 2, true)); // two columns: Du gammac,  Db gammab
-    mobVelRcp = Teuchos::rcp(new TMV(mobMapRcp, 2, true));     // two columns: M Du gamma, M Db gammab
+    mobForceRcp = Teuchos::rcp(new TMV(mobMapRcp, 2, true)); // two columns: Du gammac,  Db gammab
+    mobVelRcp = Teuchos::rcp(new TMV(mobMapRcp, 2, true));   // two columns: M Du gamma, M Db gammab
     deltaUniRcp = Teuchos::rcp(new TMV(uniDuMatTransRcp->getRangeMap(), 2, true)); // two columns: DuT M Du, DuT M Db
     deltaBiRcp = Teuchos::rcp(new TMV(biDbMatTransRcp->getRangeMap(), 2, true));   // two columns: DbT M Du, DbT M Db
 }
@@ -39,19 +39,19 @@ void ConstraintOperator::apply(const TMV &X, TMV &Y, Teuchos::ETransp mode = Teu
     for (int i = 0; i < numVecs; i++) {
         auto XcolRcp = X.getVector(i);
         auto YcolRcp = Y.getVectorNonConst(i);
-        auto gammaUniBlock = X.offsetView(gammaUniBlockMapRcp, 0);
-        auto gammaBiBlock = X.offsetView(gammaBiBlockMapRcp, blockoffset);
-        auto deltaUniBlock = Y.offsetViewNonConst(gammaUniBlockMapRcp, 0);
-        auto deltaBiBlock = Y.offsetViewNonConst(gammaBiBlockMapRcp, blockoffset);
+        auto gammaUniBlock = XcolRcp->offsetView(gammaUniBlockMapRcp, 0);
+        auto gammaBiBlock = XcolRcp->offsetView(gammaBiBlockMapRcp, blockoffset);
+        auto deltaUniBlock = YcolRcp->offsetViewNonConst(gammaUniBlockMapRcp, 0);
+        auto deltaBiBlock = YcolRcp->offsetViewNonConst(gammaBiBlockMapRcp, blockoffset);
 
         // step 1, Du and Db multiply X, block by block
-        auto ftCol0 = gammaForceRcp->getVectorNonConst(0);
+        auto ftCol0 = mobForceRcp->getVectorNonConst(0);
         uniDuMatRcp->apply(*gammaUniBlock, *ftCol0); // Du gammac
-        auto ftCol1 = gammaForceRcp->getVectorNonConst(1);
+        auto ftCol1 = mobForceRcp->getVectorNonConst(1);
         biDbMatRcp->apply(*gammaBiBlock, *ftCol1); // Db gammab
 
-        // step 2, FT multiply mobility
-        mobOpRcp->apply(*gammaForceRcp, *mobVelRcp);
+        // step 2, Vel = Mobility * FT
+        mobOpRcp->apply(*mobForceRcp, *mobVelRcp);
 
         // step 3, Du^T and Db^T multiply velocity
         uniDuMatTransRcp->apply(*mobVelRcp, *deltaUniRcp);
@@ -69,6 +69,12 @@ void ConstraintOperator::apply(const TMV &X, TMV &Y, Teuchos::ETransp mode = Teu
         for (int k = 0; k < gammaBiSize; k++) {
             deltaBiPtr(k, 0) += invKappaDiagMat[k] * gammaBiPtr(k, 0);
         }
+
+        // step 5, Y = alpha * [deltaUniBlock; deltaBiBlock] + beta * Y
+        // 5.1 uni block
+        deltaUniBlock->update(alpha, *deltaUniRcp, beta);
+        // 5.2 bi block
+        deltaBiBlock->update(alpha, *deltaBiRcp, beta);
     }
 }
 
