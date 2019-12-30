@@ -16,6 +16,7 @@ BCQPSolver::BCQPSolver(const Teuchos::RCP<const TOP> &A_, const Teuchos::RCP<con
                                "map and b do not have the same Map.");
     TEUCHOS_TEST_FOR_EXCEPTION(!(mapRcp->isSameAs(*(ARcp->getDomainMap()))), std::invalid_argument,
                                "map and b do not have the same Map.");
+    setDefaultBounds();
 }
 
 BCQPSolver::BCQPSolver(int localSize, double diagonal) {

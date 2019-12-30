@@ -81,16 +81,15 @@ void ConstraintSolver::reset() {
 }
 
 void ConstraintSolver::solveConstraints() {
+    // solver
+    BCQPSolver solver(MOpRcp, qRcp);
 
     // the bound of BCQP. 0 for gammau, unbound for gammab.
-    Teuchos::RCP<TV> lbRcp = Teuchos::rcp(new TV(qRcp->getMap(), false));
-    lbRcp->putScalar(-1e10);
+    Teuchos::RCP<TV> lbRcp = solver.getLowerBound();
     auto lbuRcp = lbRcp->offsetViewNonConst(gammauRcp->getMap(), 0);
     lbuRcp->putScalar(0);
 
-    // solver
-    BCQPSolver solver(MOpRcp, qRcp);
-    solver.setLowerBound(lbRcp);
+    // solve
     IteHistory history;
     solver.solveBBPGD(gammaRcp, res, maxIte, history);
 }

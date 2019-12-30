@@ -244,7 +244,7 @@ int ConstraintCollector::buildConstraintMatrixVector(Teuchos::RCP<const TMAP> &m
     Kokkos::View<size_t *> rowPointers("rowPointers", localGammaSize + 1); // last entry is the total nnz in this matrix
     rowPointers[0] = 0;
 
-    std::vector<int> colIndexPool(cQueNum); // The beginning index in crs columnIndices for each constraint queue
+    std::vector<int> colIndexPool(cQueNum + 1, 0); // The beginning index in crs columnIndices for each constraint queue
 
     int rowPointerIndex = 0;
     int colIndexCount = 0;
@@ -257,7 +257,7 @@ int ConstraintCollector::buildConstraintMatrixVector(Teuchos::RCP<const TMAP> &m
             rowPointers[rowPointerIndex] = rowPointers[rowPointerIndex - 1] + cBlockNNZ;
             colIndexCount += cBlockNNZ;
         }
-        colIndexPool[i] = colIndexCount;
+        colIndexPool[i + 1] = colIndexCount;
     }
 
     if (rowPointerIndex != localGammaSize) {
@@ -331,7 +331,7 @@ int ConstraintCollector::buildConstraintMatrixVector(Teuchos::RCP<const TMAP> &m
     const int mobMaxLID = mobMapRcp->getMaxLocalIndex();
     std::vector<int> colMapIndex(mobMaxLID - mobMinLID + 1);
 #pragma omp parallel for
-    for (int i = mobMinLID; i < mobMaxLID; i++) {
+    for (int i = mobMinLID; i <= mobMaxLID; i++) {
         colMapIndex[i - mobMinLID] = i;
     }
     // this is the list of the columns that have nnz entries
@@ -344,11 +344,13 @@ int ConstraintCollector::buildConstraintMatrixVector(Teuchos::RCP<const TMAP> &m
 
     // sort and unique
     std::sort(colMapIndex.begin(), colMapIndex.end());
-    colMapIndex.erase(std::unique(colMapIndex.begin(), colMapIndex.end()), colMapIndex.end());
 
-    for (auto &colId : colMapIndex) {
-        printf("%d,%d\n", commRcp->getRank(), colId);
-    }
+    auto ip = std::unique(colMapIndex.begin(), colMapIndex.end());
+    colMapIndex.resize(std::distance(colMapIndex.begin(), ip));
+
+    // for (auto &colId : colMapIndex) {
+    //     printf("%d,%d\n", commRcp->getRank(), colId);
+    // }
 
     Teuchos::RCP<TMAP> colMapRcp = Teuchos::rcp(
         new TMAP(Teuchos::OrdinalTraits<int>::invalid(), colMapIndex.data(), colMapIndex.size(), 0, commRcp));

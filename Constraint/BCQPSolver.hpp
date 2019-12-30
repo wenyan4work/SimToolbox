@@ -23,7 +23,7 @@
 using IteHistory = std::deque<std::array<double, 6>>; ///< recording iteration history
 
 /**
- * @brief the CP problem \f$Ax+b\f$ solver class
+ * @brief the CP problem \f$Mx+q\f$ solver class
  *
  */
 class BCQPSolver {
@@ -31,10 +31,10 @@ class BCQPSolver {
     /**
      * @brief Construct a new CPSolver object with matrix
      *
-     * @param A_ the linear operator \f$A\f$
-     * @param b_ the vector \f$b\f$
+     * @param M_ the linear operator \f$M\f$
+     * @param q_ the vector \f$q\f$
      */
-    BCQPSolver(const Teuchos::RCP<const TOP> &ARcp, const Teuchos::RCP<const TV> &bRcp);
+    BCQPSolver(const Teuchos::RCP<const TOP> &MRcp, const Teuchos::RCP<const TV> &qRcp);
 
     /**
      * @brief Construct a new CPSolver object generating \f$A,b\f$ for internal test
@@ -63,6 +63,14 @@ class BCQPSolver {
         ubSet = true;
         ubRcp = ubRcp_;
     };
+
+    Teuchos::RCP<TV> getLowerBound(){
+      return lbRcp;
+    }
+
+    Teuchos::RCP<TV> getUpperBound(){
+      return ubRcp;
+    }
 
     /**
      * @brief call this before any solve() functions
@@ -107,8 +115,8 @@ class BCQPSolver {
     Teuchos::RCP<const TV> bRcp;       ///< vector \f$b\f$
     Teuchos::RCP<const TMAP> mapRcp;   ///< map for the distribution of xsolRcp, bRcp, and ARcp->rowMap
     Teuchos::RCP<const TCOMM> commRcp; ///< Teuchos::MpiComm
-    Teuchos::RCP<const TV> lbRcp;      ///< lower bound
-    Teuchos::RCP<const TV> ubRcp;      ///< upper bound
+    Teuchos::RCP<TV> lbRcp;      ///< lower bound
+    Teuchos::RCP<TV> ubRcp;      ///< upper bound
     bool lbSet = false;
     bool ubSet = false;
 
