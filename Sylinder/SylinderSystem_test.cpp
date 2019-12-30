@@ -6,9 +6,9 @@ void test(int argc, char **argv) {
 
     runConfig.simBoxLow[0] = runConfig.simBoxLow[1] = runConfig.simBoxLow[2] = 0;
     runConfig.initBoxLow[0] = runConfig.initBoxLow[1] = runConfig.initBoxLow[2] = 0;
-    runConfig.simBoxHigh[0] = runConfig.simBoxHigh[1] = runConfig.simBoxHigh[2] = 25.0;
-    runConfig.initBoxHigh[0] = runConfig.initBoxHigh[1] = runConfig.initBoxHigh[2] = 25.0;
-    runConfig.sylinderNumber = 2048;
+    runConfig.simBoxHigh[0] = runConfig.simBoxHigh[1] = runConfig.simBoxHigh[2] = 20.0;
+    runConfig.initBoxHigh[0] = runConfig.initBoxHigh[1] = runConfig.initBoxHigh[2] = 20.0;
+    runConfig.sylinderNumber = 1024;
     runConfig.wallLowZ = true;
     runConfig.wallHighZ = true;
     runConfig.dt = 0.001;

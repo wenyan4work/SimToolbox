@@ -12,8 +12,7 @@ set_tests_properties(GeoUtil PROPERTIES PASS_REGULAR_EXPRESSION
 
 add_executable(SortUtil_test SortUtil_test.cpp)
 target_compile_options(SortUtil_test PRIVATE ${OpenMP_CXX_FLAGS})
-target_link_libraries(SortUtil_test PRIVATE OpenMP::OpenMP_CXX)
-target_link_libraries(SortUtil_test PRIVATE MPI::MPI_CXX)
+target_link_libraries(SortUtil_test PRIVATE OpenMP::OpenMP_CXX MPI::MPI_CXX)
 add_test(NAME SortUtil COMMAND SortUtil_test)
 set_tests_properties(SortUtil PROPERTIES PASS_REGULAR_EXPRESSION
                                          "TestPassed;All ok")

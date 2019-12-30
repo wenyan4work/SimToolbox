@@ -54,11 +54,9 @@ target_compile_options(SubView_test PRIVATE ${OpenMP_CXX_FLAGS})
 target_include_directories(
   SubView_test PRIVATE ${PROJECT_SOURCE_DIR} ${Trilinos_INCLUDE_DIRS}
                        ${TRNG_INCLUDE_DIR})
-target_link_libraries(SubView_test PRIVATE ${Trilinos_LIBRARIES})
-target_link_libraries(SubView_test PRIVATE ${Trilinos_TPL_LIBRARIES})
-target_link_libraries(SubView_test PRIVATE ${TRNG_LIBRARY})
-target_link_libraries(SubView_test PRIVATE OpenMP::OpenMP_CXX)
-target_link_libraries(SubView_test PRIVATE MPI::MPI_CXX)
+target_link_libraries(
+  SubView_test PRIVATE ${Trilinos_LIBRARIES} ${Trilinos_TPL_LIBRARIES}
+                       ${TRNG_LIBRARY} OpenMP::OpenMP_CXX MPI::MPI_CXX)
 add_test(NAME SubView COMMAND SubView_test)
 
 add_executable(TMAP_test TMAP_test.cpp
@@ -67,9 +65,7 @@ target_compile_options(TMAP_test PRIVATE ${OpenMP_CXX_FLAGS})
 target_include_directories(
   TMAP_test PRIVATE ${PROJECT_SOURCE_DIR} ${Trilinos_INCLUDE_DIRS}
                     ${TRNG_INCLUDE_DIR})
-target_link_libraries(TMAP_test PRIVATE ${Trilinos_LIBRARIES})
-target_link_libraries(TMAP_test PRIVATE ${Trilinos_TPL_LIBRARIES})
-target_link_libraries(TMAP_test PRIVATE ${TRNG_LIBRARY})
-target_link_libraries(TMAP_test PRIVATE OpenMP::OpenMP_CXX)
-target_link_libraries(TMAP_test PRIVATE MPI::MPI_CXX)
+target_link_libraries(
+  TMAP_test PRIVATE ${Trilinos_LIBRARIES} ${Trilinos_TPL_LIBRARIES}
+                    ${TRNG_LIBRARY} OpenMP::OpenMP_CXX MPI::MPI_CXX)
 add_test(NAME TMAP COMMAND mpirun -n 4 ./TMAP_test)

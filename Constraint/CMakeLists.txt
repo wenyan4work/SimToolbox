@@ -7,12 +7,10 @@ target_compile_options(BCQPSolver_test PRIVATE ${OpenMP_CXX_FLAGS})
 target_include_directories(
   BCQPSolver_test PRIVATE ${PROJECT_SOURCE_DIR} ${Trilinos_INCLUDE_DIRS}
                           ${TRNG_INCLUDE_DIR})
-target_link_libraries(BCQPSolver_test PRIVATE ${Trilinos_LIBRARIES})
-target_link_libraries(BCQPSolver_test PRIVATE ${Trilinos_TPL_LIBRARIES})
-target_link_libraries(BCQPSolver_test PRIVATE ${TRNG_LIBRARY})
-target_link_libraries(BCQPSolver_test PRIVATE OpenMP::OpenMP_CXX)
-target_link_libraries(BCQPSolver_test PRIVATE MPI::MPI_CXX)
-add_test(NAME BCQPSolver COMMAND BCQPSolver_test)
+target_link_libraries(
+  BCQPSolver_test PRIVATE ${Trilinos_LIBRARIES} ${Trilinos_TPL_LIBRARIES}
+                          ${TRNG_LIBRARY} OpenMP::OpenMP_CXX MPI::MPI_CXX)
+add_test(NAME BCQPSolver COMMAND python BCQPSolver_verify.py)
 
 # copy the BCQPverify.py file to the build directory
 add_custom_command(

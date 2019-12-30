@@ -7,9 +7,7 @@ target_compile_options(CPSolver_test PRIVATE ${OpenMP_CXX_FLAGS})
 target_include_directories(
   CPSolver_test PRIVATE ${PROJECT_SOURCE_DIR} ${Trilinos_INCLUDE_DIRS}
                         ${TRNG_INCLUDE_DIR})
-target_link_libraries(CPSolver_test PRIVATE ${Trilinos_LIBRARIES})
-target_link_libraries(CPSolver_test PRIVATE ${Trilinos_TPL_LIBRARIES})
-target_link_libraries(CPSolver_test PRIVATE ${TRNG_LIBRARY})
-target_link_libraries(CPSolver_test PRIVATE OpenMP::OpenMP_CXX)
-target_link_libraries(CPSolver_test PRIVATE MPI::MPI_CXX)
+target_link_libraries(
+  CPSolver_test PRIVATE ${Trilinos_LIBRARIES} ${Trilinos_TPL_LIBRARIES}
+                        ${TRNG_LIBRARY} OpenMP::OpenMP_CXX MPI::MPI_CXX)
 add_test(NAME CPSolver COMMAND CPSolver_test)

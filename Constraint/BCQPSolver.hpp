@@ -23,7 +23,7 @@
 using IteHistory = std::deque<std::array<double, 6>>; ///< recording iteration history
 
 /**
- * @brief the CP problem \f$Mx+q\f$ solver class
+ * @brief the CP problem \f$Ax+b\f$ solver class
  *
  */
 class BCQPSolver {
@@ -31,10 +31,10 @@ class BCQPSolver {
     /**
      * @brief Construct a new CPSolver object with matrix
      *
-     * @param M_ the linear operator \f$M\f$
-     * @param q_ the vector \f$q\f$
+     * @param A_ the linear operator \f$A\f$
+     * @param b_ the vector \f$b\f$
      */
-    BCQPSolver(const Teuchos::RCP<const TOP> &MRcp, const Teuchos::RCP<const TV> &qRcp);
+    BCQPSolver(const Teuchos::RCP<const TOP> &ARcp, const Teuchos::RCP<const TV> &bRcp);
 
     /**
      * @brief Construct a new CPSolver object generating \f$A,b\f$ for internal test
