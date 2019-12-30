@@ -26,9 +26,7 @@ ConstraintOperator::ConstraintOperator(Teuchos::RCP<TOP> &mobOp_, Teuchos::RCP<T
     deltaBiRcp = Teuchos::rcp(new TMV(biDbMatTransRcp->getRangeMap(), 2, true));   // two columns: DbT M Du, DbT M Db
 }
 
-void ConstraintOperator::apply(const TMV &X, TMV &Y, Teuchos::ETransp mode = Teuchos::NO_TRANS,
-                               scalar_type alpha = Teuchos::ScalarTraits<scalar_type>::one(),
-                               scalar_type beta = Teuchos::ScalarTraits<scalar_type>::zero()) const {
+void ConstraintOperator::apply(const TMV &X, TMV &Y, Teuchos::ETransp mode, scalar_type alpha, scalar_type beta) const {
     TEUCHOS_TEST_FOR_EXCEPTION(X.getNumVectors() != Y.getNumVectors(), std::invalid_argument,
                                "X and Y do not have the same numbers of vectors (columns).");
     TEUCHOS_TEST_FOR_EXCEPTION(!X.getMap()->isSameAs(*Y.getMap()), std::invalid_argument,

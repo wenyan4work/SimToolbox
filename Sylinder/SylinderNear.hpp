@@ -13,8 +13,8 @@
 
 #include "Sylinder.hpp"
 
-#include "Collision/CollisionCollector.hpp"
 #include "Collision/DCPQuery.hpp"
+#include "Constraint/ConstraintCollector.hpp"
 #include "FDPS/particle_simulator.hpp"
 #include "Util/EigenDef.hpp"
 
@@ -150,7 +150,7 @@ class CalcSylinderNearForce {
     const bool usePotential = false; ///< switch of using repulsive potential instead of constraints
 
   public:
-    std::shared_ptr<CollisionBlockPool> colPoolPtr; ///< shared object for collecting collision constraints
+    std::shared_ptr<ConstraintBlockPool> colPoolPtr; ///< shared object for collecting collision constraints
 
     /**
      * @brief Construct a new CalcSylinderNearForce object
@@ -163,7 +163,7 @@ class CalcSylinderNearForce {
      *
      * @param colPoolPtr_ the CollisionBlockPool object to write to
      */
-    CalcSylinderNearForce(std::shared_ptr<CollisionBlockPool> &colPoolPtr_, const bool usePotential_ = false)
+    CalcSylinderNearForce(std::shared_ptr<ConstraintBlockPool> &colPoolPtr_, const bool usePotential_ = false)
         : usePotential(usePotential_) {
 #ifdef DEBUG
         std::cout << "stress recoder size:" << colPoolPtr_->size() << std::endl;

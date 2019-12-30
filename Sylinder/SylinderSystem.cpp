@@ -34,8 +34,9 @@ void SylinderSystem::initialize(const SylinderConfig &runConfig_, const std::str
 
     // TRNG pool must be initialized after mpi is initialized
     rngPoolPtr = std::make_shared<TRngPool>(runConfig.rngSeed);
-    collisionSolverPtr = std::make_shared<CollisionSolver>();
-    collisionCollectorPtr = std::make_shared<CollisionCollector>();
+    constraintSolverPtr = std::make_shared<ConstraintSolver>();
+    uniConstraintPtr = std::make_shared<ConstraintCollector>();
+    biConstraintPtr = std::make_shared<ConstraintCollector>();
 
     dinfo.initialize(); // init DomainInfo
     setDomainInfo();
@@ -77,7 +78,7 @@ void SylinderSystem::initialize(const SylinderConfig &runConfig_, const std::str
         }
         for (int i = 0; i < 100; i++) {
             prepareStep();
-            calcVelocityKnown();
+            calcVelocityNonCon();
             resolveCollision();
             stepEuler();
         }
@@ -314,10 +315,10 @@ void SylinderSystem::writeVTK(const std::string &baseFolder) {
     const int size = commRcp->getSize();
     Sylinder::writeVTP<PS::ParticleSystem<Sylinder>>(sylinderContainer, sylinderContainer.getNumberOfParticleLocal(),
                                                      baseFolder, std::to_string(snapID), rank);
-    collisionCollectorPtr->writeVTP(baseFolder, std::to_string(snapID), rank);
+    uniConstraintPtr->writeVTP(baseFolder, "Col", std::to_string(snapID), rank);
     if (rank == 0) {
         Sylinder::writePVTP(baseFolder, std::to_string(snapID), size); // write parallel head
-        collisionCollectorPtr->writePVTP(baseFolder, std::to_string(snapID), size);
+        uniConstraintPtr->writePVTP(baseFolder, "Col", std::to_string(snapID), size);
     }
 }
 
@@ -532,26 +533,27 @@ void SylinderSystem::calcMobOperator() {
     mobilityOperatorRcp = mobilityMatrixRcp;
 }
 
-void SylinderSystem::calcVelocityKnown() {
+void SylinderSystem::calcVelocityNonCon() {
     // allocate and zero out
-    // velocityKnown = velocityBrown + velocityNonBrown + mobility * forceNonBrown
-    velocityKnownRcp = Teuchos::rcp<TV>(new TV(sylinderMobilityMapRcp, true));
-    const int nLocal = sylinderContainer.getNumberOfParticleLocal();
-    TEUCHOS_ASSERT(nLocal * 6 == velocityKnownRcp->getLocalLength());
+    // velocityNonCon = velocityBrown + velocityPartNonBrown + mobility * forcePartNonBrown
+    velocityNonConRcp = Teuchos::rcp<TV>(new TV(sylinderMobilityMapRcp, true));
 
-    if (!forceNonBrownRcp.is_null()) {
+    const int nLocal = sylinderContainer.getNumberOfParticleLocal();
+    TEUCHOS_ASSERT(nLocal * 6 == velocityNonConRcp->getLocalLength());
+
+    if (!forcePartNonBrownRcp.is_null()) {
         TEUCHOS_ASSERT(!mobilityOperatorRcp.is_null());
-        mobilityOperatorRcp->apply(*forceNonBrownRcp, *velocityKnownRcp);
+        mobilityOperatorRcp->apply(*forcePartNonBrownRcp, *velocityNonConRcp);
     }
 
     if (!velocityNonBrownRcp.is_null()) {
-        velocityKnownRcp->update(1.0, *velocityNonBrownRcp, 1.0);
+        velocityNonConRcp->update(1.0, *velocityNonBrownRcp, 1.0);
     }
 
     // write back total non Brownian velocity
     // combine and sync the velNonB set in two places
-    auto velPtr = velocityKnownRcp->getLocalView<Kokkos::HostSpace>();
-    velocityKnownRcp->modify<Kokkos::HostSpace>();
+    auto velPtr = velocityNonConRcp->getLocalView<Kokkos::HostSpace>();
+    velocityNonConRcp->modify<Kokkos::HostSpace>();
 
 #pragma omp parallel for
     for (int i = 0; i < nLocal; i++) {
@@ -573,7 +575,7 @@ void SylinderSystem::calcVelocityKnown() {
     }
 
     if (!velocityBrownRcp.is_null()) {
-        velocityKnownRcp->update(1.0, *velocityBrownRcp, 1.0);
+        velocityNonConRcp->update(1.0, *velocityBrownRcp, 1.0);
     }
 }
 
@@ -626,16 +628,18 @@ void SylinderSystem::resolveCollision() {
     {
         Teuchos::TimeMonitor mon(*solveTimer);
         const double buffer = 0;
-        collisionSolverPtr->setup(*(collisionCollectorPtr->collisionPoolPtr), sylinderMobilityMapRcp, runConfig.dt,
-                                  buffer);
-        collisionSolverPtr->setControlLCP(runConfig.colResTol, runConfig.colMaxIte, runConfig.colNewtonRefine);
-        collisionSolverPtr->solveCollision(mobilityOperatorRcp, velocityKnownRcp);
-        collisionSolverPtr->writebackGamma(*(collisionCollectorPtr->collisionPoolPtr));
+        mobilityOperatorRcp = mobilityMatrixRcp;
+        constraintSolverPtr->setup(*uniConstraintPtr, *biConstraintPtr, mobilityOperatorRcp, velocityNonConRcp, runConfig.dt);
+        constraintSolverPtr->setControlParams(runConfig.colResTol, runConfig.colMaxIte);
+        constraintSolverPtr->solveConstraints();
+        constraintSolverPtr->writebackGamma();
     }
 
     // save results
-    forceColRcp = collisionSolverPtr->getForceCol();
-    velocityColRcp = collisionSolverPtr->getVelocityCol();
+    forceUniRcp = constraintSolverPtr->getForceUni();
+    velocityUniRcp = constraintSolverPtr->getVelocityUni();
+    forceBiRcp = constraintSolverPtr->getForceBi();
+    velocityBiRcp = constraintSolverPtr->getVelocityBi();
 
     saveVelocityCollision();
 }
@@ -679,7 +683,8 @@ void SylinderSystem::prepareStep() {
 
     calcMobOperator();
 
-    forceNonBrownRcp.reset();
+    forcePartNonBrownRcp.reset();
+    velocityPartNonBrownRcp.reset();
     velocityNonBrownRcp.reset();
     velocityBrownRcp.reset();
 }
@@ -688,14 +693,14 @@ void SylinderSystem::setForceNonBrown(const std::vector<double> &forceNonBrown) 
     const int nLocal = sylinderContainer.getNumberOfParticleLocal();
     TEUCHOS_ASSERT(forceNonBrown.size() == 6 * nLocal);
     TEUCHOS_ASSERT(sylinderMobilityMapRcp->getNodeNumElements() == 6 * nLocal);
-    forceNonBrownRcp = getTVFromVector(forceNonBrown, commRcp);
+    forcePartNonBrownRcp = getTVFromVector(forceNonBrown, commRcp);
 }
 
 void SylinderSystem::setVelocityNonBrown(const std::vector<double> &velNonBrown) {
     const int nLocal = sylinderContainer.getNumberOfParticleLocal();
     TEUCHOS_ASSERT(velNonBrown.size() == 6 * nLocal);
     TEUCHOS_ASSERT(sylinderMobilityMapRcp->getNodeNumElements() == 6 * nLocal);
-    velocityNonBrownRcp = getTVFromVector(velNonBrown, commRcp);
+    velocityPartNonBrownRcp = getTVFromVector(velNonBrown, commRcp);
 }
 
 void SylinderSystem::runStep() {
@@ -704,7 +709,7 @@ void SylinderSystem::runStep() {
         calcVelocityBrown();
     }
 
-    calcVelocityKnown(); // velocityKnown = velocityBrown + velocityNonBrown + mobility * forceNonBrown
+    calcVelocityNonCon(); // velocityKnown = velocityBrown + velocityNonBrown + mobility * forceNonBrown
 
     resolveCollision();
 
@@ -719,10 +724,10 @@ void SylinderSystem::runStep() {
 }
 
 void SylinderSystem::saveVelocityCollision() {
-    forceColRcp = collisionSolverPtr->getForceCol();
-    velocityColRcp = collisionSolverPtr->getVelocityCol();
-    auto velocityPtr = velocityColRcp->getLocalView<Kokkos::HostSpace>();
-    velocityColRcp->modify<Kokkos::HostSpace>();
+    forceUniRcp = constraintSolverPtr->getForceUni();
+    velocityUniRcp = constraintSolverPtr->getVelocityUni();
+    auto velocityPtr = velocityUniRcp->getLocalView<Kokkos::HostSpace>();
+    velocityUniRcp->modify<Kokkos::HostSpace>();
 
     const int sylinderLocalNumber = sylinderContainer.getNumberOfParticleLocal();
     TEUCHOS_ASSERT(velocityPtr.dimension_0() == sylinderLocalNumber * 6);
@@ -813,7 +818,7 @@ void SylinderSystem::calcVelocityBrown() {
 }
 
 void SylinderSystem::collectWallCollision() {
-    auto collisionPoolPtr = collisionCollectorPtr->collisionPoolPtr; // shared_ptr
+    auto collisionPoolPtr = uniConstraintPtr->constraintPoolPtr; // shared_ptr
     const int nThreads = collisionPoolPtr->size();
     const int nLocal = sylinderContainer.getNumberOfParticleLocal();
 
@@ -910,10 +915,10 @@ void SylinderSystem::collectWallCollision() {
 }
 
 void SylinderSystem::collectPairCollision() {
-    auto &collector = *collisionCollectorPtr;
+    auto &collector = *uniConstraintPtr;
     collector.clear();
 
-    CalcSylinderNearForce calcColFtr(collisionCollectorPtr->collisionPoolPtr);
+    CalcSylinderNearForce calcColFtr(uniConstraintPtr->constraintPoolPtr);
 
     TEUCHOS_ASSERT(treeSylinderNearPtr);
     const int nLocal = sylinderContainer.getNumberOfParticleLocal();
@@ -994,7 +999,7 @@ void SylinderSystem::applyBoxBC() { sylinderContainer.adjustPositionIntoRootDoma
 void SylinderSystem::calcColStress() {
 
     Emat3 meanStress = Emat3::Zero();
-    collisionCollectorPtr->computeCollisionStress(meanStress, false);
+    uniConstraintPtr->sumLocalConstraintStress(meanStress, false);
 
     // scale to nkBT
     const double scaleFactor = 1 / (sylinderMapRcp->getGlobalNumElements() * runConfig.KBT);

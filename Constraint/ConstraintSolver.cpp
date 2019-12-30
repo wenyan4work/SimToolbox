@@ -17,8 +17,8 @@ void ConstraintSolver::setup(ConstraintCollector &uniConstraints_, ConstraintCol
     biConstraints.buildInvKappa(invKappa);
     conOpRcp = Teuchos::rcp(new ConstraintOperator(mobOpRcp, DuMatTransRcp, DbMatTransRcp, invKappa));
 
-    // assembled non-block vectors
-    gammaRcp = compositeVectors(gammauRcp, gammabRcp);
+    // // assembled non-block vectors
+    // gammaRcp = compositeVectors(gammauRcp, gammabRcp);
 }
 
 void ConstraintSolver::reset() {
@@ -52,3 +52,10 @@ void ConstraintSolver::reset() {
     deltancbRcp.reset();   ///< delta_nc,b = Db^Trans vel_nc,b
     invKappa.clear();
 }
+    void ConstraintSolver::solveConstraints(){
+        
+    }
+
+    void ConstraintSolver::writebackGamma(){
+
+    }

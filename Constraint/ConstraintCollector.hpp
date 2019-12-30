@@ -14,7 +14,6 @@
 #include "ConstraintBlock.hpp"
 
 #include "Trilinos/TpetraUtil.hpp"
-#include "Util/EigenDef.hpp"
 #include "Util/IOHelper.hpp"
 
 #include <algorithm>
@@ -44,7 +43,7 @@ class ConstraintCollector {
     ConstraintCollector();
 
     /**
-     * @brief Construct a new Constraint Collector object
+     * @brief Default copy
      *
      * @param obj
      */
@@ -52,6 +51,11 @@ class ConstraintCollector {
     ConstraintCollector(ConstraintCollector &&obj) = default;
     ConstraintCollector &operator=(const ConstraintCollector &obj) = default;
     ConstraintCollector &operator=(ConstraintCollector &&obj) = default;
+
+    /**
+     * @brief Destroy the ConstraintCollector object
+     *
+     */
     ~ConstraintCollector() = default;
 
     /**
@@ -134,9 +138,30 @@ class ConstraintCollector {
     int buildConstraintMatrixVector(Teuchos::RCP<const TMAP> &mobMapRcp, Teuchos::RCP<TCMAT> &DMatTransRcp,
                                     Teuchos::RCP<TV> &delta0VecRcp, Teuchos::RCP<TV> &gammaGuessRcp) const;
 
+    /**
+     * @brief build the K^{-1} diagonal matrix
+     *
+     * @param invKappa
+     * @return int  error code (future)
+     */
     int buildInvKappa(std::vector<double> &invKappa) const;
 
-  private:
+    /**
+     * @brief build the index of constraints in the ConstraintPool
+     * 
+     * @param cQueSize size of each queue
+     * @param cQueIndex index of queue
+     * @return int error code (future)
+     */
+    int buildConIndex(std::vector<int> & cQueSize, std::vector<int>& cQueIndex) const;
+
+    /**
+     * @brief write back the solution gamma to the blocks
+     * 
+     * @param gammaRcp solution
+     * @return int error code (future)
+     */
+    int writeBackGamma(Teuchos::RCP<const TV> &gammaRcp);
 };
 
 #endif

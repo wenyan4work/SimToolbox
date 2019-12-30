@@ -41,7 +41,7 @@ void testFixedPair() {
     Evec3 Q1(2, 2 * sqrt(3), 1);
 
     CalcSylinderNearForce calc;
-    calc.colPoolPtr = std::make_shared<CollisionBlockPool>();
+    calc.colPoolPtr = std::make_shared<ConstraintBlockPool>();
     calc.colPoolPtr->resize(1);
 
     std::vector<SylinderNearEP> sylinderP(1);
@@ -115,7 +115,7 @@ void testParallel() {
     Evec3 Q1(2.005685087440173, 1.462109203504082, 1.4999983414464);
 
     CalcSylinderNearForce calc;
-    calc.colPoolPtr = std::make_shared<CollisionBlockPool>();
+    calc.colPoolPtr = std::make_shared<ConstraintBlockPool>();
     calc.colPoolPtr->resize(1);
 
     std::vector<SylinderNearEP> sylinderP(1);

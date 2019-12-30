@@ -53,7 +53,6 @@ class ConstraintSolver {
      *
      * @param res_ iteration residual
      * @param maxIte_ max iterations
-     * @param newton_ newton refinement flag
      */
     void setControlParams(double res_, int maxIte_) {
         res = res_;
@@ -68,8 +67,8 @@ class ConstraintSolver {
      * @param objMobMapRcp_
      * @param dt_
      */
-    void setup(ConstraintCollector &uniConstraints_, ConstraintCollector &biConstraints_, Teuchos::RCP<TOP> &mobOpRcp_,
-               Teuchos::RCP<TV> &velncRcp_, double dt_);
+    void setup(ConstraintCollector &uniConstraints_, ConstraintCollector &biConstraints_, //
+               Teuchos::RCP<TOP> &mobOpRcp_, Teuchos::RCP<TV> &velncRcp_, double dt_);
 
     /**
      * @brief solve the constraint BCQP problem
@@ -78,10 +77,15 @@ class ConstraintSolver {
     void solveConstraints();
 
     /**
-     * @brief write the solution constraint force magnitude back to the ColliisonBlockPool
+     * @brief write the solution constraint force magnitude back to uniConstraints and biConstraints
      *
      */
-    void writebackGamma(ConstraintBlockPool &constraint_);
+    void writebackGamma();
+
+    Teuchos::RCP<TV> getForceUni() const { return forceuRcp; }
+    Teuchos::RCP<TV> getVelocityUni() const { return veluRcp; }
+    Teuchos::RCP<TV> getForceBi() const { return forcebRcp; }
+    Teuchos::RCP<TV> getVelocityBi() const { return velbRcp; }
 
   private:
     double dt;  ///< timestep size
@@ -99,11 +103,12 @@ class ConstraintSolver {
     Teuchos::RCP<TV> velbRcp;           ///< velocity vec, 6 dof per obj. due to bilateral constraints
 
     // unknown constraint force magnitude
-    Teuchos::RCP<TV> gammaRcp;      ///< the unknown constraint force magnitude gamma
-    Teuchos::RCP<TV> gammauRcp;     ///< the unknown unilateral constraint
-    Teuchos::RCP<TV> gammabRcp;     ///< the unknown bilateral constraint
+    Teuchos::RCP<const TMAP> gammaMapRcp; ///< gamma map. gamma = [gammau; gammab]
+    Teuchos::RCP<TV> gammaRcp;            ///< the unknown constraint force magnitude gamma
+    Teuchos::RCP<TV> gammauRcp;           ///< the unknown unilateral constraint
+    Teuchos::RCP<TV> gammabRcp;           ///< the unknown bilateral constraint
 
-    // non-block vectors and operators
+    // composite vectors and operators
     Teuchos::RCP<TOP> conOpRcp;  ///< the operator
     Teuchos::RCP<TV> velncRcp;   ///< the non-constraint velocity vel_nc
     Teuchos::RCP<TV> delta0Rcp;  ///< the current (geometric) delta vector delta_0 = [delta_0u ; delta_0b]
@@ -121,19 +126,11 @@ class ConstraintSolver {
     std::vector<double> invKappa;      ///< inverse of spring constant kappa
 
     /**
-     * @brief setup the constant \f$b\f$ vector in BCQP
+     * @brief setup the constant \f$\delta\f$ vector in BCQP
      *
      */
-    void setupBVec();
+    void setupDeltaVec();
 
-    /**
-     * @brief build a vector X with block vectors: X=[X1; X2]
-     *
-     * @param vec1Rcp
-     * @param vec2Rcp
-     * @return Teuchos::RCP<TV>
-     */
-    Teuchos::RCP<TV> compositeVectors(Teuchos::RCP<TV> &vec1Rcp, Teuchos::RCP<TV> &vec2Rcp) const;
 };
 
 #endif
