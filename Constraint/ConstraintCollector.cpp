@@ -421,7 +421,7 @@ int ConstraintCollector::buildConIndex(std::vector<int> &cQueSize, std::vector<i
     return 0;
 }
 
-int ConstraintCollector::writeBackGamma(Teuchos::RCP<const TV> &gammaRcp) {
+int ConstraintCollector::writeBackGamma(const Teuchos::RCP<const TV> &gammaRcp) {
     auto &cPool = *constraintPoolPtr; // the constraint pool
     const int cQueNum = cPool.size();
 

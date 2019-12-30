@@ -74,6 +74,18 @@ Teuchos::RCP<TMAP> getTMAPFromTwoBlockTMAP(const Teuchos::RCP<const TMAP> &map1,
     return map;
 }
 
+Teuchos::RCP<TV> getTVFromTwoBlockTV(const Teuchos::RCP<const TV> &vec1, const Teuchos::RCP<const TV> &vec2) {
+    const auto &map1 = vec1->getMap();
+    const auto &map2 = vec2->getMap();
+    Teuchos::RCP<TMAP> map = getTMAPFromTwoBlockTMAP(map1, map2);
+    Teuchos::RCP<TV> vec = Teuchos::rcp(new TV(map, true));
+    Teuchos::RCP<TV> vecSub1 = vec->offsetViewNonConst(map1, 0);
+    vecSub1->update(1.0, *vec1, 0.0);
+    Teuchos::RCP<TV> vecSub2 = vec->offsetViewNonConst(map2, map1->getNodeNumElements());
+    vecSub2->update(1.0, *vec2, 0.0);
+    return vec;
+}
+
 Teuchos::RCP<TV> getTVFromVector(const std::vector<double> &in, Teuchos::RCP<const TCOMM> &commRcp) {
 
     const int localSize = in.size();

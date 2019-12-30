@@ -42,10 +42,10 @@ class SylinderSystem {
     std::shared_ptr<ConstraintSolver> constraintSolverPtr; ///< pointer to CollisionSolver object
     std::shared_ptr<ConstraintCollector> uniConstraintPtr; ///<  pointer to unilateral constraints (collisions)
     std::shared_ptr<ConstraintCollector> biConstraintPtr;  ///<  pointer to bilateral constraints (springs)
-    Teuchos::RCP<TV> forceUniRcp;                          ///< unilateral constraint force
-    Teuchos::RCP<TV> velocityUniRcp;                       ///< unilateral constraint velocity
-    Teuchos::RCP<TV> forceBiRcp;                           ///< bilateral constraint force
-    Teuchos::RCP<TV> velocityBiRcp;                        ///< bilateral constraint velocity
+    Teuchos::RCP<const TV> forceUniRcp;                          ///< unilateral constraint force
+    Teuchos::RCP<const TV> velocityUniRcp;                       ///< unilateral constraint velocity
+    Teuchos::RCP<const TV> forceBiRcp;                           ///< bilateral constraint force
+    Teuchos::RCP<const TV> velocityBiRcp;                        ///< bilateral constraint velocity
 
     // computed without knowledge of constraints
     Teuchos::RCP<TV> forcePartNonBrownRcp;    ///< force specified by setForceNonBrown()
@@ -387,10 +387,10 @@ class SylinderSystem {
     Teuchos::RCP<TV> getVelocityNonCon() const { return velocityNonConRcp; };
 
     // constraint parts
-    Teuchos::RCP<TV> getForceUni() const { return forceUniRcp; };
-    Teuchos::RCP<TV> getVelocityUni() const { return velocityUniRcp; };
-    Teuchos::RCP<TV> getForceBi() const { return forceBiRcp; };
-    Teuchos::RCP<TV> getVelocityBi() const { return velocityBiRcp; };
+    Teuchos::RCP<const TV> getForceUni() const { return forceUniRcp; };
+    Teuchos::RCP<const TV> getVelocityUni() const { return velocityUniRcp; };
+    Teuchos::RCP<const TV> getForceBi() const { return forceBiRcp; };
+    Teuchos::RCP<const TV> getVelocityBi() const { return velocityBiRcp; };
 
     // mobility
     Teuchos::RCP<TCMAT> getMobMatrix() { return mobilityMatrixRcp; };

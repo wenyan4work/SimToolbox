@@ -52,7 +52,7 @@ class SylinderConfig {
     double timeSnap = 0.01;
 
     // collision solver
-    bool usePotential = false; // use repulsive potential
+    bool usePotential = false; //TODO: use repulsive potential
     double colResTol = 0.00001;
     int colMaxIte = 8000;
     bool colNewtonRefine = false;

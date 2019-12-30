@@ -167,6 +167,15 @@ Teuchos::RCP<TMAP> getTMAPFromGlobalIndexOnLocal(const std::vector<int> &gidOnLo
 Teuchos::RCP<TMAP> getTMAPFromTwoBlockTMAP(const Teuchos::RCP<const TMAP> &map1, const Teuchos::RCP<const TMAP> &map2);
 
 /**
+ * @brief create a vector for two blocks X=[X1;X2]
+ * 
+ * @param vec1 
+ * @param vec2 
+ * @return Teuchos::RCP<TV> 
+ */
+Teuchos::RCP<TV> getTVFromTwoBlockTV(const Teuchos::RCP<const TV> &vec1, const Teuchos::RCP<const TV> &vec2);
+
+/**
  * @brief contiguous TV from a local vector
  *
  * @param in

@@ -72,11 +72,18 @@ class ConstraintOperator : public TOP {
      */
     bool hasTransposeApply() const { return false; }
 
+    Teuchos::RCP<const TV> getForceUni() { return mobForceRcp->getVector(0); }
+    Teuchos::RCP<const TV> getForceBi() { return mobForceRcp->getVector(1); }
+    Teuchos::RCP<const TV> getVelUni() { return mobVelRcp->getVector(0); }
+    Teuchos::RCP<const TV> getVelBi() { return mobVelRcp->getVector(1); }
+    Teuchos::RCP<const TMAP> getUniBlockMap(){return gammaUniBlockMapRcp;}
+    Teuchos::RCP<const TMAP> getBiBlockMap(){return gammaBiBlockMapRcp;}
+
   private:
     // comm
     Teuchos::RCP<const TCOMM> commRcp; ///< the mpi communicator
     // constant operators
-    Teuchos::RCP<TOP> mobOpRcp;     ///< mobility matrix
+    Teuchos::RCP<TOP> mobOpRcp;           ///< mobility matrix
     Teuchos::RCP<TCMAT> uniDuMatRcp;      ///< unilateral (collision) constraint geometry matrix D_c
     Teuchos::RCP<TCMAT> uniDuMatTransRcp; ///< explicit transpose of D_c
     Teuchos::RCP<TCMAT> biDbMatRcp;       ///< bilateral (spring) constraint geometry matrix D_b

@@ -50,7 +50,7 @@ void SylinderSystem::initialize(const SylinderConfig &runConfig_, const std::str
         setInitialFromConfig();
     }
 
-    showOnScreenRank0(); // at this point all sylinders located on rank 0
+    // showOnScreenRank0(); // at this point all sylinders located on rank 0
 
     commRcp->barrier();
     decomposeDomain();
@@ -182,13 +182,6 @@ void SylinderSystem::setInitialFromConfig() {
         setInitialCircularCrossSection();
     }
 }
-
-// void SylinderSystem::getRandPointInCircle(const double &radius, double &x, double &y, const int &threadId) {
-//     double theta = 2 * Pi * rngPoolPtr->getU01(threadId);   /* angle is uniform */
-//     double r = radius * sqrt(rngPoolPtr->getU01(threadId)); /* radius proportional to sqrt(U), U~U(0,1) */
-//     x = r * cos(theta);
-//     y = r * sin(theta);
-// }
 
 void SylinderSystem::setInitialCircularCrossSection() {
     const int nLocal = sylinderContainer.getNumberOfParticleLocal();
@@ -400,15 +393,6 @@ void SylinderSystem::setDomainInfo() {
         rootDomainLow[k] = runConfig.simBoxLow[k];
         rootDomainHigh[k] = runConfig.simBoxHigh[k];
     }
-    // for (int k = 0; k < 3; k++) {
-    //     if (runConfig.simBoxPBC[k]) {
-    //         rootDomainLow[k] = runConfig.simBoxLow[k];
-    //         rootDomainHigh[k] = runConfig.simBoxHigh[k];
-    //     } else {
-    //         rootDomainLow[k] = -std::numeric_limits<double>::max() / 100;
-    //         rootDomainHigh[k] = std::numeric_limits<double>::max() / 100;
-    //     }
-    // }
 
     dinfo.setPosRootDomain(rootDomainLow, rootDomainHigh); // rootdomain must be specified after PBC
 }
@@ -602,7 +586,6 @@ void SylinderSystem::stepEuler() {
 }
 
 void SylinderSystem::resolveCollision() {
-    // collect constraints
 
     Teuchos::RCP<Teuchos::Time> collectTimer = Teuchos::TimeMonitor::getNewCounter("SylinderSystem::CollectCollision");
     if (enableTimer) {
@@ -610,6 +593,8 @@ void SylinderSystem::resolveCollision() {
     } else {
         collectTimer->disable();
     }
+
+    printf("start collect collisions\n");
     {
         Teuchos::TimeMonitor mon(*collectTimer);
         collectPairCollision();
@@ -625,13 +610,18 @@ void SylinderSystem::resolveCollision() {
     } else {
         solveTimer->disable();
     }
+    printf("start solving collisions\n");
     {
         Teuchos::TimeMonitor mon(*solveTimer);
         const double buffer = 0;
-        mobilityOperatorRcp = mobilityMatrixRcp;
-        constraintSolverPtr->setup(*uniConstraintPtr, *biConstraintPtr, mobilityOperatorRcp, velocityNonConRcp, runConfig.dt);
+        printf("setup\n");
+        constraintSolverPtr->setup(*uniConstraintPtr, *biConstraintPtr, mobilityOperatorRcp, velocityNonConRcp,
+                                   runConfig.dt);
+        printf("set control\n");
         constraintSolverPtr->setControlParams(runConfig.colResTol, runConfig.colMaxIte);
+        printf("solve\n");
         constraintSolverPtr->solveConstraints();
+        printf("writeback\n");
         constraintSolverPtr->writebackGamma();
     }
 
@@ -727,7 +717,6 @@ void SylinderSystem::saveVelocityCollision() {
     forceUniRcp = constraintSolverPtr->getForceUni();
     velocityUniRcp = constraintSolverPtr->getVelocityUni();
     auto velocityPtr = velocityUniRcp->getLocalView<Kokkos::HostSpace>();
-    velocityUniRcp->modify<Kokkos::HostSpace>();
 
     const int sylinderLocalNumber = sylinderContainer.getNumberOfParticleLocal();
     TEUCHOS_ASSERT(velocityPtr.dimension_0() == sylinderLocalNumber * 6);

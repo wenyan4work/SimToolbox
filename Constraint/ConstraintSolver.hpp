@@ -82,10 +82,10 @@ class ConstraintSolver {
      */
     void writebackGamma();
 
-    Teuchos::RCP<TV> getForceUni() const { return forceuRcp; }
-    Teuchos::RCP<TV> getVelocityUni() const { return veluRcp; }
-    Teuchos::RCP<TV> getForceBi() const { return forcebRcp; }
-    Teuchos::RCP<TV> getVelocityBi() const { return velbRcp; }
+    Teuchos::RCP<const TV> getForceUni() const { return forceuRcp; }
+    Teuchos::RCP<const TV> getVelocityUni() const { return veluRcp; }
+    Teuchos::RCP<const TV> getForceBi() const { return forcebRcp; }
+    Teuchos::RCP<const TV> getVelocityBi() const { return velbRcp; }
 
   private:
     double dt;  ///< timestep size
@@ -95,42 +95,42 @@ class ConstraintSolver {
     ConstraintCollector uniConstraints; ///< unilateral constraints, i.e., collisions
     ConstraintCollector biConstraints;  ///< bilateral constraints, i.e., springs
 
-    // mobility
+    // mobility-map
     Teuchos::RCP<const TMAP> mobMapRcp; ///< distributed map for obj mobility. 6 dof per obj
-    Teuchos::RCP<TV> forceuRcp;         ///< force vec, 6 dof per obj, due to unilateral constraints
-    Teuchos::RCP<TV> forcebRcp;         ///< force vec, 6 dof per obj, due to bilateral constraints
-    Teuchos::RCP<TV> veluRcp;           ///< velocity vec, 6 dof per obj. due to unilateral constraints
-    Teuchos::RCP<TV> velbRcp;           ///< velocity vec, 6 dof per obj. due to bilateral constraints
+    Teuchos::RCP<TOP> mobOpRcp;         ///< mobility operator, 6 dof per obj to 6 dof per obj
+    Teuchos::RCP<const TV> forceuRcp;         ///< force vec, 6 dof per obj, due to unilateral constraints
+    Teuchos::RCP<const TV> forcebRcp;         ///< force vec, 6 dof per obj, due to bilateral constraints
+    Teuchos::RCP<const TV> veluRcp;           ///< velocity vec, 6 dof per obj. due to unilateral constraints
+    Teuchos::RCP<const TV> velbRcp;           ///< velocity vec, 6 dof per obj. due to bilateral constraints
+    Teuchos::RCP<TV> velncRcp;          ///< the non-constraint velocity vel_nc
 
-    // unknown constraint force magnitude
-    Teuchos::RCP<const TMAP> gammaMapRcp; ///< gamma map. gamma = [gammau; gammab]
-    Teuchos::RCP<TV> gammaRcp;            ///< the unknown constraint force magnitude gamma
-    Teuchos::RCP<TV> gammauRcp;           ///< the unknown unilateral constraint
-    Teuchos::RCP<TV> gammabRcp;           ///< the unknown bilateral constraint
+    // unilateral constraints block ops and vecs
+    Teuchos::RCP<TCMAT> DuMatTransRcp; ///< unilateral constraint matrix
+    Teuchos::RCP<TV> gammauRcp;        ///< the unknown unilateral constraint
+    Teuchos::RCP<TV> delta0uRcp;       ///< unilateral delta0 vector, built with Du^Trans
+    Teuchos::RCP<TV> deltancuRcp;      ///< delta_nc,u = Du^Trans vel_nc,u
+
+    // bilateral constraints block ops and vecs
+    Teuchos::RCP<TCMAT> DbMatTransRcp; ///< bilateral constraint matrix
+    std::vector<double> invKappa;      ///< inverse of spring constant kappa
+    Teuchos::RCP<TV> gammabRcp;        ///< the unknown bilateral constraint
+    Teuchos::RCP<TV> delta0bRcp;       ///< bilateral delta0 vector, built with Dc^Trans
+    Teuchos::RCP<TV> deltancbRcp;      ///< delta_nc,b = Db^Trans vel_nc,b
 
     // composite vectors and operators
-    Teuchos::RCP<TOP> conOpRcp;  ///< the operator
-    Teuchos::RCP<TV> velncRcp;   ///< the non-constraint velocity vel_nc
     Teuchos::RCP<TV> delta0Rcp;  ///< the current (geometric) delta vector delta_0 = [delta_0u ; delta_0b]
     Teuchos::RCP<TV> deltancRcp; ///< delta_nc = [Du^Trans vel_nc,u ; Db^Trans vel_nc,b]
-    Teuchos::RCP<TV> bRcp;       ///< the constant part of BCQP problem. b = delta_0 + delta_nc
 
-    // block vectors and operators
-    Teuchos::RCP<TOP> mobOpRcp;        ///< mobility operator, 6 dof per obj to 6 dof per obj
-    Teuchos::RCP<TCMAT> DuMatTransRcp; ///< unilateral constraint matrix
-    Teuchos::RCP<TCMAT> DbMatTransRcp; ///< bilateral constraint matrix
-    Teuchos::RCP<TV> delta0uRcp;       ///< unilateral delta0 vector, built with Du^Trans
-    Teuchos::RCP<TV> delta0bRcp;       ///< bilateral delta0 vector, built with Dc^Trans
-    Teuchos::RCP<TV> deltancuRcp;      ///< delta_nc,u = Du^Trans vel_nc,u
-    Teuchos::RCP<TV> deltancbRcp;      ///< delta_nc,b = Db^Trans vel_nc,b
-    std::vector<double> invKappa;      ///< inverse of spring constant kappa
+    // the constraint problem
+    Teuchos::RCP<ConstraintOperator> MOpRcp;  ///< the operator of BCQP problem. M = [B,C;E,F]
+    Teuchos::RCP<TV> gammaRcp; ///< the unknown constraint force magnitude gamma = [gamma_u;gamma_b]
+    Teuchos::RCP<TV> qRcp;     ///< the constant part of BCQP problem. q = delta_0 + delta_nc
 
     /**
      * @brief setup the constant \f$\delta\f$ vector in BCQP
      *
      */
     void setupDeltaVec();
-
 };
 
 #endif

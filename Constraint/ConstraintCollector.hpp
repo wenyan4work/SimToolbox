@@ -161,7 +161,7 @@ class ConstraintCollector {
      * @param gammaRcp solution
      * @return int error code (future)
      */
-    int writeBackGamma(Teuchos::RCP<const TV> &gammaRcp);
+    int writeBackGamma(const Teuchos::RCP<const TV> &gammaRcp);
 };
 
 #endif
