@@ -79,7 +79,7 @@ void SylinderSystem::initialize(const SylinderConfig &runConfig_, const std::str
         for (int i = 0; i < 100; i++) {
             prepareStep();
             calcVelocityNonCon();
-            resolveCollision();
+            resolveConstraints();
             stepEuler();
         }
         if (commRcp->getRank() == 0) {
@@ -518,9 +518,8 @@ void SylinderSystem::calcMobOperator() {
 }
 
 void SylinderSystem::calcVelocityNonCon() {
-    // allocate and zero out
     // velocityNonCon = velocityBrown + velocityPartNonBrown + mobility * forcePartNonBrown
-    velocityNonConRcp = Teuchos::rcp<TV>(new TV(sylinderMobilityMapRcp, true));
+    velocityNonConRcp = Teuchos::rcp<TV>(new TV(sylinderMobilityMapRcp, true)); // allocate and zero out
 
     const int nLocal = sylinderContainer.getNumberOfParticleLocal();
     TEUCHOS_ASSERT(nLocal * 6 == velocityNonConRcp->getLocalLength());
@@ -537,25 +536,18 @@ void SylinderSystem::calcVelocityNonCon() {
     // write back total non Brownian velocity
     // combine and sync the velNonB set in two places
     auto velPtr = velocityNonConRcp->getLocalView<Kokkos::HostSpace>();
-    velocityNonConRcp->modify<Kokkos::HostSpace>();
 
 #pragma omp parallel for
     for (int i = 0; i < nLocal; i++) {
         auto &sy = sylinderContainer[i];
         // translational
-        sy.velNonB[0] += velPtr(6 * i + 0, 0);
-        sy.velNonB[1] += velPtr(6 * i + 1, 0);
-        sy.velNonB[2] += velPtr(6 * i + 2, 0);
-        velPtr(6 * i + 0, 0) = sy.velNonB[0];
-        velPtr(6 * i + 1, 0) = sy.velNonB[1];
-        velPtr(6 * i + 2, 0) = sy.velNonB[2];
+        sy.velNonB[0] = velPtr(6 * i + 0, 0);
+        sy.velNonB[1] = velPtr(6 * i + 1, 0);
+        sy.velNonB[2] = velPtr(6 * i + 2, 0);
         // rotational
-        sy.omegaNonB[0] += velPtr(6 * i + 3, 0);
-        sy.omegaNonB[1] += velPtr(6 * i + 4, 0);
-        sy.omegaNonB[2] += velPtr(6 * i + 5, 0);
-        velPtr(6 * i + 3, 0) = sy.omegaNonB[0];
-        velPtr(6 * i + 4, 0) = sy.omegaNonB[1];
-        velPtr(6 * i + 5, 0) = sy.omegaNonB[2];
+        sy.omegaNonB[0] = velPtr(6 * i + 3, 0);
+        sy.omegaNonB[1] = velPtr(6 * i + 4, 0);
+        sy.omegaNonB[2] = velPtr(6 * i + 5, 0);
     }
 
     if (!velocityBrownRcp.is_null()) {
@@ -566,15 +558,7 @@ void SylinderSystem::calcVelocityNonCon() {
 void SylinderSystem::stepEuler() {
     const int nLocal = sylinderContainer.getNumberOfParticleLocal();
     const double dt = runConfig.dt;
-#pragma omp parallel for
-    for (int i = 0; i < nLocal; i++) {
-        auto &sy = sylinderContainer[i];
-        // translation
-        for (int k = 0; k < 3; k++) {
-            sy.vel[k] = sy.velNonB[k] + sy.velBrown[k] + sy.velCol[k];
-            sy.omega[k] = sy.omegaNonB[k] + sy.omegaBrown[k] + sy.omegaCol[k];
-        }
-    }
+
 
     if (!runConfig.sylinderFixed) {
 #pragma omp parallel for
@@ -585,7 +569,7 @@ void SylinderSystem::stepEuler() {
     }
 }
 
-void SylinderSystem::resolveCollision() {
+void SylinderSystem::resolveConstraints() {
 
     Teuchos::RCP<Teuchos::Time> collectTimer = Teuchos::TimeMonitor::getNewCounter("SylinderSystem::CollectCollision");
     if (enableTimer) {
@@ -604,13 +588,13 @@ void SylinderSystem::resolveCollision() {
     // solve collision
     // positive buffer value means collision radius is effectively smaller
     // i.e., less likely to collide
-    Teuchos::RCP<Teuchos::Time> solveTimer = Teuchos::TimeMonitor::getNewCounter("SylinderSystem::SolveCollision");
+    Teuchos::RCP<Teuchos::Time> solveTimer = Teuchos::TimeMonitor::getNewCounter("SylinderSystem::SolveConstraints");
     if (enableTimer) {
         solveTimer->enable();
     } else {
         solveTimer->disable();
     }
-    printf("start solving collisions\n");
+    printf("start solving constraints\n");
     {
         Teuchos::TimeMonitor mon(*solveTimer);
         const double buffer = 0;
@@ -625,13 +609,7 @@ void SylinderSystem::resolveCollision() {
         constraintSolverPtr->writebackGamma();
     }
 
-    // save results
-    forceUniRcp = constraintSolverPtr->getForceUni();
-    velocityUniRcp = constraintSolverPtr->getVelocityUni();
-    forceBiRcp = constraintSolverPtr->getForceBi();
-    velocityBiRcp = constraintSolverPtr->getVelocityBi();
-
-    saveVelocityCollision();
+    saveVelocityConstraints();
 }
 
 void SylinderSystem::updateSylinderMap() {
@@ -699,9 +677,19 @@ void SylinderSystem::runStep() {
         calcVelocityBrown();
     }
 
-    calcVelocityNonCon(); // velocityKnown = velocityBrown + velocityNonBrown + mobility * forceNonBrown
+    calcVelocityNonCon();
 
-    resolveCollision();
+    resolveConstraints();
+
+    const int nLocal = sylinderContainer.getNumberOfParticleLocal();
+    #pragma omp parallel for
+    for (int i = 0; i < nLocal; i++) {
+        auto &sy = sylinderContainer[i];
+        for (int k = 0; k < 3; k++) {
+            sy.vel[k] = sy.velNonB[k] + sy.velBrown[k] + sy.velCol[k] + sy.velBi[k];
+            sy.omega[k] = sy.omegaNonB[k] + sy.omegaBrown[k] + sy.omegaCol[k] + sy.omegaBi[k];
+        }
+    }
 
     if (getIfWriteResultCurrentStep()) {
         // write result before moving. guarantee data written is consistent to geometry
@@ -713,24 +701,37 @@ void SylinderSystem::runStep() {
     stepCount++;
 }
 
-void SylinderSystem::saveVelocityCollision() {
+void SylinderSystem::saveVelocityConstraints() {
+    // save results
     forceUniRcp = constraintSolverPtr->getForceUni();
     velocityUniRcp = constraintSolverPtr->getVelocityUni();
-    auto velocityPtr = velocityUniRcp->getLocalView<Kokkos::HostSpace>();
+    forceBiRcp = constraintSolverPtr->getForceBi();
+    velocityBiRcp = constraintSolverPtr->getVelocityBi();
+
+    auto velUniPtr = velocityUniRcp->getLocalView<Kokkos::HostSpace>();
+    auto velBiPtr = velocityBiRcp->getLocalView<Kokkos::HostSpace>();
 
     const int sylinderLocalNumber = sylinderContainer.getNumberOfParticleLocal();
-    TEUCHOS_ASSERT(velocityPtr.dimension_0() == sylinderLocalNumber * 6);
-    TEUCHOS_ASSERT(velocityPtr.dimension_1() == 1);
+    TEUCHOS_ASSERT(velUniPtr.dimension_0() == sylinderLocalNumber * 6);
+    TEUCHOS_ASSERT(velUniPtr.dimension_1() == 1);
+    TEUCHOS_ASSERT(velBiPtr.dimension_0() == sylinderLocalNumber * 6);
+    TEUCHOS_ASSERT(velBiPtr.dimension_1() == 1);
 
 #pragma omp parallel for
     for (int i = 0; i < sylinderLocalNumber; i++) {
         auto &sy = sylinderContainer[i];
-        sy.velCol[0] = velocityPtr(6 * i, 0);
-        sy.velCol[1] = velocityPtr(6 * i + 1, 0);
-        sy.velCol[2] = velocityPtr(6 * i + 2, 0);
-        sy.omegaCol[0] = velocityPtr(6 * i + 3, 0);
-        sy.omegaCol[1] = velocityPtr(6 * i + 4, 0);
-        sy.omegaCol[2] = velocityPtr(6 * i + 5, 0);
+        sy.velCol[0] = velUniPtr(6 * i, 0);
+        sy.velCol[1] = velUniPtr(6 * i + 1, 0);
+        sy.velCol[2] = velUniPtr(6 * i + 2, 0);
+        sy.omegaCol[0] = velUniPtr(6 * i + 3, 0);
+        sy.omegaCol[1] = velUniPtr(6 * i + 4, 0);
+        sy.omegaCol[2] = velUniPtr(6 * i + 5, 0);
+        sy.velBi[0] = velBiPtr(6 * i, 0);
+        sy.velBi[1] = velBiPtr(6 * i + 1, 0);
+        sy.velBi[2] = velBiPtr(6 * i + 2, 0);
+        sy.omegaBi[0] = velBiPtr(6 * i + 3, 0);
+        sy.omegaBi[1] = velBiPtr(6 * i + 4, 0);
+        sy.omegaBi[2] = velBiPtr(6 * i + 5, 0);
     }
 }
 

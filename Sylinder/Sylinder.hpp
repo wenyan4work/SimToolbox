@@ -46,6 +46,8 @@ class Sylinder {
     // these are not packed and transferred
     double velCol[3];     ///< collision velocity
     double omegaCol[3];   ///< collision angular velocity
+    double velBi[3];      ///< bilateral constraint velocity
+    double omegaBi[3];    ///< bilateral constraint angular velocity
     double velBrown[3];   ///< Brownian velocity
     double omegaBrown[3]; ///< Brownian angular velocity
     double velNonB[3];    ///< all non-Brownian deterministic velocity beforce collision resolution
@@ -206,6 +208,8 @@ class Sylinder {
         std::vector<float> omega(3 * sylinderNumber);
         std::vector<float> velCol(3 * sylinderNumber);
         std::vector<float> omegaCol(3 * sylinderNumber);
+        std::vector<float> velBi(3 * sylinderNumber);
+        std::vector<float> omegaBi(3 * sylinderNumber);
         std::vector<float> velNonB(3 * sylinderNumber);
         std::vector<float> omegaNonB(3 * sylinderNumber);
         std::vector<float> velBrown(3 * sylinderNumber);
@@ -250,6 +254,8 @@ class Sylinder {
                 omegaBrown[3 * i + j] = sy.omegaBrown[j];
                 velCol[3 * i + j] = sy.velCol[j];
                 omegaCol[3 * i + j] = sy.omegaCol[j];
+                velBi[3 * i + j] = sy.velBi[j];
+                omegaBi[3 * i + j] = sy.omegaBi[j];
                 velNonB[3 * i + j] = sy.velNonB[j];
                 omegaNonB[3 * i + j] = sy.omegaNonB[j];
 
@@ -291,6 +297,8 @@ class Sylinder {
         IOHelper::writeDataArrayBase64(omegaBrown, "omegaBrown", 3, file);
         IOHelper::writeDataArrayBase64(velCol, "velocityCollision", 3, file);
         IOHelper::writeDataArrayBase64(omegaCol, "omegaCollision", 3, file);
+        IOHelper::writeDataArrayBase64(velBi, "velocityBilateral", 3, file);
+        IOHelper::writeDataArrayBase64(omegaBi, "omegaBilateral", 3, file);
         IOHelper::writeDataArrayBase64(velNonB, "velocityNonB", 3, file);
         IOHelper::writeDataArrayBase64(omegaNonB, "omegaNonB", 3, file);
         IOHelper::writeDataArrayBase64(xnorm, "xnorm", 3, file);

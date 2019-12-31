@@ -366,8 +366,8 @@ class SylinderSystem {
     // resolve collision
     void collectWallCollision();  ///< collect wall collision constraints
     void collectPairCollision();  ///< collect pair collision constraints
-    void resolveCollision();      ///< resolve collision
-    void saveVelocityCollision(); ///< write back to sylinder.velCol
+    void resolveConstraints();      ///< resolve constraints
+    void saveVelocityConstraints(); ///< write back to sylinder.velCol and velBi
 
     void stepEuler(); ///< Euler step update position and orientation, with both collision and non-collision velocity
 

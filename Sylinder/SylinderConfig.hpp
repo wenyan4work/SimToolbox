@@ -35,7 +35,7 @@ class SylinderConfig {
     bool initCircularX = false;              // set the initial cross-section as a circle
 
     // physical constant
-    double viscosity = 1.0; // pN/(um^2 s)
+    double viscosity = 0.01; // pN/(um^2 s)
     double KBT = 0.00411;   // pN.um
 
     bool sylinderFixed = false;

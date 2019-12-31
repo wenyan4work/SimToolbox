@@ -68,6 +68,8 @@ void Sylinder::writePVTP(const std::string &prefix, const std::string &postfix, 
     cellDataFields.emplace_back(3, IOHelper::IOTYPE::Float32, "omegaBrown");
     cellDataFields.emplace_back(3, IOHelper::IOTYPE::Float32, "velocityCollision");
     cellDataFields.emplace_back(3, IOHelper::IOTYPE::Float32, "omegaCollision");
+    cellDataFields.emplace_back(3, IOHelper::IOTYPE::Float32, "velocityBilateral");
+    cellDataFields.emplace_back(3, IOHelper::IOTYPE::Float32, "omegaBilateral");
     cellDataFields.emplace_back(3, IOHelper::IOTYPE::Float32, "velocityNonB");
     cellDataFields.emplace_back(3, IOHelper::IOTYPE::Float32, "omegaNonB");
     cellDataFields.emplace_back(3, IOHelper::IOTYPE::Float32, "xnorm");

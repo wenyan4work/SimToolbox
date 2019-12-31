@@ -121,7 +121,7 @@ BCQPSolver::BCQPSolver(int localSize, double diagonal) {
     Atemp->fillComplete(rowMapRcp, rowMapRcp);
     this->ARcp = Teuchos::rcp_dynamic_cast<const TOP>(Atemp, true);
     // ARcp = Atemp;
-    std::cout << "ARcp" << ARcp->description() << std::endl;
+    std::cout << "Constraint operator ARcp is: " << ARcp->description() << std::endl;
 
     // dump problem
     dumpTCMAT(Atemp, "Amat");
@@ -139,7 +139,7 @@ int BCQPSolver::solveBBPGD(Teuchos::RCP<TV> &xsolRcp, const double tol, const in
     int iteCount = 0;
     if (commRcp->getRank() == 0) {
         std::cout << "solving BBPGD" << std::endl;
-        std::cout << "ARcp" << ARcp->description() << std::endl;
+        std::cout << "Constraint operator ARcp is: " << ARcp->description() << std::endl;
     }
 
     Teuchos::RCP<TV> xkRcp = Teuchos::rcp(new TV(*xsolRcp, Teuchos::Copy));   // deep copy, xk=x0
@@ -255,7 +255,7 @@ int BCQPSolver::solveAPGD(Teuchos::RCP<TV> &xsolRcp, const double tol, const int
     int mvCount = 0;
     if (commRcp->getRank() == 0) {
         std::cout << "solving APGD" << std::endl;
-        std::cout << "ARcp" << ARcp->description() << std::endl;
+        std::cout << "Constraint operator ARcp is: " << ARcp->description() << std::endl;
     };
 
     // allocate vectors

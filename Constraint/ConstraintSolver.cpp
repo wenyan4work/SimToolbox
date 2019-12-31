@@ -14,12 +14,17 @@ void ConstraintSolver::setup(ConstraintCollector &uniConstraints_, ConstraintCol
 
     // unilateral block ops and vecs
     uniConstraints.buildConstraintMatrixVector(mobMapRcp, DuMatTransRcp, delta0uRcp, gammauRcp);
+    delta0uRcp->scale(1.0 / dt);
     deltancuRcp = Teuchos::rcp(new TV(delta0uRcp->getMap(), true));
     DuMatTransRcp->apply(*velncRcp, *deltancuRcp);
 
     // bilateral block ops and vecs
     biConstraints.buildConstraintMatrixVector(mobMapRcp, DbMatTransRcp, delta0bRcp, gammabRcp);
+    delta0bRcp->scale(1.0 / dt);
     biConstraints.buildInvKappa(invKappa);
+    for (auto &v : invKappa) {
+        v *= 1.0 / dt;
+    }
     deltancbRcp = Teuchos::rcp(new TV(delta0bRcp->getMap(), true));
     DbMatTransRcp->apply(*velncRcp, *deltancbRcp);
 
@@ -31,12 +36,6 @@ void ConstraintSolver::setup(ConstraintCollector &uniConstraints_, ConstraintCol
     gammaRcp = getTVFromTwoBlockTV(gammauRcp, gammabRcp); // initial guess
     MOpRcp = Teuchos::rcp(new ConstraintOperator(mobOpRcp, DuMatTransRcp, DbMatTransRcp, invKappa));
     qRcp = Teuchos::rcp(new TV(*delta0Rcp, Teuchos::DataAccess::Copy));
-
-    // block view
-    auto mapu = MOpRcp->getUniBlockMap();
-    auto mapb = MOpRcp->getBiBlockMap();
-    gammauRcp = gammaRcp->offsetViewNonConst(mapu, 0);
-    gammabRcp = gammaRcp->offsetViewNonConst(mapb, mapu->getNodeNumElements());
 
     // mobility vectors, allocated inside MOpRcp
     forceuRcp = MOpRcp->getForceUni();
@@ -92,6 +91,12 @@ void ConstraintSolver::solveConstraints() {
     // solve
     IteHistory history;
     solver.solveBBPGD(gammaRcp, res, maxIte, history);
+
+    // block view
+    auto mapu = MOpRcp->getUniBlockMap();
+    auto mapb = MOpRcp->getBiBlockMap();
+    gammauRcp = gammaRcp->offsetViewNonConst(mapu, 0);
+    gammabRcp = gammaRcp->offsetViewNonConst(mapb, mapu->getNodeNumElements());
 }
 
 void ConstraintSolver::writebackGamma() {

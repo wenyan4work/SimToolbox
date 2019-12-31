@@ -167,7 +167,7 @@ void ConstraintCollector::writeVTP(const std::string &folder, const std::string 
         }
     }
 
-    std::ofstream file(folder + '/' + prefix + std::string("ColBlock_") + "r" + std::to_string(rank) +
+    std::ofstream file(folder + '/' + prefix + std::string("ConBlock_") + "r" + std::to_string(rank) +
                            std::string("_") + postfix + std::string(".vtp"),
                        std::ios::out);
 
