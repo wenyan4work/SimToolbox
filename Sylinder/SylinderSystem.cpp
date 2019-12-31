@@ -559,7 +559,6 @@ void SylinderSystem::stepEuler() {
     const int nLocal = sylinderContainer.getNumberOfParticleLocal();
     const double dt = runConfig.dt;
 
-
     if (!runConfig.sylinderFixed) {
 #pragma omp parallel for
         for (int i = 0; i < nLocal; i++) {
@@ -602,7 +601,7 @@ void SylinderSystem::resolveConstraints() {
         constraintSolverPtr->setup(*uniConstraintPtr, *biConstraintPtr, mobilityOperatorRcp, velocityNonConRcp,
                                    runConfig.dt);
         printf("set control\n");
-        constraintSolverPtr->setControlParams(runConfig.colResTol, runConfig.colMaxIte);
+        constraintSolverPtr->setControlParams(runConfig.conResTol, runConfig.conMaxIte, runConfig.conSolverChoice);
         printf("solve\n");
         constraintSolverPtr->solveConstraints();
         printf("writeback\n");
@@ -682,7 +681,7 @@ void SylinderSystem::runStep() {
     resolveConstraints();
 
     const int nLocal = sylinderContainer.getNumberOfParticleLocal();
-    #pragma omp parallel for
+#pragma omp parallel for
     for (int i = 0; i < nLocal; i++) {
         auto &sy = sylinderContainer[i];
         for (int k = 0; k < 3; k++) {

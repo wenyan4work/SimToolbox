@@ -53,10 +53,12 @@ class ConstraintSolver {
      *
      * @param res_ iteration residual
      * @param maxIte_ max iterations
+     * @param solver_ choice of solver
      */
-    void setControlParams(double res_, int maxIte_) {
+    void setControlParams(double res_, int maxIte_, int solver_) {
         res = res_;
         maxIte = maxIte_;
+        solverChoice = solver_;
     }
 
     /**
@@ -88,9 +90,10 @@ class ConstraintSolver {
     Teuchos::RCP<const TV> getVelocityBi() const { return velbRcp; }
 
   private:
-    double dt;  ///< timestep size
-    double res; ///< residual tolerance
-    int maxIte; ///< max iterations
+    double dt;        ///< timestep size
+    double res;       ///< residual tolerance
+    int maxIte;       ///< max iterations
+    int solverChoice; ///< which solver to use
 
     ConstraintCollector uniConstraints; ///< unilateral constraints, i.e., collisions
     ConstraintCollector biConstraints;  ///< bilateral constraints, i.e., springs
@@ -98,10 +101,10 @@ class ConstraintSolver {
     // mobility-map
     Teuchos::RCP<const TMAP> mobMapRcp; ///< distributed map for obj mobility. 6 dof per obj
     Teuchos::RCP<TOP> mobOpRcp;         ///< mobility operator, 6 dof per obj to 6 dof per obj
-    Teuchos::RCP<const TV> forceuRcp;         ///< force vec, 6 dof per obj, due to unilateral constraints
-    Teuchos::RCP<const TV> forcebRcp;         ///< force vec, 6 dof per obj, due to bilateral constraints
-    Teuchos::RCP<const TV> veluRcp;           ///< velocity vec, 6 dof per obj. due to unilateral constraints
-    Teuchos::RCP<const TV> velbRcp;           ///< velocity vec, 6 dof per obj. due to bilateral constraints
+    Teuchos::RCP<const TV> forceuRcp;   ///< force vec, 6 dof per obj, due to unilateral constraints
+    Teuchos::RCP<const TV> forcebRcp;   ///< force vec, 6 dof per obj, due to bilateral constraints
+    Teuchos::RCP<const TV> veluRcp;     ///< velocity vec, 6 dof per obj. due to unilateral constraints
+    Teuchos::RCP<const TV> velbRcp;     ///< velocity vec, 6 dof per obj. due to bilateral constraints
     Teuchos::RCP<TV> velncRcp;          ///< the non-constraint velocity vel_nc
 
     // unilateral constraints block ops and vecs
@@ -122,9 +125,9 @@ class ConstraintSolver {
     Teuchos::RCP<TV> deltancRcp; ///< delta_nc = [Du^Trans vel_nc,u ; Db^Trans vel_nc,b]
 
     // the constraint problem
-    Teuchos::RCP<ConstraintOperator> MOpRcp;  ///< the operator of BCQP problem. M = [B,C;E,F]
-    Teuchos::RCP<TV> gammaRcp; ///< the unknown constraint force magnitude gamma = [gamma_u;gamma_b]
-    Teuchos::RCP<TV> qRcp;     ///< the constant part of BCQP problem. q = delta_0 + delta_nc
+    Teuchos::RCP<ConstraintOperator> MOpRcp; ///< the operator of BCQP problem. M = [B,C;E,F]
+    Teuchos::RCP<TV> gammaRcp;               ///< the unknown constraint force magnitude gamma = [gamma_u;gamma_b]
+    Teuchos::RCP<TV> qRcp;                   ///< the constant part of BCQP problem. q = delta_0 + delta_nc
 
     /**
      * @brief setup the constant \f$\delta\f$ vector in BCQP

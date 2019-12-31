@@ -36,3 +36,16 @@ target_link_libraries(
           OpenMP::OpenMP_CXX
           MPI::MPI_CXX)
 add_test(NAME SylinderSystem COMMAND SylinderSystem_test)
+
+# copy the SylinderSystem_test_runConfig.yaml file to the build directory
+add_custom_command(
+  OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/SylinderSystem_test_runConfig.yaml
+  COMMAND ${CMAKE_COMMAND} -E copy
+          ${CMAKE_CURRENT_SOURCE_DIR}/SylinderSystem_test_runConfig.yaml
+          ${CMAKE_CURRENT_BINARY_DIR}
+  DEPENDS "${CMAKE_CURRENT_SOURCE_DIR}/SylinderSystem_test_runConfig.yaml")
+# Custom target for activate the custom command above
+add_custom_target(
+  copy_runConfig
+  DEPENDS ${CMAKE_CURRENT_BINARY_DIR}/SylinderSystem_test_runConfig.yaml)
+add_dependencies(SylinderSystem_test copy_runConfig)

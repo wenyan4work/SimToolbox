@@ -45,7 +45,7 @@ void ConstraintSolver::setup(ConstraintCollector &uniConstraints_, ConstraintCol
 }
 
 void ConstraintSolver::reset() {
-    setControlParams(1e-5, 1000000);
+    setControlParams(1e-5, 1000000, 0);
 
     // mobility-map
     mobMapRcp.reset(); ///< distributed map for obj mobility. 6 dof per obj
@@ -90,7 +90,17 @@ void ConstraintSolver::solveConstraints() {
 
     // solve
     IteHistory history;
-    solver.solveBBPGD(gammaRcp, res, maxIte, history);
+    switch (solverChoice) {
+    case 0:
+        solver.solveBBPGD(gammaRcp, res, maxIte, history);
+        break;
+    case 1:
+        solver.solveAPGD(gammaRcp, res, maxIte, history);
+        break;
+    default:
+        solver.solveBBPGD(gammaRcp, res, maxIte, history);
+        break;
+    }
 
     // block view
     auto mapu = MOpRcp->getUniBlockMap();

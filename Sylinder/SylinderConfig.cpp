@@ -4,7 +4,7 @@
 
 SylinderConfig::SylinderConfig(std::string filename) {
 
-    YAML::Node config = YAML::LoadFile("runConfig.yaml");
+    YAML::Node config = YAML::LoadFile(filename);
 
     rngSeed = config["rngSeed"].as<int>();
 
@@ -56,9 +56,9 @@ SylinderConfig::SylinderConfig(std::string filename) {
     timeSnap = config["timeSnap"].as<double>();
 
     usePotential = config["usePotential"].as<bool>();
-    colResTol = config["colResTol"].as<double>();
-    colMaxIte = config["colMaxIte"].as<int>();
-    colNewtonRefine = config["colNewtonRefine"].as<bool>();
+    conResTol = config["conResTol"].as<double>();
+    conMaxIte = config["conMaxIte"].as<int>();
+    conSolverChoice = config["conSolverChoice"].as<int>();
 }
 
 void SylinderConfig::dump() const {
@@ -86,13 +86,13 @@ void SylinderConfig::dump() const {
         printf("Sylinder Length: %g\n", sylinderLength);
         printf("Sylinder Length Sigma: %g\n", sylinderLengthSigma);
         printf("Sylinder Diameter: %g\n", sylinderDiameter);
-        printf("-------------------------------------------\n");
-        printf("Solver Setting:\n");
-        printf("Collision Solver Residual Tolerance: %g\n", colResTol);
-        printf("Collision Solver Max Iteration: %d\n", colMaxIte);
-        printf("Collision Solver use Newton Refinement: %d\n", colNewtonRefine);
-        printf("Sylinder Length Collition Ratio: %g\n", sylinderLengthColRatio);
+        printf("Sylinder Length Collision Ratio: %g\n", sylinderLengthColRatio);
         printf("Sylinder Diameter Collision Ratio: %g\n", sylinderDiameterColRatio);
+        printf("-------------------------------------------\n");
+        printf("Constraint Solver Setting:\n");
+        printf("Residual Tolerance: %g\n", conResTol);
+        printf("Max Iteration: %d\n", conMaxIte);
+        printf("Solver Choice: %d\n", conSolverChoice);
         printf("-------------------------------------------\n");
     }
 }
