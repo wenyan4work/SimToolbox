@@ -5,6 +5,7 @@ void testSedimentation(int argc, char **argv) {
 
     SylinderSystem sylinderSystem(runConfig, "posInitial.dat", argc, argv);
     sylinderSystem.setTimer(true);
+    auto &rngPoolPtr = sylinderSystem.getRngPoolPtr();
 
     // run 10 steps
     for (int i = 0; i < 10; i++) {
@@ -18,16 +19,43 @@ void testSedimentation(int argc, char **argv) {
         sylinderSystem.runStep();
     }
 
-    // add 10 sylinders to the top
-    std::vector<Sylinder> newSylinder;
-    for (int i = 0; i < 10; i++) {
-        newSylinder.emplace_back(i, runConfig.sylinderDiameter / 2, runConfig.sylinderDiameter / 2,
-                                 runConfig.sylinderLength / 2, runConfig.sylinderLength / 2);
-        newSylinder.back().pos[0] = sin(i) * runConfig.initBoxHigh[0];
-        newSylinder.back().pos[1] = sin(i) * runConfig.initBoxHigh[1];
-        newSylinder.back().pos[2] = 0.9 * runConfig.initBoxHigh[2];
+    // add linked sylinders
+    int rank;
+    MPI_Comm_rank(MPI_COMM_WORLD, &rank); // using rank as group id
+    const int nLocalNew = 10;
+    std::vector<Sylinder> newSylinder(nLocalNew);
+    std::vector<Link> linkage(nLocalNew);
+    for (int i = 0; i < nLocalNew; i++) {
+        newSylinder[i] = Sylinder(i, runConfig.sylinderDiameter / 2, runConfig.sylinderDiameter / 2,
+                                  runConfig.sylinderLength / 2, runConfig.sylinderLength / 2);
+        linkage[i].group = rank;
     }
-    sylinderSystem.addNewSylinder(newSylinder);
+    // sequentially linked
+    for (int i = 0; i < nLocalNew - 1; i++) {
+        linkage[i].next = i + 1;
+        linkage[i + 1].prev = i - 1;
+    }
+    // specify linked sylinders
+    newSylinder[0].pos[0] = rngPoolPtr->getU01(0) * runConfig.simBoxHigh[0];
+    newSylinder[0].pos[1] = rngPoolPtr->getU01(0) * runConfig.simBoxHigh[1];
+    newSylinder[0].pos[2] = rngPoolPtr->getU01(0) * runConfig.simBoxHigh[2];
+    Equatn qtemp;
+    EquatnHelper::setUnitRandomEquatn(qtemp, rngPoolPtr->getU01(0), rngPoolPtr->getU01(0), rngPoolPtr->getU01(0));
+    Emapq(newSylinder[0].orientation).coeffs() = qtemp.coeffs();
+    for (int i = 1; i < nLocalNew; i++) {
+        const auto &prsy = newSylinder[i - 1];
+        Evec3 prvec = ECmapq(prsy.orientation) * Evec3(0, 0, 1);
+        Evec3 prend = prvec * 0.5 * prsy.length + ECmap3(prsy.pos);
+        auto &sy = newSylinder[i];
+        Equatn qtemp;
+        EquatnHelper::setUnitRandomEquatn(qtemp, rngPoolPtr->getU01(0), rngPoolPtr->getU01(0), rngPoolPtr->getU01(0));
+        Emapq(sy.orientation).coeffs() = qtemp.coeffs();
+        Evec3 syvec = Emapq(sy.orientation) * Evec3(0, 0, 1);
+        Evec3 sypos = prend + (prsy.radius + sy.radius) * prvec + sy.length * 0.5 * syvec;
+        Emap3(sy.pos) = sypos;
+    }
+
+    sylinderSystem.addNewSylinder(newSylinder, linkage);
 
     // run 10 more steps
     for (int i = 0; i < 10; i++) {

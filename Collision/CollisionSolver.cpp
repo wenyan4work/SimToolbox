@@ -136,7 +136,7 @@ void CollisionSolver::setupFcTrans(CollisionBlockPool &collision_) {
     }
     if (rowPointerIndex != localGammaSize) {
         printf("rowPointerIndexError in collision solver\n");
-        exit(1);
+        std::exit(1);
     }
 
     Kokkos::View<int *> columnIndices("columnIndices", rowPointers[localGammaSize]);

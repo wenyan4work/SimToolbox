@@ -3,7 +3,7 @@ rngSeed: 1234
 # simulation box
 simBoxLow: [0.0, 0.0, 0.0]
 simBoxHigh: [25.0, 25.0, 25.0]
-simBoxPBC: [true, false, false]
+simBoxPBC: [false, false, false]
 wallLowZ: true
 wallHighZ: true
 # initialization box

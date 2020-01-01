@@ -68,17 +68,17 @@ struct ConstraintBlock {
      * so any value of gidJ, globalIndexJ, normJ, posJ can be used in that case.
      *
      */
-    ConstraintBlock(double phi0_, double gamma_, int gidI_, int gidJ_, int globalIndexI_, int globalIndexJ_,
+    ConstraintBlock(double delta0_, double gamma_, int gidI_, int gidJ_, int globalIndexI_, int globalIndexJ_,
                     const Evec3 &normI_, const Evec3 &normJ_, const Evec3 &posI_, const Evec3 &posJ_,
-                    const Evec3 &labI_, const Evec3 &labJ_, bool oneSide_ = false)
-        : ConstraintBlock(phi0_, gamma_, gidI_, gidJ_, globalIndexI_, globalIndexJ_, normI_.data(), normJ_.data(),
-                          posI_.data(), posJ_.data(), labI_.data(), labJ_.data(), oneSide_) {}
+                    const Evec3 &labI_, const Evec3 &labJ_, bool oneSide_ = false, double kappa_=0)
+        : ConstraintBlock(delta0_, gamma_, gidI_, gidJ_, globalIndexI_, globalIndexJ_, normI_.data(), normJ_.data(),
+                          posI_.data(), posJ_.data(), labI_.data(), labJ_.data(), oneSide_, kappa_) {}
 
     ConstraintBlock(double delta0_, double gamma_, int gidI_, int gidJ_, int globalIndexI_, int globalIndexJ_,
                     const double normI_[3], const double normJ_[3], const double posI_[3], const double posJ_[3],
-                    const double labI_[3], const double labJ_[3], bool oneSide_ = false)
+                    const double labI_[3], const double labJ_[3], bool oneSide_ = false, double kappa_ = 0)
         : delta0(delta0_), gamma(gamma_), gidI(gidI_), gidJ(gidJ_), globalIndexI(globalIndexI_),
-          globalIndexJ(globalIndexJ_), oneSide(oneSide_) {
+          globalIndexJ(globalIndexJ_), oneSide(oneSide_), kappa(kappa_) {
         for (int d = 0; d < 3; d++) {
             normI[d] = normI_[d];
             normJ[d] = normJ_[d];

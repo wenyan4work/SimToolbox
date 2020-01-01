@@ -1,5 +1,7 @@
 #include "ConstraintCollector.hpp"
 
+#include <cstdlib>
+
 ConstraintCollector::ConstraintCollector() {
     const int totalThreads = omp_get_max_threads();
     constraintPoolPtr = std::make_shared<ConstraintBlockPool>();
@@ -262,7 +264,7 @@ int ConstraintCollector::buildConstraintMatrixVector(Teuchos::RCP<const TMAP> &m
 
     if (rowPointerIndex != localGammaSize) {
         printf("rowPointerIndexError in collision solver\n");
-        exit(1);
+        std::exit(1);
     }
 
     // step 2, fill the values to each row

@@ -23,6 +23,16 @@
 #include <vector>
 
 /**
+ * @brief specify the link of sylinders
+ *
+ */
+struct Link {
+    int group = GEO_INVALID_INDEX; ///< group id of sylinder links
+    int prev = GEO_INVALID_INDEX;  ///< previous link in the link group
+    int next = GEO_INVALID_INDEX;  ///< next link in the link group
+};
+
+/**
  * @brief Sphero-cylinder class
  *
  */
@@ -31,12 +41,15 @@ class Sylinder {
     int gid = GEO_INVALID_INDEX;         ///< unique global id
     int globalIndex = GEO_INVALID_INDEX; ///< unique global index sequentially ordered
     int rank = -1;                       ///< mpi rank
-    double radius;                       ///< radius
-    double radiusCollision;              ///< radius for collision resolution
-    double length;                       ///< length
-    double lengthCollision;              ///< length for collision resolution
-    double radiusSearch;                 ///< radiusSearch for short range interactions
-    double sepmin;                       ///< minimal separation with its neighbors within radiusSearch
+
+    double radius;          ///< radius
+    double radiusCollision; ///< radius for collision resolution
+    double length;          ///< length
+    double lengthCollision; ///< length for collision resolution
+    double radiusSearch;    ///< radiusSearch for short range interactions
+    double sepmin;          ///< minimal separation with its neighbors within radiusSearch
+
+    Link link; ///< link of this sylinder
 
     double pos[3];         ///< position
     double orientation[4]; ///< orientation quaternion. direction norm vector = orientation * (0,0,1)
@@ -114,6 +127,7 @@ class Sylinder {
      * @return const double*
      */
     const double *Coord() const { return pos; }
+    
     /**
      * @brief return search radius
      *
@@ -204,6 +218,7 @@ class Sylinder {
         std::vector<float> radiusCollision(sylinderNumber);
         std::vector<float> length(sylinderNumber);
         std::vector<float> lengthCollision(sylinderNumber);
+        std::vector<int> group(sylinderNumber);
         std::vector<float> vel(3 * sylinderNumber);
         std::vector<float> omega(3 * sylinderNumber);
         std::vector<float> velCol(3 * sylinderNumber);
@@ -240,6 +255,7 @@ class Sylinder {
 
             // sylinder data
             gid[i] = sy.gid;
+            group[i] = sy.link.group;
             radius[i] = sy.radius;
             radiusCollision[i] = sy.radiusCollision;
             length[i] = sy.length;
@@ -287,6 +303,7 @@ class Sylinder {
         // cell data
         file << "<CellData Scalars=\"scalars\">\n";
         IOHelper::writeDataArrayBase64(gid, "gid", 1, file);
+        IOHelper::writeDataArrayBase64(group, "group", 1, file);
         IOHelper::writeDataArrayBase64(radius, "radius", 1, file);
         IOHelper::writeDataArrayBase64(radiusCollision, "radiusCollision", 1, file);
         IOHelper::writeDataArrayBase64(length, "length", 1, file);

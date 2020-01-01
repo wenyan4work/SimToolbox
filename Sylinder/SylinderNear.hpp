@@ -29,7 +29,6 @@
 
 /**
  *  Do not use PS::F64vec3 except in required function interfaces
- *
  */
 
 /**
@@ -146,11 +145,11 @@ static_assert(std::is_default_constructible<ForceNear>::value, "");
  *
  */
 class CalcSylinderNearForce {
-    // TODO:
-    const bool usePotential = false; ///< switch of using repulsive potential instead of constraints
+    const bool usePotential = false; ///< TODO: switch of using repulsive potential instead of constraints
 
   public:
     std::shared_ptr<ConstraintBlockPool> colPoolPtr; ///< shared object for collecting collision constraints
+    // std::shared_ptr<ConstraintBlockPool> biPoolPtr;  ///< shared object for collecting bilateral constraints
 
     /**
      * @brief Construct a new CalcSylinderNearForce object
@@ -165,7 +164,7 @@ class CalcSylinderNearForce {
      */
     CalcSylinderNearForce(std::shared_ptr<ConstraintBlockPool> &colPoolPtr_, const bool usePotential_ = false)
         : usePotential(usePotential_) {
-#ifdef DEBUG
+#ifdef DEBUGSYLINDERNEAR
         std::cout << "stress recoder size:" << colPoolPtr_->size() << std::endl;
 #endif
 
@@ -186,6 +185,7 @@ class CalcSylinderNearForce {
                     const PS::S32 Njp, ForceNear *const forceNear) {
         constexpr double COLBUF = 0.3;
         const int myThreadId = omp_get_thread_num();
+        auto &colQue = (*colPoolPtr)[myThreadId];
         DCPQuery<3, double, Evec3> DistSegSeg3;
 
         for (PS::S32 i = 0; i < Nip; ++i) {
@@ -218,22 +218,24 @@ class CalcSylinderNearForce {
 
                 // record collision blocks
                 if (sep < COLBUF * (syI.radiusCollision + syJ.radiusCollision) && syI.gid < syJ.gid) {
-                    // in this constructor need conversion between PS::F64vec3 and Eigen::Vector3d
                     const double phi0 = sep;
                     const double gamma = sep < 0 ? -sep : 0;
-                    // const Evec3 PlocEvec(Ploc[0], Ploc[1], Ploc[2]);
-                    // const Evec3 QlocEvec(Qloc[0], Qloc[1], Qloc[2]);
                     const Evec3 normI = (Ploc - Qloc).normalized();
                     const Evec3 normJ = -normI;
                     const Evec3 posI = Ploc - centerI;
                     const Evec3 posJ = Qloc - centerJ;
-                    (*colPoolPtr)[myThreadId].emplace_back(phi0, gamma, syI.gid, syJ.gid, syI.globalIndex,
-                                                           syJ.globalIndex, normI, normJ, posI, posJ, Ploc, Qloc,
-                                                           false);
-                    Emat3 stressIJ; //= (*colPoolPtr)[myThreadId].back().stress;
+                    colQue.emplace_back(phi0, gamma,      // current separation, initial guess of gamma
+                                        syI.gid, syJ.gid, //
+                                        syI.globalIndex,  //
+                                        syJ.globalIndex,  //
+                                        normI, normJ,     // direction of collision force
+                                        posI, posJ,       // location of collision relative to particle center
+                                        Ploc, Qloc,       // location of collision in lab frame
+                                        false);
+                    Emat3 stressIJ;
                     collideStress(directionI, directionJ, centerI, centerJ, syI.lengthCollision, syJ.lengthCollision,
                                   syI.radiusCollision, syJ.radiusCollision, 1.0, Ploc, Qloc, stressIJ);
-                    (*colPoolPtr)[myThreadId].back().setStress(stressIJ);
+                    colQue.back().setStress(stressIJ);
                 }
             }
         }
@@ -242,21 +244,23 @@ class CalcSylinderNearForce {
     /**
      * @brief compute collision stress for a pair of sylinders
      *
-     * @param dirI
-     * @param dirJ
-     * @param posI
-     * @param posJ
-     * @param hI
-     * @param hJ
-     * @param rI
-     * @param rJ
-     * @param rho
-     * @param Ploc
-     * @param Qloc
-     * @param StressIJ
+     * @param dirI direction of I
+     * @param dirJ direction of J
+     * @param posI center location of I (lab frame)
+     * @param posJ center location of J (lab frame)
+     * @param hI length (cylindrical part) of I
+     * @param hJ length (cylindrical part) of J
+     * @param rI radius of I
+     * @param rJ radius of J
+     * @param rho mass density (set to 1)
+     * @param Ploc location of force on I (lab frame)
+     * @param Qloc location of force on J (lab frame)
+     * @param StressIJ [out] pairwise stress if gamma = 1
      */
-    static void collideStress(const Evec3 &dirI, const Evec3 &dirJ, const Evec3 &centerI, const Evec3 &centerJ, //
-                              double hI, double hJ, const double rI, const double rJ, const double rho,         //
+    static void collideStress(const Evec3 &dirI, const Evec3 &dirJ,                   //
+                              const Evec3 &centerI, const Evec3 &centerJ,             //
+                              double hI, double hJ, const double rI, const double rJ, //
+                              const double rho,                                       //
                               const Evec3 &Ploc, const Evec3 &Qloc, Emat3 &StressIJ) {
         Emat3 NI, GAMMAI, NJ, GAMMAJ, InvGAMMAI, InvGAMMAJ;
         InitializeSyN(NI, rI, hI, rho);
@@ -307,6 +311,14 @@ class CalcSylinderNearForce {
         StressIJ = rIf + rJf + SGI + SGJ;
     }
 
+    /**
+     * @brief initialize the tensor integral N for sylinder aligned with z axis
+     *
+     * @param NI [out] tensor integral N
+     * @param r
+     * @param h
+     * @param rho
+     */
     static void InitializeSyN(Emat3 &NI, double r, double h, double rho) {
         NI.setZero();
         double beta = h / 2.0 / r;
@@ -316,6 +328,14 @@ class CalcSylinderNearForce {
         NI = NI * rho * r * r * r * r * r * M_PI;
     }
 
+    /**
+     * @brief initialize the tensor integral GAMMAI for sylinder aligned with z axis
+     *
+     * @param GAMMAI
+     * @param r
+     * @param h
+     * @param rho
+     */
     static void InitializeSyGA(Emat3 &GAMMAI, double r, double h, double rho) {
         GAMMAI.setZero();
         double beta = h / 2.0 / r;

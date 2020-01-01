@@ -61,13 +61,7 @@ class IOHelper {
 
     static void makeSubFolder(const std::string folder) {
 
-        // boost::filesystem::create_directories(folder);
-        // if (!boost::filesystem::is_directory(folder)) {
-        //     printf("Error creating directory!n");
-        //     exit(1);
-        // }
-
-        const int err = mkdir(folder.c_str(), 0755); // make one folder at a time. parent folder must exist
+       const int err = mkdir(folder.c_str(), 0755); // make one folder at a time. parent folder must exist
         if (errno == EEXIST) {
             // printf("Directory already exists.\n");
             return;
@@ -75,7 +69,7 @@ class IOHelper {
         if (err != 0) {
             printf("errno: %d \n", errno);
             printf("Error creating directory!\n");
-            exit(1);
+            std::exit(1);
         }
     }
 

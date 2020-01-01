@@ -73,7 +73,7 @@ class ZDD {
             printf("ZDD Create error %d\n", error);
             findZDD.Print();
             findZDD.Stats();
-            exit(1);
+            std::exit(1);
         }
 
         static_assert(std::is_trivially_copyable<GID_TYPE>::value, "");
@@ -127,7 +127,7 @@ class ZDD {
         int error = findZDD.Update(idPtr, NULL, (char *)dataPtr, NULL, gidOnLocal.size());
         if (error != ZOLTAN_OK) {
             printf("ZDD Update error %d\n", error);
-            exit(1);
+            std::exit(1);
         }
 
 #ifdef ZDDDEBUG

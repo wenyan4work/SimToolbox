@@ -18,6 +18,7 @@
 #include "Constraint/ConstraintSolver.hpp"
 #include "FDPS/particle_simulator.hpp"
 #include "Trilinos/TpetraUtil.hpp"
+#include "Trilinos/ZDD.hpp"
 #include "Util/TRngPool.hpp"
 
 /**
@@ -42,10 +43,10 @@ class SylinderSystem {
     std::shared_ptr<ConstraintSolver> constraintSolverPtr; ///< pointer to CollisionSolver object
     std::shared_ptr<ConstraintCollector> uniConstraintPtr; ///<  pointer to unilateral constraints (collisions)
     std::shared_ptr<ConstraintCollector> biConstraintPtr;  ///<  pointer to bilateral constraints (springs)
-    Teuchos::RCP<const TV> forceUniRcp;                          ///< unilateral constraint force
-    Teuchos::RCP<const TV> velocityUniRcp;                       ///< unilateral constraint velocity
-    Teuchos::RCP<const TV> forceBiRcp;                           ///< bilateral constraint force
-    Teuchos::RCP<const TV> velocityBiRcp;                        ///< bilateral constraint velocity
+    Teuchos::RCP<const TV> forceUniRcp;                    ///< unilateral constraint force
+    Teuchos::RCP<const TV> velocityUniRcp;                 ///< unilateral constraint velocity
+    Teuchos::RCP<const TV> forceBiRcp;                     ///< bilateral constraint force
+    Teuchos::RCP<const TV> velocityBiRcp;                  ///< bilateral constraint velocity
 
     // computed without knowledge of constraints
     Teuchos::RCP<TV> forcePartNonBrownRcp;    ///< force specified by setForceNonBrown()
@@ -61,6 +62,10 @@ class SylinderSystem {
     Teuchos::RCP<TMAP> sylinderMobilityMapRcp; ///< TMAP, contiguous and sequentially ordered 6 dofs per sylinder
     Teuchos::RCP<TCMAT> mobilityMatrixRcp;     ///< block-diagonal mobility matrix
     Teuchos::RCP<TOP> mobilityOperatorRcp;     ///< full mobility operator (matrix-free), to be implemented
+
+    // Data directory
+    std::shared_ptr<ZDD<SylinderNearEP>> sylinderNearDataDirectoryPtr; ///< distributed data directory for sylinder data
+    std::unordered_map<int,int> sylinderGidIndex;
 
     // internal utility functions
     /**
@@ -142,6 +147,18 @@ class SylinderSystem {
      *
      */
     void updateSylinderRank();
+
+    /**
+     * @brief build the ZDD<SylinderNearEP> object
+     *
+     */
+    void buildSylinderNearDataDirectory();
+
+    /**
+     * @brief print a message from rank 0
+     *
+     */
+    void printRank0(const std::string &message);
 
   public:
     SylinderConfig runConfig; ///< system configuration. Be careful if this is modified on the fly
@@ -288,6 +305,8 @@ class SylinderSystem {
      */
     void setVelocityNonBrown(const std::vector<double> &velNonBrown);
 
+    void setBilateralConstraints(ConstraintCollector &biConstraints_) { *biConstraintPtr = biConstraints_; }
+
     /**
      * @brief resolve collision with given nonBrownian motion and advance the system configuration
      *
@@ -296,20 +315,36 @@ class SylinderSystem {
 
     // These should run after runStep()
     /**
-     * @brief add new Sylinders into the system from every rank
+     * @brief add new Sylinders into the system from all ranks
      *
      * add new sylinders and assign new (unique) gid
+     * if no connection, set group/prev/next in linkage as GEO_INVALID_ID (as default constructor)
+     * if connection, group will be set as is, prev/next will set according to new gid
      *
-     * @param newSylinder
+     * example: 2 new linked sylinders as group 8
+     * input, linkage is specified by the order in newSylinder:
+     *  linkage[0]={8,GEO_INVALID_ID,1}, linkage[1]={8,0,GEO_INVALID_ID}
+     * after processed by this function, linkage will be specified by the new gid assigned
+     *  linkage[0]={8,GEO_INVALID_ID,newgid of newSylinder[1]}, linkage[1]={8,new gid of newSylinder[0],GEO_INVALID_ID}
+     *
+     * @param newSylinder list of new sylinders.
+     * @param linkage specify linkage of new sylinders.
+     *
      */
-    void addNewSylinder(std::vector<Sylinder> &newSylinder);
+    void addNewSylinder(std::vector<Sylinder> &newSylinder, std::vector<Link> &linkage);
 
     /**
-     * @brief calculate collision stress with solved collision problem
+     * @brief calculate collision stress with constraint solution
      *
      * The result is shown on screen
      */
     void calcColStress();
+
+    /**
+     * @brief calculate bilateral stress with constraint solution
+     *
+     */
+    void calcBiStress(); // TODO:
 
     /**
      * @brief calculate polar and nematic order parameter
@@ -352,10 +387,17 @@ class SylinderSystem {
     void calcVelocityNonCon();
 
     /**
+     * @brief sum vel = velNonB + velB + velCol + velBi
+     *
+     */
+    void sumVelocity();
+
+    /**
      * @brief calculate the mobility matrix (block diagonal)
      *
      */
     void calcMobMatrix();
+
     /**
      * @brief calculate the mobility operator (full-dense, matrix-free)
      *
@@ -363,9 +405,12 @@ class SylinderSystem {
      */
     void calcMobOperator();
 
-    // resolve collision
-    void collectWallCollision();  ///< collect wall collision constraints
-    void collectPairCollision();  ///< collect pair collision constraints
+    std::shared_ptr<ZDD<SylinderNearEP>> &getSylinderNearDataDirectory() { return sylinderNearDataDirectoryPtr; }
+
+    // resolve constraints
+    void collectWallCollision();    ///< collect wall collision constraints
+    void collectPairCollision();    ///< collect pair collision constraints
+    void collectLinkBilateral();    ///< collect link bilateral constraints
     void resolveConstraints();      ///< resolve constraints
     void saveVelocityConstraints(); ///< write back to sylinder.velCol and velBi
 

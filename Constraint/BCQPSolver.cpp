@@ -496,7 +496,7 @@ double BCQPSolver::checkProjectionResidual(const Teuchos::RCP<const TV> &XRcp, c
         dumpTV(XRcp, "XRcp");
         dumpTV(YRcp, "YRcp");
         dumpTV(QRcp, "QRcp");
-        exit(1);
+        std::exit(1);
     }
 
     return QRcp->norm2();

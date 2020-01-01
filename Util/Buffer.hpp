@@ -131,7 +131,7 @@ class Buffer {
         std::cout << obj << std::endl;
         if (contentPtr != nullptr && readPos > contentPtr->size()) {
             printf("Error: read position past the end of content.\n");
-            exit(1);
+            std::exit(1);
         }
 #endif
     }

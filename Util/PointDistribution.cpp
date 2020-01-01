@@ -93,7 +93,7 @@ void dumpPoints(const std::string &filename, std::vector<double> &coordLocal, st
     const int npts = coord.size() / 3;
     if (value.size() != valueDimension * npts) {
         printf("size errir in dump points, %s\n", filename.c_str());
-        exit(1);
+        std::exit(1);
     }
     for (int i = 0; i < npts; i++) {
         fprintf(fp, "%6f %6f %6f;", coord[3 * i], coord[3 * i + 1], coord[3 * i + 2]);
@@ -122,7 +122,7 @@ void checkError(const std::vector<double> &valueLocal, const std::vector<double>
     if (myRank == 0) {
         if (value.size() != valueTrue.size()) {
             printf("size errir in checking error\n");
-            exit(1);
+            std::exit(1);
         }
         printf("checking error\n");
         // calc error and max error

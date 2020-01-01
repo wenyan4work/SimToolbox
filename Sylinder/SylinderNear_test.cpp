@@ -26,7 +26,7 @@ void testEpsilon() {
             for (int k = 0; k < 3; k++) {
                 if (epsilon[i][j][k] != epsilonConst[i][j][k]) {
                     printf("epsilonConst not correct\n");
-                    exit(1);
+                    std::exit(1);
                 }
             }
         }
@@ -103,7 +103,7 @@ void testFixedPair() {
     if (pass) {
     } else {
         printf("stress wrong\n");
-        exit(1);
+        std::exit(1);
     }
 }
 

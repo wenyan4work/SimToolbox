@@ -56,6 +56,8 @@ void SylinderSystem::initialize(const SylinderConfig &runConfig_, const std::str
     decomposeDomain();
     exchangeSylinder(); // distribute to ranks, initial domain decomposition
 
+    sylinderNearDataDirectoryPtr = std::make_shared<ZDD<SylinderNearEP>>(sylinderContainer.getNumberOfParticleLocal());
+
     treeSylinderNumber = 0;
     setTreeSylinder();
 
@@ -309,9 +311,11 @@ void SylinderSystem::writeVTK(const std::string &baseFolder) {
     Sylinder::writeVTP<PS::ParticleSystem<Sylinder>>(sylinderContainer, sylinderContainer.getNumberOfParticleLocal(),
                                                      baseFolder, std::to_string(snapID), rank);
     uniConstraintPtr->writeVTP(baseFolder, "Col", std::to_string(snapID), rank);
+    biConstraintPtr->writeVTP(baseFolder, "Bi", std::to_string(snapID), rank);
     if (rank == 0) {
         Sylinder::writePVTP(baseFolder, std::to_string(snapID), size); // write parallel head
         uniConstraintPtr->writePVTP(baseFolder, "Col", std::to_string(snapID), size);
+        biConstraintPtr->writePVTP(baseFolder, "Bi", std::to_string(snapID), size);
     }
 }
 
@@ -555,6 +559,18 @@ void SylinderSystem::calcVelocityNonCon() {
     }
 }
 
+void SylinderSystem::sumVelocity() {
+    const int nLocal = sylinderContainer.getNumberOfParticleLocal();
+#pragma omp parallel for
+    for (int i = 0; i < nLocal; i++) {
+        auto &sy = sylinderContainer[i];
+        for (int k = 0; k < 3; k++) {
+            sy.vel[k] = sy.velNonB[k] + sy.velBrown[k] + sy.velCol[k] + sy.velBi[k];
+            sy.omega[k] = sy.omegaNonB[k] + sy.omegaBrown[k] + sy.omegaCol[k] + sy.omegaBi[k];
+        }
+    }
+}
+
 void SylinderSystem::stepEuler() {
     const int nLocal = sylinderContainer.getNumberOfParticleLocal();
     const double dt = runConfig.dt;
@@ -570,18 +586,29 @@ void SylinderSystem::stepEuler() {
 
 void SylinderSystem::resolveConstraints() {
 
-    Teuchos::RCP<Teuchos::Time> collectTimer = Teuchos::TimeMonitor::getNewCounter("SylinderSystem::CollectCollision");
+    Teuchos::RCP<Teuchos::Time> collectColTimer =
+        Teuchos::TimeMonitor::getNewCounter("SylinderSystem::CollectCollision");
+    Teuchos::RCP<Teuchos::Time> collectBiTimer =
+        Teuchos::TimeMonitor::getNewCounter("SylinderSystem::CollectBilateral");
     if (enableTimer) {
-        collectTimer->enable();
+        collectColTimer->enable();
+        collectBiTimer->enable();
     } else {
-        collectTimer->disable();
+        collectColTimer->disable();
+        collectBiTimer->disable();
     }
 
-    printf("start collect collisions\n");
+    printRank0("start collect collisions");
     {
-        Teuchos::TimeMonitor mon(*collectTimer);
+        Teuchos::TimeMonitor mon(*collectColTimer);
         collectPairCollision();
         collectWallCollision();
+    }
+
+    printRank0("start collect bilaterals");
+    {
+        Teuchos::TimeMonitor mon(*collectColTimer);
+        collectLinkBilateral();
     }
 
     // solve collision
@@ -593,18 +620,17 @@ void SylinderSystem::resolveConstraints() {
     } else {
         solveTimer->disable();
     }
-    printf("start solving constraints\n");
     {
         Teuchos::TimeMonitor mon(*solveTimer);
         const double buffer = 0;
-        printf("setup\n");
+        printRank0("constraint solver setup");
         constraintSolverPtr->setup(*uniConstraintPtr, *biConstraintPtr, mobilityOperatorRcp, velocityNonConRcp,
                                    runConfig.dt);
-        printf("set control\n");
+        printRank0("set control");
         constraintSolverPtr->setControlParams(runConfig.conResTol, runConfig.conMaxIte, runConfig.conSolverChoice);
-        printf("solve\n");
+        printRank0("solve");
         constraintSolverPtr->solveConstraints();
-        printf("writeback\n");
+        printRank0("writeback");
         constraintSolverPtr->writebackGamma();
     }
 
@@ -640,12 +666,19 @@ void SylinderSystem::prepareStep() {
 
     updateSylinderMap();
 
+    buildSylinderNearDataDirectory();
+
     const int nLocal = sylinderContainer.getNumberOfParticleLocal();
 #pragma omp parallel for
     for (int i = 0; i < nLocal; i++) {
         sylinderContainer[i].radiusCollision = sylinderContainer[i].radius * runConfig.sylinderDiameterColRatio;
         sylinderContainer[i].lengthCollision = sylinderContainer[i].length * runConfig.sylinderLengthColRatio;
         sylinderContainer[i].clear();
+    }
+
+    sylinderGidIndex.clear();
+    for (int i = 0; i < nLocal; i++) {
+        sylinderGidIndex.emplace(sylinderContainer[i].gid, i);
     }
 
     calcMobOperator();
@@ -680,15 +713,7 @@ void SylinderSystem::runStep() {
 
     resolveConstraints();
 
-    const int nLocal = sylinderContainer.getNumberOfParticleLocal();
-#pragma omp parallel for
-    for (int i = 0; i < nLocal; i++) {
-        auto &sy = sylinderContainer[i];
-        for (int k = 0; k < 3; k++) {
-            sy.vel[k] = sy.velNonB[k] + sy.velBrown[k] + sy.velCol[k] + sy.velBi[k];
-            sy.omega[k] = sy.omegaNonB[k] + sy.omegaBrown[k] + sy.omegaCol[k] + sy.omegaBi[k];
-        }
-    }
+    sumVelocity();
 
     if (getIfWriteResultCurrentStep()) {
         // write result before moving. guarantee data written is consistent to geometry
@@ -1099,8 +1124,8 @@ void SylinderSystem::setPosWithWall() {
     }
 }
 
-void SylinderSystem::addNewSylinder(std::vector<Sylinder> &newSylinder) {
-    // assign unique new gid for old cells on all ranks
+void SylinderSystem::addNewSylinder(std::vector<Sylinder> &newSylinder, std::vector<Link> &linkage) {
+    // assign unique new gid for sylinders on all ranks
     std::pair<int, int> maxGid = getMaxGid();
     const int maxGidLocal = maxGid.first;
     const int maxGidGlobal = maxGid.second;
@@ -1133,8 +1158,182 @@ void SylinderSystem::addNewSylinder(std::vector<Sylinder> &newSylinder) {
     for (int i = 0; i < newNumberOnLocal; i++) {
         newSylinder[i].gid = newIDRecv[i] + 1 + maxGidGlobal;
     }
+
+    // set link connection
+    if (linkage.size() == newNumberOnLocal) {
+        for (int i = 0; i < newNumberOnLocal; i++) {
+            newSylinder[i].link.group = linkage[i].group;
+            newSylinder[i].link.prev =
+                (linkage[i].prev == GEO_INVALID_INDEX) ? GEO_INVALID_INDEX : newSylinder[linkage[i].prev].gid;
+            newSylinder[i].link.next =
+                (linkage[i].next == GEO_INVALID_INDEX) ? GEO_INVALID_INDEX : newSylinder[linkage[i].next].gid;
+        }
+    } else if (linkage.size() == 0) {
+        // no linkage, do nothing
+    } else {
+        printf("wrong linkage on rank: %d\n", commRcp->getRank());
+        std::exit(1);
+    }
+
     // add new cell to old cell
     for (int i = 0; i < newNumberOnLocal; i++) {
         sylinderContainer.addOneParticle(newSylinder[i]);
+    }
+}
+
+void SylinderSystem::printRank0(const std::string &message) {
+    if (commRcp->getRank() == 0) {
+        std::cout << message << std::endl;
+    }
+}
+
+void SylinderSystem::buildSylinderNearDataDirectory() {
+    const size_t nLocal = sylinderContainer.getNumberOfParticleLocal();
+    auto &sylinderNearDataDirectory = *sylinderNearDataDirectoryPtr;
+    sylinderNearDataDirectory.gidOnLocal.resize(nLocal);
+    sylinderNearDataDirectory.dataOnLocal.resize(nLocal);
+#pragma omp parallel for
+    for (int i = 0; i < nLocal; i++) {
+        sylinderNearDataDirectory.gidOnLocal[i] = sylinderContainer[i].gid;
+        sylinderNearDataDirectory.dataOnLocal[i].copyFromFP(sylinderContainer[i]);
+    }
+
+    // build index
+    sylinderNearDataDirectory.buildIndex();
+}
+
+void SylinderSystem::collectLinkBilateral() {
+    // WARNING: periodic boundary condition is missing in this function. do not use.
+    auto &cPool = *(biConstraintPtr->constraintPoolPtr);
+    const int nThreads = cPool.size();
+    const int nLocal = sylinderContainer.getNumberOfParticleLocal();
+    const double kappa = 10.0;
+    // loop all links.
+    // add constraint block for each link where next != INVALID
+
+    // step 1, fill info where the next link is also on local mpi rank
+
+#pragma omp parallel num_threads(nThreads)
+    {
+        const int tid = omp_get_thread_num();
+        auto &cQue = cPool[tid];
+        cQue.clear();
+#pragma omp for
+        for (int i = 0; i < nLocal; i++) {
+            const auto &syI = sylinderContainer[i];
+            if (syI.link.next == GEO_INVALID_INDEX) {
+                continue; // no link, do nothing
+            }
+
+            const auto &J = sylinderGidIndex.find(syI.link.next);
+            if (J != sylinderGidIndex.end()) { // syJ is also on local. add to cQue
+                const Evec3 centerI = ECmap3(syI.pos);
+                const Evec3 directionI = ECmapq(syI.orientation) * Evec3(0, 0, 1);
+                // const Evec3 Pm = centerI - directionI * (0.5 * syI.length); // tail
+                const Evec3 Pp = centerI + directionI * (0.5 * syI.length); // head
+                const auto &syJ = sylinderContainer[J->second];
+                const Evec3 centerJ = ECmap3(syJ.pos);
+                const Evec3 directionJ = ECmapq(syJ.orientation) * Evec3(0, 0, 1);
+                const Evec3 Qm = centerJ - directionJ * (0.5 * syJ.length); // tail
+                // const Evec3 Qp = centerJ + directionJ * (0.5 * syJ.length); // head
+                Evec3 Ploc = Pp; // head of I is linked to tail of J
+                Evec3 Qloc = Qm;
+                const Evec3 vecIJ = Ploc - Qloc;
+                const double dist = vecIJ.norm();
+                const Evec3 normI = vecIJ / dist;
+                const Evec3 normJ = -normI;
+                const Evec3 posI = Ploc - centerI;
+                const Evec3 posJ = Qloc - centerJ;
+                const double sep = dist - (syI.radius + syJ.radius); // L - L0
+                double gamma = -sep * kappa;
+                cQue.emplace_back(sep, gamma,       // L - L0, initial guess of gamma
+                                  syI.gid, syJ.gid, //
+                                  syI.globalIndex,  //
+                                  syJ.globalIndex,  //
+                                  normI, normJ,     // direction of collision force
+                                  posI, posJ,       // location of collision relative to particle center
+                                  Ploc, Qloc,       // location of collision in lab frame
+                                  false, kappa);
+                Emat3 stressIJ;
+                CalcSylinderNearForce::collideStress(directionI, directionJ, centerI, centerJ, syI.length, syJ.length,
+                                                     syI.radius, syJ.radius, 1.0, Ploc, Qloc, stressIJ);
+                cQue.back().setStress(stressIJ);
+
+            } else { // syJ is not on local. add syI info to block only
+                printf("%d %d\n", syI.gid, syI.link.next);
+                cQue.emplace_back(0, 0,                           // L - L0, initial guess of gamma
+                                  syI.gid, syI.link.next,         //
+                                  syI.globalIndex,                //
+                                  GEO_INVALID_INDEX,              //
+                                  Evec3(0, 0, 1), Evec3(0, 0, 1), // direction of collision force
+                                  Evec3(0, 0, 1), Evec3(0, 0, 1), // location of collision relative to particle center
+                                  Evec3(0, 0, 1), Evec3(0, 0, 1), // location of collision in lab frame
+                                  false);
+            }
+        }
+    }
+
+    // step 2, fill missing information with DataDirectory from other mpi ranks.
+    sylinderNearDataDirectoryPtr->gidToFind.clear();
+    sylinderNearDataDirectoryPtr->dataToFind.clear();
+    for (auto &cQue : cPool) {
+        for (auto &block : cQue) {
+            if (block.globalIndexJ == GEO_INVALID_INDEX) {
+                sylinderNearDataDirectoryPtr->gidToFind.push_back(block.gidJ);
+            }
+        }
+    }
+    sylinderNearDataDirectoryPtr->find();
+    int findIndex = 0;
+    for (auto &cQue : cPool) {
+        for (auto &block : cQue) {
+            if (block.globalIndexJ == GEO_INVALID_INDEX) {
+                auto I = sylinderGidIndex.find(block.gidI);
+                if (I == sylinderGidIndex.end()) {
+                    printf("sylinderGidIndex Error 1\n");
+                    std::exit(1);
+                }
+                const auto &syI = sylinderContainer[I->second];
+                const auto &syNearJ = sylinderNearDataDirectoryPtr->dataToFind[findIndex];
+                if (syNearJ.gid != block.gidJ) {
+                    printf("sylinderGidIndex Error 2\n");
+                    std::exit(1);
+                }
+
+                const Evec3 centerI = ECmap3(syI.pos);
+                const Evec3 directionI = ECmapq(syI.orientation) * Evec3(0, 0, 1);
+                // const Evec3 Pm = centerI - directionI * (0.5 * syI.length); // tail
+                const Evec3 Pp = centerI + directionI * (0.5 * syI.length); // head
+
+                const Evec3 centerJ = ECmap3(syNearJ.pos);
+                const Evec3 directionJ = ECmap3(syNearJ.direction);
+                const Evec3 Qm = centerJ - directionJ * (0.5 * syNearJ.length); // tail
+                // const Evec3 Qp = centerJ + directionJ * (0.5 * syJ.length); // head
+                Evec3 Ploc = Pp; // head of I is linked to tail of J
+                Evec3 Qloc = Qm;
+                const Evec3 vecIJ = Ploc - Qloc;
+                const double dist = vecIJ.norm();
+                const Evec3 normI = vecIJ / dist;
+                const Evec3 normJ = -normI;
+                const Evec3 posI = Ploc - centerI;
+                const Evec3 posJ = Qloc - centerJ;
+                const double sep = dist - (syI.radius + syNearJ.radius); // L - L0
+                double gamma = -sep * kappa;
+                block = ConstraintBlock(sep, gamma,           // L - L0, initial guess of gamma
+                                        syI.gid, syNearJ.gid, //
+                                        syI.globalIndex,      //
+                                        syNearJ.globalIndex,  //
+                                        normI, normJ,         // direction of collision force
+                                        posI, posJ,           // location of collision relative to particle center
+                                        Ploc, Qloc,           // location of collision in lab frame
+                                        false, kappa);
+                Emat3 stressIJ;
+                CalcSylinderNearForce::collideStress(directionI, directionJ, centerI, centerJ, syI.length,
+                                                     syNearJ.length, syI.radius, syNearJ.radius, 1.0, Ploc, Qloc,
+                                                     stressIJ);
+                block.setStress(stressIJ);
+                findIndex++;
+            }
+        }
     }
 }

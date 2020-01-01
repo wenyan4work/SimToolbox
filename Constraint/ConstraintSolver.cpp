@@ -80,6 +80,7 @@ void ConstraintSolver::reset() {
 }
 
 void ConstraintSolver::solveConstraints() {
+    const auto &commRcp = gammauRcp->getMap()->getComm();
     // solver
     BCQPSolver solver(MOpRcp, qRcp);
 
@@ -100,6 +101,15 @@ void ConstraintSolver::solveConstraints() {
     default:
         solver.solveBBPGD(gammaRcp, res, maxIte, history);
         break;
+    }
+
+    if (commRcp->getRank() == 0 && history.size() > 0) {
+        auto &p = history.back();
+        std::cout << "RECORD: BCQP residue";
+        for (auto &v : p) {
+            std::cout << "," << v;
+        }
+        std::cout << std::endl;
     }
 
     // block view
