@@ -33,4 +33,4 @@ usePotential: false
 conResTol: 0.00001 # 1e-5 format may be incompatible
 conMaxIte: 100000
 conSolverChoice: 0 # 0 for BBPGD, 1 for APGD, etc
-linkKappa: 100.0
+linkKappa: 100.0 # pN/um spring constant for sylinder links.

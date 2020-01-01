@@ -344,7 +344,7 @@ class SylinderSystem {
      * @brief calculate bilateral stress with constraint solution
      *
      */
-    void calcBiStress(); // TODO:
+    void calcBiStress(); 
 
     /**
      * @brief calculate polar and nematic order parameter
@@ -410,9 +410,10 @@ class SylinderSystem {
     // resolve constraints
     void collectWallCollision();    ///< collect wall collision constraints
     void collectPairCollision();    ///< collect pair collision constraints
-    void collectLinkBilateral();    ///< collect link bilateral constraints
     void resolveConstraints();      ///< resolve constraints
     void saveVelocityConstraints(); ///< write back to sylinder.velCol and velBi
+
+    void collectLinkBilateral();    ///< WARNING: periodic boundary condition is missing in this function. do not use.
 
     void stepEuler(); ///< Euler step update position and orientation, with both collision and non-collision velocity
 

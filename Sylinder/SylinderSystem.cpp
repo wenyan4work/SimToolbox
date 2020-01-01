@@ -605,11 +605,11 @@ void SylinderSystem::resolveConstraints() {
         collectWallCollision();
     }
 
-    printRank0("start collect bilaterals");
-    {
-        Teuchos::TimeMonitor mon(*collectColTimer);
-        collectLinkBilateral();
-    }
+    // printRank0("start collect bilaterals");
+    // {
+    //     Teuchos::TimeMonitor mon(*collectColTimer);
+    //     collectLinkBilateral();
+    // }
 
     // solve collision
     // positive buffer value means collision radius is effectively smaller
@@ -929,10 +929,10 @@ void SylinderSystem::collectWallCollision() {
 }
 
 void SylinderSystem::collectPairCollision() {
-    auto &collector = *uniConstraintPtr;
-    collector.clear();
+    uniConstraintPtr->clear();
+    biConstraintPtr->clear();
 
-    CalcSylinderNearForce calcColFtr(uniConstraintPtr->constraintPoolPtr);
+    CalcSylinderNearForce calcColFtr(uniConstraintPtr->constraintPoolPtr, biConstraintPtr->constraintPoolPtr);
 
     TEUCHOS_ASSERT(treeSylinderNearPtr);
     const int nLocal = sylinderContainer.getNumberOfParticleLocal();
@@ -942,6 +942,16 @@ void SylinderSystem::collectPairCollision() {
 #pragma omp parallel for
     for (int i = 0; i < nLocal; i++) {
         sylinderContainer[i].sepmin = (treeSylinderNearPtr->getForce(i)).sepmin;
+    }
+
+    const int nQue = biConstraintPtr->constraintPoolPtr->size();
+#pragma omp paralell for
+    for (int q = 0; q < nQue; q++) {
+        auto &queue = biConstraintPtr->constraintPoolPtr->at(q);
+        for (auto &block : queue) {
+            block.kappa = runConfig.linkKappa;
+            block.gamma = block.kappa * block.delta0;
+        }
     }
 }
 
@@ -1032,6 +1042,33 @@ void SylinderSystem::calcColStress() {
 
     if (commRcp->getRank() == 0)
         printf("RECORD: ColXF,%7g,%7g,%7g,%7g,%7g,%7g,%7g,%7g,%7g\n",         //
+               meanStressGlobal[0], meanStressGlobal[1], meanStressGlobal[2], //
+               meanStressGlobal[3], meanStressGlobal[4], meanStressGlobal[5], //
+               meanStressGlobal[6], meanStressGlobal[7], meanStressGlobal[8]);
+}
+
+void SylinderSystem::calcBiStress() {
+
+    Emat3 meanStress = Emat3::Zero();
+    biConstraintPtr->sumLocalConstraintStress(meanStress, false);
+
+    // scale to nkBT
+    const double scaleFactor = 1 / (sylinderMapRcp->getGlobalNumElements() * runConfig.KBT);
+    meanStress *= scaleFactor;
+    // mpi reduction
+    double meanStressLocal[9];
+    double meanStressGlobal[9];
+    for (int i = 0; i < 3; i++) {
+        for (int j = 0; j < 3; j++) {
+            meanStressLocal[i * 3 + j] = meanStress(i, j);
+            meanStressGlobal[i * 3 + j] = 0;
+        }
+    }
+
+    Teuchos::reduceAll(*commRcp, Teuchos::SumValueReductionOp<int, double>(), 9, meanStressLocal, meanStressGlobal);
+
+    if (commRcp->getRank() == 0)
+        printf("RECORD: BiXF,%7g,%7g,%7g,%7g,%7g,%7g,%7g,%7g,%7g\n",         //
                meanStressGlobal[0], meanStressGlobal[1], meanStressGlobal[2], //
                meanStressGlobal[3], meanStressGlobal[4], meanStressGlobal[5], //
                meanStressGlobal[6], meanStressGlobal[7], meanStressGlobal[8]);
