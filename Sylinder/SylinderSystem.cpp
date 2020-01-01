@@ -1207,7 +1207,7 @@ void SylinderSystem::collectLinkBilateral() {
     auto &cPool = *(biConstraintPtr->constraintPoolPtr);
     const int nThreads = cPool.size();
     const int nLocal = sylinderContainer.getNumberOfParticleLocal();
-    const double kappa = 10.0;
+    const double kappa = runConfig.linkKappa;
     // loop all links.
     // add constraint block for each link where next != INVALID
 
@@ -1244,7 +1244,7 @@ void SylinderSystem::collectLinkBilateral() {
                 const Evec3 normJ = -normI;
                 const Evec3 posI = Ploc - centerI;
                 const Evec3 posJ = Qloc - centerJ;
-                const double sep = dist - (syI.radius + syJ.radius); // L - L0
+                const double sep = dist - (syI.radius + syJ.radius) * 1.05; // L - L0
                 double gamma = -sep * kappa;
                 cQue.emplace_back(sep, gamma,       // L - L0, initial guess of gamma
                                   syI.gid, syJ.gid, //
@@ -1317,7 +1317,7 @@ void SylinderSystem::collectLinkBilateral() {
                 const Evec3 normJ = -normI;
                 const Evec3 posI = Ploc - centerI;
                 const Evec3 posJ = Qloc - centerJ;
-                const double sep = dist - (syI.radius + syNearJ.radius); // L - L0
+                const double sep = dist - (syI.radius + syNearJ.radius) * 1.05; // L - L0
                 double gamma = -sep * kappa;
                 block = ConstraintBlock(sep, gamma,           // L - L0, initial guess of gamma
                                         syI.gid, syNearJ.gid, //

@@ -59,6 +59,7 @@ class SylinderConfig {
     double conResTol = 1e-5;   ///< constraint solver residual
     int conMaxIte = 1e5;       ///< constraint solver maximum iteration
     int conSolverChoice = 0;   ///< choose a iterative solver. 0 for BBPGD, 1 for APGD, etc
+    double linkKappa = 100.0;   ///< stiffness of sylinder links
 
     SylinderConfig() = default;
     SylinderConfig(std::string filename);

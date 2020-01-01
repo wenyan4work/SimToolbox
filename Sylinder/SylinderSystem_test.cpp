@@ -58,12 +58,14 @@ void testSedimentation(int argc, char **argv) {
     sylinderSystem.addNewSylinder(newSylinder, linkage);
 
     // run 10 more steps
-    for (int i = 0; i < 10; i++) {
+    for (int i = 0; i < 100; i++) {
         sylinderSystem.prepareStep();
-        int nLocal = sylinderSystem.getContainer().getNumberOfParticleLocal();
+        auto & sylinderContainer=sylinderSystem.getContainer();
+        int nLocal = sylinderContainer.getNumberOfParticleLocal();
         std::vector<double> forceNonBrown(nLocal * 6, 0.0);
         for (int i = 0; i < nLocal; i++) {
-            forceNonBrown[6 * i + 2] = -10; // const gravity
+            if(sylinderContainer[i].link.group!=GEO_INVALID_INDEX && sylinderContainer[i].link.next==GEO_INVALID_INDEX)
+            forceNonBrown[6 * i + 2] = -10; // const gravity to the tail of the link
         }
         sylinderSystem.setForceNonBrown(forceNonBrown);
         sylinderSystem.setForceNonBrown(forceNonBrown);

@@ -59,6 +59,7 @@ SylinderConfig::SylinderConfig(std::string filename) {
     conResTol = config["conResTol"].as<double>();
     conMaxIte = config["conMaxIte"].as<int>();
     conSolverChoice = config["conSolverChoice"].as<int>();
+    linkKappa = config["linkKappa"].as<double>();
 }
 
 void SylinderConfig::dump() const {
@@ -93,6 +94,7 @@ void SylinderConfig::dump() const {
         printf("Residual Tolerance: %g\n", conResTol);
         printf("Max Iteration: %d\n", conMaxIte);
         printf("Solver Choice: %d\n", conSolverChoice);
+        printf("Link Kappa: %g\n", linkKappa);
         printf("-------------------------------------------\n");
     }
 }
