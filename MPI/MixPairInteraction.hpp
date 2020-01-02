@@ -244,7 +244,8 @@ class MixPairInteraction {
      * @brief update systemMix
      *
      */
-    void updateSystem(PS::ParticleSystem<FPT> &systemTrg, PS::ParticleSystem<FPS> &systemSrc, PS::DomainInfo &dinfo);
+    void updateSystem(const PS::ParticleSystem<FPT> &systemTrg, const PS::ParticleSystem<FPS> &systemSrc,
+                      PS::DomainInfo &dinfo);
 
     /**
      * @brief update treeMix
@@ -283,8 +284,8 @@ class MixPairInteraction {
 };
 
 template <class FPT, class FPS, class EPT, class EPS, class Force>
-void MixPairInteraction<FPT, FPS, EPT, EPS, Force>::updateSystem(PS::ParticleSystem<FPT> &systemTrg,
-                                                                 PS::ParticleSystem<FPS> &systemSrc,
+void MixPairInteraction<FPT, FPS, EPT, EPS, Force>::updateSystem(const PS::ParticleSystem<FPT> &systemTrg,
+                                                                 const PS::ParticleSystem<FPS> &systemSrc,
                                                                  PS::DomainInfo &dinfo) {
     nLocalTrg = systemTrg.getNumberOfParticleLocal();
     nLocalSrc = systemSrc.getNumberOfParticleLocal();

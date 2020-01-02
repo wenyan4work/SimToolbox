@@ -65,7 +65,7 @@ class SylinderSystem {
 
     // Data directory
     std::shared_ptr<ZDD<SylinderNearEP>> sylinderNearDataDirectoryPtr; ///< distributed data directory for sylinder data
-    std::unordered_map<int,int> sylinderGidIndex;
+    std::unordered_map<int, int> sylinderGidIndex;
 
     // internal utility functions
     /**
@@ -147,12 +147,6 @@ class SylinderSystem {
      *
      */
     void updateSylinderRank();
-
-    /**
-     * @brief build the ZDD<SylinderNearEP> object
-     *
-     */
-    void buildSylinderNearDataDirectory();
 
     /**
      * @brief print a message from rank 0
@@ -248,18 +242,20 @@ class SylinderSystem {
      *
      * @return PS::ParticleSystem<Sylinder>&
      */
-    PS::ParticleSystem<Sylinder> &getContainer() { return sylinderContainer; }
+    const PS::ParticleSystem<Sylinder> &getContainer() { return sylinderContainer; }
+    PS::ParticleSystem<Sylinder> &getContainerNonConst() { return sylinderContainer; }
 
-    PS::ParticleSystem<Sylinder> *getContainerPtr() { return &sylinderContainer; }
+    // PS::ParticleSystem<Sylinder> *getContainerPtr() { return &sylinderContainer; }
 
     /**
      * @brief Get the DomainInfo object
      *
      * @return PS::DomainInfo&
      */
-    PS::DomainInfo &getDomainInfo() { return dinfo; }
+    const PS::DomainInfo &getDomainInfo() { return dinfo; }
+    PS::DomainInfo &getDomainInfoNonConst() { return dinfo; }
 
-    PS::DomainInfo *getDomainInfoPtr() { return &dinfo; }
+    // PS::DomainInfo *getDomainInfoPtr() { return &dinfo; }
 
     /**
      * @brief Get the RngPoolPtr object
@@ -344,7 +340,7 @@ class SylinderSystem {
      * @brief calculate bilateral stress with constraint solution
      *
      */
-    void calcBiStress(); 
+    void calcBiStress();
 
     /**
      * @brief calculate polar and nematic order parameter
@@ -405,6 +401,17 @@ class SylinderSystem {
      */
     void calcMobOperator();
 
+    /**
+     * @brief build the ZDD<SylinderNearEP> object
+     *
+     */
+    void buildSylinderNearDataDirectory();
+
+    /**
+     * @brief Get the SylinderNearDataDirectory object
+     *
+     * @return std::shared_ptr<const ZDD<SylinderNearEP>>&
+     */
     std::shared_ptr<ZDD<SylinderNearEP>> &getSylinderNearDataDirectory() { return sylinderNearDataDirectoryPtr; }
 
     // resolve constraints
@@ -413,7 +420,7 @@ class SylinderSystem {
     void resolveConstraints();      ///< resolve constraints
     void saveVelocityConstraints(); ///< write back to sylinder.velCol and velBi
 
-    void collectLinkBilateral();    ///< WARNING: periodic boundary condition is missing in this function. do not use.
+    void collectLinkBilateral(); ///< WARNING: periodic boundary condition is missing in this function. do not use.
 
     void stepEuler(); ///< Euler step update position and orientation, with both collision and non-collision velocity
 

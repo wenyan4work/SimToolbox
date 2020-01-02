@@ -666,8 +666,6 @@ void SylinderSystem::prepareStep() {
 
     updateSylinderMap();
 
-    buildSylinderNearDataDirectory();
-
     const int nLocal = sylinderContainer.getNumberOfParticleLocal();
 #pragma omp parallel for
     for (int i = 0; i < nLocal; i++) {
@@ -676,12 +674,17 @@ void SylinderSystem::prepareStep() {
         sylinderContainer[i].clear();
     }
 
-    sylinderGidIndex.clear();
-    for (int i = 0; i < nLocal; i++) {
-        sylinderGidIndex.emplace(sylinderContainer[i].gid, i);
-    }
+    // buildSylinderNearDataDirectory();
+
+    // sylinderGidIndex.clear();
+    // for (int i = 0; i < nLocal; i++) {
+    //     sylinderGidIndex.emplace(sylinderContainer[i].gid, i);
+    // }
 
     calcMobOperator();
+
+    uniConstraintPtr->clear();
+    biConstraintPtr->clear();
 
     forcePartNonBrownRcp.reset();
     velocityPartNonBrownRcp.reset();
@@ -929,8 +932,6 @@ void SylinderSystem::collectWallCollision() {
 }
 
 void SylinderSystem::collectPairCollision() {
-    uniConstraintPtr->clear();
-    biConstraintPtr->clear();
 
     CalcSylinderNearForce calcColFtr(uniConstraintPtr->constraintPoolPtr, biConstraintPtr->constraintPoolPtr);
 
@@ -1068,7 +1069,7 @@ void SylinderSystem::calcBiStress() {
     Teuchos::reduceAll(*commRcp, Teuchos::SumValueReductionOp<int, double>(), 9, meanStressLocal, meanStressGlobal);
 
     if (commRcp->getRank() == 0)
-        printf("RECORD: BiXF,%7g,%7g,%7g,%7g,%7g,%7g,%7g,%7g,%7g\n",         //
+        printf("RECORD: BiXF,%7g,%7g,%7g,%7g,%7g,%7g,%7g,%7g,%7g\n",          //
                meanStressGlobal[0], meanStressGlobal[1], meanStressGlobal[2], //
                meanStressGlobal[3], meanStressGlobal[4], meanStressGlobal[5], //
                meanStressGlobal[6], meanStressGlobal[7], meanStressGlobal[8]);
