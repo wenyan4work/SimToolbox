@@ -45,7 +45,7 @@ struct SylinderNearEP {
     double radiusCollision; ///< collision radius
     double length;          ///< length
     double lengthCollision; ///< collision length
-    Link link; ///< linkage of this sylinder
+    Link link;              ///< linkage of this sylinder
 
     double pos[3];       ///< position
     double direction[3]; ///< direction (unit norm vector)
@@ -231,7 +231,7 @@ class CalcSylinderNearForce {
                     const Evec3 normJ = -normI;
                     const Evec3 posI = Ploc - centerI;
                     const Evec3 posJ = Qloc - centerJ;
-                    colQue.emplace_back(delta0, gamma,      // current separation, initial guess of gamma
+                    colQue.emplace_back(delta0, gamma,    // current separation, initial guess of gamma
                                         syI.gid, syJ.gid, //
                                         syI.globalIndex,  //
                                         syJ.globalIndex,  //
@@ -246,8 +246,8 @@ class CalcSylinderNearForce {
                 }
 
                 // record bilateral blocks
-                if(syI.link.next == syJ.gid){
-                    const double delta0 = distMin - (syI.radiusCollision + syJ.radiusCollision)*1.01;
+                if (syI.link.next == syJ.gid) {
+                    const double delta0 = distMin - (syI.radiusCollision + syJ.radiusCollision) * 1.01;
                     const double gamma = sep < 0 ? -sep : 0;
                     const Evec3 Ploc = Pp;
                     const Evec3 Qloc = Qm;
@@ -255,19 +255,18 @@ class CalcSylinderNearForce {
                     const Evec3 normJ = -normI;
                     const Evec3 posI = Ploc - centerI;
                     const Evec3 posJ = Qloc - centerJ;
-                    biQue.emplace_back(delta0, gamma,      // current separation, initial guess of gamma
-                                        syI.gid, syJ.gid, //
-                                        syI.globalIndex,  //
-                                        syJ.globalIndex,  //
-                                        normI, normJ,     // direction of collision force
-                                        posI, posJ,       // location of collision relative to particle center
-                                        Ploc, Qloc,       // location of collision in lab frame
-                                        false);
+                    biQue.emplace_back(delta0, gamma,    // current separation, initial guess of gamma
+                                       syI.gid, syJ.gid, //
+                                       syI.globalIndex,  //
+                                       syJ.globalIndex,  //
+                                       normI, normJ,     // direction of collision force
+                                       posI, posJ,       // location of collision relative to particle center
+                                       Ploc, Qloc,       // location of collision in lab frame
+                                       false, -1);       // kappa will be set to link kappa later
                     Emat3 stressIJ;
                     collideStress(directionI, directionJ, centerI, centerJ, syI.lengthCollision, syJ.lengthCollision,
                                   syI.radiusCollision, syJ.radiusCollision, 1.0, Ploc, Qloc, stressIJ);
                     biQue.back().setStress(stressIJ);
-                    
                 }
             }
         }

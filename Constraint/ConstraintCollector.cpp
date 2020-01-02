@@ -49,15 +49,17 @@ void ConstraintCollector::sumLocalConstraintStress(Emat3 &stress, bool withOneSi
             if (cBlock.oneSide && !withOneSide) {
                 // skip counting oneside collision blocks
                 continue;
-            } else if (cBlock.gamma > 0) {
+            } else {
                 Emat3 stressBlock;
                 cBlock.getStress(stressBlock);
-                stressSumQue = stressSumQue + (stressBlock * cBlock.gamma);
+                stressSumQue = stressSumQue + stressBlock;
             }
         }
 #pragma omp critical
         { stressTotal = stressTotal + stressSumQue; }
     }
+
+    stress = stressTotal;
 
     // std::cout << stressTotal << std::endl;
 }

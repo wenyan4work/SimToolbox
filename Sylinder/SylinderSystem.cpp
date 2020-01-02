@@ -950,8 +950,10 @@ void SylinderSystem::collectPairCollision() {
     for (int q = 0; q < nQue; q++) {
         auto &queue = biConstraintPtr->constraintPoolPtr->at(q);
         for (auto &block : queue) {
-            block.kappa = runConfig.linkKappa;
-            block.gamma = block.kappa * block.delta0;
+            if (block.kappa < 0) {
+                block.kappa = runConfig.linkKappa;
+                block.gamma = block.kappa * block.delta0;
+            }
         }
     }
 }
