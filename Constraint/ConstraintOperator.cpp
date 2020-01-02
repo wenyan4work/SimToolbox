@@ -55,8 +55,15 @@ void ConstraintOperator::apply(const TMV &X, TMV &Y, Teuchos::ETransp mode, scal
         uniDuMatTransRcp->apply(*mobVelRcp, *deltaUniRcp);
         biDbMatTransRcp->apply(*mobVelRcp, *deltaBiRcp);
 
-        // step 4, add spring constant effect: K^{-1}gammab
-        // deltaUniBlock[i] += K^{-1}[i]*gammab[i]
+        // step 4, Y = [deltaUniBlock ; deltaBiBlock] = alpha * Op * X + beta * Y
+        // Op * X = [ deltaUni(0)+deltaUni(1); deltaBi(0)+deltaBi(1)]
+        // 5.1 uni block
+        deltaUniBlock->update(alpha, *(deltaUniRcp->getVector(0)), alpha, *(deltaUniRcp->getVector(1)), beta);
+        // 5.2 bi block
+        deltaBiBlock->update(alpha, *(deltaBiRcp->getVector(0)), alpha, *(deltaBiRcp->getVector(1)), beta);
+
+        // step 5, add spring constant effect: K^{-1}gammab
+        // deltaUniBlock[i] += alpha * K^{-1}[i]*gammab[i]
         auto deltaBiPtr = deltaBiBlock->getLocalView<Kokkos::HostSpace>();
         deltaBiBlock->modify<Kokkos::HostSpace>();
         auto gammaBiPtr = gammaBiBlock->getLocalView<Kokkos::HostSpace>();
@@ -65,15 +72,8 @@ void ConstraintOperator::apply(const TMV &X, TMV &Y, Teuchos::ETransp mode, scal
                                    "Kinv and gammaBi size error\n")
 #pragma omp parallel for
         for (int k = 0; k < gammaBiSize; k++) {
-            deltaBiPtr(k, 0) += invKappaDiagMat[k] * gammaBiPtr(k, 0);
+            deltaBiPtr(k, 0) += alpha * invKappaDiagMat[k] * gammaBiPtr(k, 0);
         }
-
-        // step 5, Y = [deltaUniBlock ; deltaBiBlock] = alpha * Op * X + beta * Y
-        // Op * X = [ deltaUni(0)+deltaUni(1); deltaBi(0)+deltaBi(1)]
-        // 5.1 uni block
-        deltaUniBlock->update(alpha, *(deltaUniRcp->getVector(0)), alpha, *(deltaUniRcp->getVector(1)), beta);
-        // 5.2 bi block
-        deltaBiBlock->update(alpha, *(deltaBiRcp->getVector(0)), alpha, *(deltaBiRcp->getVector(1)), beta);
     }
 }
 
