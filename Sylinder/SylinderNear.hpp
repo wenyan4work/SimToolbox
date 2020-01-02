@@ -248,7 +248,7 @@ class CalcSylinderNearForce {
                 // record bilateral blocks
                 if (syI.link.next == syJ.gid) {
                     const double delta0 = distMin - (syI.radiusCollision + syJ.radiusCollision) * 1.01;
-                    const double gamma = sep < 0 ? -sep : 0;
+                    const double gamma = 0;
                     const Evec3 Ploc = Pp;
                     const Evec3 Qloc = Qm;
                     const Evec3 normI = (Ploc - Qloc).normalized();
