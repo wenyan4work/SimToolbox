@@ -945,7 +945,7 @@ void SylinderSystem::collectPairCollision() {
     }
 
     const int nQue = biConstraintPtr->constraintPoolPtr->size();
-#pragma omp paralell for
+#pragma omp parallel for
     for (int q = 0; q < nQue; q++) {
         auto &queue = biConstraintPtr->constraintPoolPtr->at(q);
         for (auto &block : queue) {
