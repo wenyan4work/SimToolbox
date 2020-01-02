@@ -43,6 +43,8 @@ void testFixedPair() {
     CalcSylinderNearForce calc;
     calc.colPoolPtr = std::make_shared<ConstraintBlockPool>();
     calc.colPoolPtr->resize(1);
+    calc.biPoolPtr = std::make_shared<ConstraintBlockPool>();
+    calc.biPoolPtr->resize(1);
 
     std::vector<SylinderNearEP> sylinderP(1);
     std::vector<SylinderNearEP> sylinderQ(1);
@@ -117,6 +119,8 @@ void testParallel() {
     CalcSylinderNearForce calc;
     calc.colPoolPtr = std::make_shared<ConstraintBlockPool>();
     calc.colPoolPtr->resize(1);
+    calc.biPoolPtr = std::make_shared<ConstraintBlockPool>();
+    calc.biPoolPtr->resize(1);
 
     std::vector<SylinderNearEP> sylinderP(1);
     std::vector<SylinderNearEP> sylinderQ(1);
