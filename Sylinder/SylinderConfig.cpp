@@ -1,65 +1,44 @@
 #include "SylinderConfig.hpp"
 
-#include <yaml-cpp/yaml.h>
+#include "Util/YamlHelper.hpp"
 
 SylinderConfig::SylinderConfig(std::string filename) {
 
     YAML::Node config = YAML::LoadFile(filename);
 
-    rngSeed = config["rngSeed"].as<int>();
+    readConfig(config, VARNAME(rngSeed), rngSeed, "");
+    readConfig(config, VARNAME(simBoxLow), simBoxLow, 3, "");
+    readConfig(config, VARNAME(simBoxHigh), simBoxHigh, 3, "");
+    readConfig(config, VARNAME(simBoxPBC), simBoxPBC, 3, "");
 
-    YAML::Node seq;
-    seq = config["simBoxLow"];
-    for (int i = 0; i < 3; i++) {
-        simBoxLow[i] = seq[i].as<double>();
-    }
-    seq = config["simBoxHigh"];
-    for (int i = 0; i < 3; i++) {
-        simBoxHigh[i] = seq[i].as<double>();
-    }
-    seq = config["simBoxPBC"];
-    for (int i = 0; i < 3; i++) {
-        simBoxPBC[i] = seq[i].as<bool>();
-    }
+    readConfig(config, VARNAME(initBoxLow), initBoxLow, 3, "");
+    readConfig(config, VARNAME(initBoxHigh), initBoxHigh, 3, "");
+    readConfig(config, VARNAME(initOrient), initOrient, 3, "");
 
-    wallLowZ = config["wallLowZ"].as<bool>();
-    wallHighZ = config["wallHighZ"].as<bool>();
+    readConfig(config, VARNAME(wallLowZ), wallLowZ, "");
+    readConfig(config, VARNAME(wallHighZ), wallHighZ, "");
+    readConfig(config, VARNAME(initCircularX), initCircularX, "");
 
-    seq = config["initBoxLow"];
-    for (int i = 0; i < 3; i++) {
-        initBoxLow[i] = seq[i].as<double>();
-    }
-    seq = config["initBoxHigh"];
-    for (int i = 0; i < 3; i++) {
-        initBoxHigh[i] = seq[i].as<double>();
-    }
-    seq = config["initOrient"];
-    for (int i = 0; i < 3; i++) {
-        initOrient[i] = seq[i].as<double>();
-    }
+    readConfig(config, VARNAME(viscosity), viscosity, "");
+    readConfig(config, VARNAME(KBT), KBT, "");
 
-    initCircularX = config["initCircularX"].as<bool>();
+    readConfig(config, VARNAME(sylinderFixed), sylinderFixed, "");
+    readConfig(config, VARNAME(sylinderNumber), sylinderNumber, "");
+    readConfig(config, VARNAME(sylinderLength), sylinderLength, "");
+    readConfig(config, VARNAME(sylinderLengthSigma), sylinderLengthSigma, "");
+    readConfig(config, VARNAME(sylinderDiameter), sylinderDiameter, "");
+    readConfig(config, VARNAME(sylinderDiameterColRatio), sylinderDiameterColRatio, "");
+    readConfig(config, VARNAME(sylinderLengthColRatio), sylinderLengthColRatio, "");
 
-    viscosity = config["viscosity"].as<double>();
-    KBT = config["KBT"].as<double>();
+    readConfig(config, VARNAME(dt), dt, "");
+    readConfig(config, VARNAME(timeTotal), timeTotal, "");
+    readConfig(config, VARNAME(timeSnap), timeSnap, "");
 
-    sylinderFixed = config["sylinderFixed"].as<bool>();
-    sylinderNumber = config["sylinderNumber"].as<int>();
-    sylinderLength = config["sylinderLength"].as<double>();
-    sylinderLengthSigma = config["sylinderLengthSigma"].as<double>();
-    sylinderDiameter = config["sylinderDiameter"].as<double>();
-    sylinderDiameterColRatio = config["sylinderDiameterColRatio"].as<double>();
-    sylinderLengthColRatio = config["sylinderLengthColRatio"].as<double>();
-
-    dt = config["dt"].as<double>();
-    timeTotal = config["timeTotal"].as<double>();
-    timeSnap = config["timeSnap"].as<double>();
-
-    usePotential = config["usePotential"].as<bool>();
-    conResTol = config["conResTol"].as<double>();
-    conMaxIte = config["conMaxIte"].as<int>();
-    conSolverChoice = config["conSolverChoice"].as<int>();
-    linkKappa = config["linkKappa"].as<double>();
+    readConfig(config, VARNAME(usePotential), usePotential, "");
+    readConfig(config, VARNAME(conResTol), conResTol, "");
+    readConfig(config, VARNAME(conMaxIte), conMaxIte, "");
+    readConfig(config, VARNAME(conSolverChoice), conSolverChoice, "");
+    readConfig(config, VARNAME(linkKappa), linkKappa, "");
 }
 
 void SylinderConfig::dump() const {
