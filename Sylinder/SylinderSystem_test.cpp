@@ -7,22 +7,16 @@ void testSedimentation(int argc, char **argv) {
     sylinderSystem.setTimer(true);
     auto &rngPoolPtr = sylinderSystem.getRngPoolPtr();
 
-    // run 10 steps
+    // run 10 steps for relaxation
     for (int i = 0; i < 10; i++) {
         sylinderSystem.prepareStep();
-        int nLocal = sylinderSystem.getContainer().getNumberOfParticleLocal();
-        std::vector<double> forceNonBrown(nLocal * 6, 0.0);
-        for (int i = 0; i < nLocal; i++) {
-            forceNonBrown[6 * i + 2] = -10; // const gravity
-        }
-        sylinderSystem.setForceNonBrown(forceNonBrown);
         sylinderSystem.runStep();
     }
 
     // add linked sylinders
     int rank;
     MPI_Comm_rank(MPI_COMM_WORLD, &rank); // using rank as group id
-    const int nLocalNew = 10;
+    const int nLocalNew = 20;
     std::vector<Sylinder> newSylinder(nLocalNew);
     std::vector<Link> linkage(nLocalNew);
     for (int i = 0; i < nLocalNew; i++) {
@@ -57,15 +51,17 @@ void testSedimentation(int argc, char **argv) {
 
     sylinderSystem.addNewSylinder(newSylinder, linkage);
 
-    // run 10 more steps
-    for (int i = 0; i < 100; i++) {
+    // run as given in runConfig file
+    const int nSteps = runConfig.timeTotal / runConfig.dt;
+    for (int i = 0; i < nSteps; i++) {
         sylinderSystem.prepareStep();
-        auto & sylinderContainer=sylinderSystem.getContainer();
+        auto &sylinderContainer = sylinderSystem.getContainer();
         int nLocal = sylinderContainer.getNumberOfParticleLocal();
         std::vector<double> forceNonBrown(nLocal * 6, 0.0);
         for (int i = 0; i < nLocal; i++) {
-            if(sylinderContainer[i].link.group!=GEO_INVALID_INDEX && sylinderContainer[i].link.next==GEO_INVALID_INDEX)
-            forceNonBrown[6 * i + 2] = -10; // const gravity to the tail of the link
+            if (sylinderContainer[i].link.group != GEO_INVALID_INDEX &&
+                sylinderContainer[i].link.next == GEO_INVALID_INDEX)
+                forceNonBrown[6 * i + 1] = 10; // const force
         }
         sylinderSystem.setForceNonBrown(forceNonBrown);
         sylinderSystem.setForceNonBrown(forceNonBrown);

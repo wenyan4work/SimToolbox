@@ -3,12 +3,12 @@ rngSeed: 1234
 # simulation box
 simBoxLow: [0.0, 0.0, 0.0]
 simBoxHigh: [25.0, 25.0, 25.0]
-simBoxPBC: [false, false, false]
+simBoxPBC: [true, true, false]
 wallLowZ: true
 wallHighZ: true
 # initialization box
-initBoxLow: [5.0, 5.0, 0.0]
-initBoxHigh: [20.0, 20.0, 25.0]
+initBoxLow: [0.0, 0.0, 0.0]
+initBoxHigh: [25.0, 25.0, 20.0]
 # initialization inside a circle
 initCircularX: false
 # components < -1  or > 1 will be randomly set
@@ -26,11 +26,11 @@ sylinderDiameter: 1.0
 sylinderDiameterColRatio: 1.0
 # timestepping
 dt: 0.001 # s
-timeTotal: 0.01 # s
-timeSnap: 0.001 # s
+timeTotal: 2.0 # s
+timeSnap: 0.01 # s
 # ConstraintSolver
 usePotential: false
 conResTol: 0.00001 # 1e-5 format may be incompatible
 conMaxIte: 100000
 conSolverChoice: 0 # 0 for BBPGD, 1 for APGD, etc
-linkKappa: 100.0 # pN/um spring constant for sylinder links.
+linkKappa: 1000.0 # pN/um spring constant for sylinder links.
