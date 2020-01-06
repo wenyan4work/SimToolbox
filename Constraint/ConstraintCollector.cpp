@@ -60,8 +60,6 @@ void ConstraintCollector::sumLocalConstraintStress(Emat3 &stress, bool withOneSi
     }
 
     stress = stressTotal;
-
-    // std::cout << stressTotal << std::endl;
 }
 
 void ConstraintCollector::writePVTP(const std::string &folder, const std::string &prefix, const std::string &postfix,
@@ -238,9 +236,6 @@ int ConstraintCollector::buildConstraintMatrixVector(Teuchos::RCP<const TMAP> &m
     const int localGammaSize = cQueIndex.back();
     Teuchos::RCP<const TMAP> gammaMapRcp = getTMAPFromLocalSize(localGammaSize, commRcp);
 
-    // preapre the D^Trans collision matrix
-    // rowMap = gammaMap, colMap=mobMap
-
     // step 1, count the number of entries to each row
     // each constraint block, correspoding to a gamma, occupies a row
     // 12 entries for two side constraint blocks
@@ -331,40 +326,45 @@ int ConstraintCollector::buildConstraintMatrixVector(Teuchos::RCP<const TMAP> &m
     // step 3 prepare the partitioned column map
     // Each process own some columns. In the map, processes share entries.
     // 3.1 column map has to cover the contiguous range of the mobility map locally owned
-    const int mobMinLID = mobMapRcp->getMinLocalIndex();
-    const int mobMaxLID = mobMapRcp->getMaxLocalIndex();
-    std::vector<int> colMapIndex(mobMaxLID - mobMinLID + 1);
+    const int mobMin = mobMapRcp->getMinGlobalIndex();
+    const int mobMax = mobMapRcp->getMaxGlobalIndex();
+    std::vector<int> colMapIndex(mobMax - mobMin + 1);
 #pragma omp parallel for
-    for (int i = mobMinLID; i <= mobMaxLID; i++) {
-        colMapIndex[i - mobMinLID] = i;
+    for (int i = mobMin; i <= mobMax; i++) {
+        colMapIndex[i - mobMin] = i;
     }
     // this is the list of the columns that have nnz entries
     // if the column index is out of [mobMinLID, mobMaxLID], add it to the map
-    const int colIndexNum = rowPointers[localGammaSize];
+    const int colIndexNum = columnIndices.dimension_0();
+    if (colIndexNum != colIndexCount) {
+        printf("colIndexNum error");
+        std::exit(1);
+    }
     for (int i = 0; i < colIndexNum; i++) {
-        if (columnIndices[i] < mobMinLID || columnIndices[i] > mobMaxLID)
+        if (columnIndices[i] < mobMin || columnIndices[i] > mobMax)
             colMapIndex.push_back(columnIndices[i]);
     }
 
     // sort and unique
     std::sort(colMapIndex.begin(), colMapIndex.end());
-
     auto ip = std::unique(colMapIndex.begin(), colMapIndex.end());
     colMapIndex.resize(std::distance(colMapIndex.begin(), ip));
 
-    // for (auto &colId : colMapIndex) {
-    //     printf("%d,%d\n", commRcp->getRank(), colId);
-    // }
-
+    // create colMap
     Teuchos::RCP<TMAP> colMapRcp = Teuchos::rcp(
         new TMAP(Teuchos::OrdinalTraits<int>::invalid(), colMapIndex.data(), colMapIndex.size(), 0, commRcp));
 
     // convert columnIndices from global column index to local column index according to colMap
     auto &colmap = *colMapRcp;
 #pragma omp parallel for
-    for (int i = 0; i < colIndexCount; i++) {
+    for (int i = 0; i < colIndexNum; i++) {
         columnIndices[i] = colmap.getLocalElement(columnIndices[i]);
     }
+
+    // printf("local number of cols: %d on rank %d\n", colMapRcp->getNodeNumElements(), commRcp->getRank());
+    // printf("local number of rows: %d on rank %d\n", mobMapRcp->getNodeNumElements(), commRcp->getRank());
+    // dumpTMAP(colMapRcp,"colMap");
+    // dumpTMAP(mobMapRcp,"mobMap");
 
     // step 4, allocate the D^Trans matrix
     DMatTransRcp = Teuchos::rcp(new TCMAT(gammaMapRcp, colMapRcp, rowPointers, columnIndices, values));
