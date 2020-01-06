@@ -72,12 +72,15 @@ class ConstraintOperator : public TOP {
      */
     bool hasTransposeApply() const { return false; }
 
+    void enableTimer();
+    void disableTimer();
+
     Teuchos::RCP<const TV> getForceUni() { return mobForceRcp->getVector(0); }
     Teuchos::RCP<const TV> getForceBi() { return mobForceRcp->getVector(1); }
     Teuchos::RCP<const TV> getVelUni() { return mobVelRcp->getVector(0); }
     Teuchos::RCP<const TV> getVelBi() { return mobVelRcp->getVector(1); }
-    Teuchos::RCP<const TMAP> getUniBlockMap(){return gammaUniBlockMapRcp;}
-    Teuchos::RCP<const TMAP> getBiBlockMap(){return gammaBiBlockMapRcp;}
+    Teuchos::RCP<const TMAP> getUniBlockMap() { return gammaUniBlockMapRcp; }
+    Teuchos::RCP<const TMAP> getBiBlockMap() { return gammaBiBlockMapRcp; }
 
   private:
     // comm
@@ -101,6 +104,14 @@ class ConstraintOperator : public TOP {
     Teuchos::RCP<TMV> mobVelRcp;   ///< U & Omega vectors = [M Du gamma_u, M Db gamma_b]
     Teuchos::RCP<TMV> deltaUniRcp; ///< changes in constraint vectors = Du^T [M Du gamma_u, M Db gamma_b]
     Teuchos::RCP<TMV> deltaBiRcp;  ///< changes in constraint vectors = Db^T [M Du gamma_u, M Db gamma_b]
+
+    // time monitor
+    Teuchos::RCP<Teuchos::Time> transposeDMat;
+    Teuchos::RCP<Teuchos::Time> applyMobMat;
+    Teuchos::RCP<Teuchos::Time> applyDuMat;
+    Teuchos::RCP<Teuchos::Time> applyDbMat;
+    Teuchos::RCP<Teuchos::Time> applyDuTransMat;
+    Teuchos::RCP<Teuchos::Time> applyDbTransMat;
 
     /**
      * @brief build gammaMapRcp

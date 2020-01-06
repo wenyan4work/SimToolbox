@@ -4,12 +4,25 @@ ConstraintOperator::ConstraintOperator(Teuchos::RCP<TOP> &mobOp_, Teuchos::RCP<T
                                        Teuchos::RCP<TCMAT> &biDbMatTrans_, std::vector<double> &invKappaDiagMat_)
     : commRcp(mobOp_->getDomainMap()->getComm()), mobOpRcp(mobOp_), uniDuMatTransRcp(uniDuMatTrans_),
       biDbMatTransRcp(biDbMatTrans_), invKappaDiagMat(invKappaDiagMat_) {
+    // timer
+    transposeDMat = Teuchos::TimeMonitor::getNewCounter("ConstraintOperator::TransposeDMat");
+    applyMobMat = Teuchos::TimeMonitor::getNewCounter("ConstraintOperator::ApplyMobility");
+    applyDuMat = Teuchos::TimeMonitor::getNewCounter("ConstraintOperator::ApplyDuMat");
+    applyDuTransMat = Teuchos::TimeMonitor::getNewCounter("ConstraintOperator::ApplyDuTransMat");
+    applyDbMat = Teuchos::TimeMonitor::getNewCounter("ConstraintOperator::ApplyDbMat");
+    applyDbTransMat = Teuchos::TimeMonitor::getNewCounter("ConstraintOperator::ApplyDbTransMat");
+
+    enableTimer();
 
     // explicit transpose
-    Tpetra::RowMatrixTransposer<double, int, int> transposerDu(uniDuMatTransRcp);
-    uniDuMatRcp = transposerDu.createTranspose();
-    Tpetra::RowMatrixTransposer<double, int, int> transposerDb(biDbMatTransRcp);
-    biDbMatRcp = transposerDb.createTranspose();
+    {
+
+        Teuchos::TimeMonitor mon(*transposeDMat);
+        Tpetra::RowMatrixTransposer<double, int, int> transposerDu(uniDuMatTransRcp);
+        uniDuMatRcp = transposerDu.createTranspose();
+        Tpetra::RowMatrixTransposer<double, int, int> transposerDb(biDbMatTransRcp);
+        biDbMatRcp = transposerDb.createTranspose();
+    }
 
     // block maps
     mobMapRcp = mobOpRcp->getDomainMap(); // symmetric & domainmap=rangemap
@@ -43,18 +56,33 @@ void ConstraintOperator::apply(const TMV &X, TMV &Y, Teuchos::ETransp mode, scal
         auto deltaBiBlock = YcolRcp->offsetViewNonConst(gammaBiBlockMapRcp, blockoffset);
 
         // step 1, Du and Db multiply X, block by block
-        auto ftCol0 = mobForceRcp->getVectorNonConst(0);
-        uniDuMatRcp->apply(*gammaUniBlock, *ftCol0); // Du gammac
-        auto ftCol1 = mobForceRcp->getVectorNonConst(1);
-        biDbMatRcp->apply(*gammaBiBlock, *ftCol1); // Db gammab
+        {
+            Teuchos::TimeMonitor mon(*applyDuMat);
+            auto ftCol0 = mobForceRcp->getVectorNonConst(0);
+            uniDuMatRcp->apply(*gammaUniBlock, *ftCol0); // Du gammac
+        }
+        {
+            Teuchos::TimeMonitor mon(*applyDbMat);
+            auto ftCol1 = mobForceRcp->getVectorNonConst(1);
+            biDbMatRcp->apply(*gammaBiBlock, *ftCol1); // Db gammab
+        }
 
         // step 2, Vel = Mobility * FT
-        mobOpRcp->apply(*mobForceRcp, *mobVelRcp);
+        {
+            Teuchos::TimeMonitor mon(*applyMobMat);
+            mobOpRcp->apply(*mobForceRcp, *mobVelRcp);
+        }
 
         // step 3, Du^T and Db^T multiply velocity
-        uniDuMatTransRcp->apply(*mobVelRcp, *deltaUniRcp);
-        biDbMatTransRcp->apply(*mobVelRcp, *deltaBiRcp);
+        {
+            Teuchos::TimeMonitor mon(*applyDuTransMat);
+            uniDuMatTransRcp->apply(*mobVelRcp, *deltaUniRcp);
+        }
+        {
 
+            Teuchos::TimeMonitor mon(*applyDbTransMat);
+            biDbMatTransRcp->apply(*mobVelRcp, *deltaBiRcp);
+        }
         // step 4, Y = [deltaUniBlock ; deltaBiBlock] = alpha * Op * X + beta * Y
         // Op * X = [ deltaUni(0)+deltaUni(1); deltaBi(0)+deltaBi(1)]
         // 5.1 uni block
@@ -100,4 +128,22 @@ void ConstraintOperator::buildBlockMaps() {
     gammaBiBlockMapRcp = map2;
 
     gammaMapRcp = getTMAPFromTwoBlockTMAP(map1, map2);
+}
+
+void ConstraintOperator::enableTimer() {
+    transposeDMat->enable();
+    applyMobMat->enable();
+    applyDuMat->enable();
+    applyDuTransMat->enable();
+    applyDbMat->enable();
+    applyDbTransMat->enable();
+}
+
+void ConstraintOperator::disableTimer() {
+    transposeDMat->disable();
+    applyMobMat->disable();
+    applyDuMat->disable();
+    applyDuTransMat->disable();
+    applyDbMat->disable();
+    applyDbTransMat->disable();
 }
