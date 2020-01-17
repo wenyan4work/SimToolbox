@@ -82,6 +82,8 @@ void SylinderSystem::initialize(const SylinderConfig &runConfig_, const std::str
             prepareStep();
             calcVelocityNonCon();
             resolveConstraints();
+            saveVelocityConstraints();
+            sumVelocity();
             stepEuler();
         }
         if (commRcp->getRank() == 0) {

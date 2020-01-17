@@ -18,3 +18,4 @@ The folder `Util` contains some utilities to facilitate the application, includi
 
 New functions will be continuously added to this toolbox to facilitate quick development of HPC simulation code.
 Run the script `Gendoc.sh` to generate html document with doxygen in `doc/html/index.html`.
+Read `StepByStep.md` for instructions.
