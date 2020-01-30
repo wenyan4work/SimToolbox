@@ -33,6 +33,7 @@ struct ConstraintBlock {
     int gidI = 0, gidJ = 0;                 ///< global ID of the two constrained objects
     int globalIndexI = 0, globalIndexJ = 0; ///< the global index of the two objects in mobility matrix
     bool oneSide = false;                   ///< flag for one side constraint. body J does not appear in mobility matrix
+    bool bilateral = false;                 ///< if this is a bilateral constraint or not
     double kappa = 0;                       ///< spring constant. =0 means no spring
     double normI[3] = {0, 0, 0};
     double normJ[3] = {0, 0, 0}; ///< surface norm vector at the location of constraints (minimal separation).
@@ -52,8 +53,8 @@ struct ConstraintBlock {
     /**
      * @brief Construct a new Constraint Block object
      *
-     * @param phi0_ current value of the constraint
-     * @param gamma_ initial guess of constraint force magnitude
+     * @param delta0_ current value of the constraint function
+     * @param gamma_ constraint force magnitude
      * @param gidI_
      * @param gidJ_
      * @param globalIndexI_
@@ -62,7 +63,11 @@ struct ConstraintBlock {
      * @param normJ_
      * @param posI_
      * @param posJ_
-     * @param oneSide_ flag for one side collision
+     * @param labI_
+     * @param labJ_
+     * @param oneSide_ flag for one side constarint
+     * @param bilateral_ flag for bilateral constraint
+     * @param kappa_ flag for kappa of bilateral constraint
      *
      * If oneside = true, the gidJ, globalIndexJ, normJ, posJ will be ignored when constructing the fcTrans matrix
      * so any value of gidJ, globalIndexJ, normJ, posJ can be used in that case.
@@ -70,15 +75,36 @@ struct ConstraintBlock {
      */
     ConstraintBlock(double delta0_, double gamma_, int gidI_, int gidJ_, int globalIndexI_, int globalIndexJ_,
                     const Evec3 &normI_, const Evec3 &normJ_, const Evec3 &posI_, const Evec3 &posJ_,
-                    const Evec3 &labI_, const Evec3 &labJ_, bool oneSide_ = false, double kappa_=0)
+                    const Evec3 &labI_, const Evec3 &labJ_, bool oneSide_ = false, bool bilateral_ = false,
+                    double kappa_ = 0)
         : ConstraintBlock(delta0_, gamma_, gidI_, gidJ_, globalIndexI_, globalIndexJ_, normI_.data(), normJ_.data(),
-                          posI_.data(), posJ_.data(), labI_.data(), labJ_.data(), oneSide_, kappa_) {}
+                          posI_.data(), posJ_.data(), labI_.data(), labJ_.data(), oneSide_, bilateral_, kappa_) {}
 
+    /**
+     * @brief Construct a new ConstraintBlock object
+     *
+     * @param delta0_ current value of the constraint function
+     * @param gamma_
+     * @param gidI_
+     * @param gidJ_
+     * @param globalIndexI_
+     * @param globalIndexJ_
+     * @param normI_
+     * @param normJ_
+     * @param posI_
+     * @param posJ_
+     * @param labI_
+     * @param labJ_
+     * @param oneSide_ flag for one side constarint
+     * @param bilateral_ flag for bilateral constraint
+     * @param kappa_ flag for kappa of bilateral constraint
+     */
     ConstraintBlock(double delta0_, double gamma_, int gidI_, int gidJ_, int globalIndexI_, int globalIndexJ_,
                     const double normI_[3], const double normJ_[3], const double posI_[3], const double posJ_[3],
-                    const double labI_[3], const double labJ_[3], bool oneSide_ = false, double kappa_ = 0)
+                    const double labI_[3], const double labJ_[3], bool oneSide_ = false, bool bilateral_ = false,
+                    double kappa_ = 0)
         : delta0(delta0_), gamma(gamma_), gidI(gidI_), gidJ(gidJ_), globalIndexI(globalIndexI_),
-          globalIndexJ(globalIndexJ_), oneSide(oneSide_), kappa(kappa_) {
+          globalIndexJ(globalIndexJ_), oneSide(oneSide_), bilateral(bilateral_), kappa(kappa_) {
         for (int d = 0; d < 3; d++) {
             normI[d] = normI_[d];
             normJ[d] = normJ_[d];

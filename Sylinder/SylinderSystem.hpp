@@ -386,7 +386,7 @@ class SylinderSystem {
      * @brief sum vel = velNonB + velB + velCol + velBi
      *
      */
-    void sumVelocity();
+    void sumForceVelocity();
 
     /**
      * @brief calculate the mobility matrix (block diagonal)
@@ -415,10 +415,10 @@ class SylinderSystem {
     std::shared_ptr<ZDD<SylinderNearEP>> &getSylinderNearDataDirectory() { return sylinderNearDataDirectoryPtr; }
 
     // resolve constraints
-    void collectWallCollision();    ///< collect wall collision constraints
-    void collectPairCollision();    ///< collect pair collision constraints
-    void resolveConstraints();      ///< resolve constraints
-    void saveVelocityConstraints(); ///< write back to sylinder.velCol and velBi
+    void collectWallCollision();         ///< collect wall collision constraints
+    void collectPairCollision();         ///< collect pair collision constraints
+    void resolveConstraints();           ///< resolve constraints
+    void saveForceVelocityConstraints(); ///< write back to sylinder.velCol and velBi
 
     void collectLinkBilateral(); ///< WARNING: periodic boundary condition is missing in this function. do not use.
 

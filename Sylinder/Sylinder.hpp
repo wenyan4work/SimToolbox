@@ -53,18 +53,34 @@ class Sylinder {
 
     double pos[3];         ///< position
     double orientation[4]; ///< orientation quaternion. direction norm vector = orientation * (0,0,1)
-    double vel[3];         ///< velocity
-    double omega[3];       ///< angular velocity
 
-    // these are not packed and transferred
-    double velCol[3];     ///< collision velocity
-    double omegaCol[3];   ///< collision angular velocity
-    double velBi[3];      ///< bilateral constraint velocity
-    double omegaBi[3];    ///< bilateral constraint angular velocity
+    // vel = velBrown + velCol + velBi + velNonB
+    // force =          forceCol + forceBi + forceNonB
+    // there is no Brownian force
+
+    // velocity
+    double vel[3];       ///< velocity
+    double omega[3];     ///< angular velocity
+    double velCol[3];    ///< collision velocity
+    double omegaCol[3];  ///< collision angular velocity
+    double velBi[3];     ///< bilateral constraint velocity
+    double omegaBi[3];   ///< bilateral constraint angular velocity
+    double velNonB[3];   ///< all non-Brownian deterministic velocity before constraint resolution
+    double omegaNonB[3]; ///< all non-Brownian deterministic angular velocity before constraint resolution
+
+    // force
+    double force[3];      ///< force
+    double torque[3];     ///< torque
+    double forceCol[3];   ///< collision force
+    double torqueCol[3];  ///< collision torque
+    double forceBi[3];    ///< bilateral constraint force
+    double torqueBi[3];   ///< bilateral constraint torque
+    double forceNonB[3];  ///< all non-Brownian deterministic force before constraint resolution
+    double torqueNonB[3]; ///< all non-Brownian deterministic torque before constraint resolution
+
+    // Brownian displacement
     double velBrown[3];   ///< Brownian velocity
     double omegaBrown[3]; ///< Brownian angular velocity
-    double velNonB[3];    ///< all non-Brownian deterministic velocity beforce collision resolution
-    double omegaNonB[3];  ///< all non-Brownian deterministic angular velocity before collision resolution
 
     /**
      * @brief Construct a new Sylinder object
@@ -127,7 +143,7 @@ class Sylinder {
      * @return const double*
      */
     const double *Coord() const { return pos; }
-    
+
     /**
      * @brief return search radius
      *
@@ -203,7 +219,7 @@ class Sylinder {
         // for each sylinder:
 
         // write VTP for basic data
-        //  use float to save some space
+        // use float to save some space
         // point and point data
         std::vector<double> pos(6 * sylinderNumber); // position always in Float64
         std::vector<float> label(2 * sylinderNumber);
@@ -219,6 +235,8 @@ class Sylinder {
         std::vector<float> length(sylinderNumber);
         std::vector<float> lengthCollision(sylinderNumber);
         std::vector<int> group(sylinderNumber);
+
+        // vel
         std::vector<float> vel(3 * sylinderNumber);
         std::vector<float> omega(3 * sylinderNumber);
         std::vector<float> velCol(3 * sylinderNumber);
@@ -227,8 +245,22 @@ class Sylinder {
         std::vector<float> omegaBi(3 * sylinderNumber);
         std::vector<float> velNonB(3 * sylinderNumber);
         std::vector<float> omegaNonB(3 * sylinderNumber);
+
+        // force
+        std::vector<float> force(3 * sylinderNumber);
+        std::vector<float> torque(3 * sylinderNumber);
+        std::vector<float> forceCol(3 * sylinderNumber);
+        std::vector<float> torqueCol(3 * sylinderNumber);
+        std::vector<float> forceBi(3 * sylinderNumber);
+        std::vector<float> torqueBi(3 * sylinderNumber);
+        std::vector<float> forceNonB(3 * sylinderNumber);
+        std::vector<float> torqueNonB(3 * sylinderNumber);
+
+        // Brownian motion
         std::vector<float> velBrown(3 * sylinderNumber);
         std::vector<float> omegaBrown(3 * sylinderNumber);
+
+        // rigid body orientation
         std::vector<float> xnorm(3 * sylinderNumber);
         std::vector<float> znorm(3 * sylinderNumber);
 
@@ -266,14 +298,24 @@ class Sylinder {
             for (int j = 0; j < 3; j++) {
                 vel[3 * i + j] = sy.vel[j];
                 omega[3 * i + j] = sy.omega[j];
-                velBrown[3 * i + j] = sy.velBrown[j];
-                omegaBrown[3 * i + j] = sy.omegaBrown[j];
                 velCol[3 * i + j] = sy.velCol[j];
                 omegaCol[3 * i + j] = sy.omegaCol[j];
                 velBi[3 * i + j] = sy.velBi[j];
                 omegaBi[3 * i + j] = sy.omegaBi[j];
                 velNonB[3 * i + j] = sy.velNonB[j];
                 omegaNonB[3 * i + j] = sy.omegaNonB[j];
+
+                force[3 * i + j] = sy.force[j];
+                torque[3 * i + j] = sy.torque[j];
+                forceCol[3 * i + j] = sy.forceCol[j];
+                torqueCol[3 * i + j] = sy.torqueCol[j];
+                forceBi[3 * i + j] = sy.forceBi[j];
+                torqueBi[3 * i + j] = sy.torqueBi[j];
+                forceNonB[3 * i + j] = sy.forceNonB[j];
+                torqueNonB[3 * i + j] = sy.torqueNonB[j];
+
+                velBrown[3 * i + j] = sy.velBrown[j];
+                omegaBrown[3 * i + j] = sy.omegaBrown[j];
 
                 xnorm[3 * i + j] = nx[j];
                 znorm[3 * i + j] = nz[j];
@@ -308,16 +350,28 @@ class Sylinder {
         IOHelper::writeDataArrayBase64(radiusCollision, "radiusCollision", 1, file);
         IOHelper::writeDataArrayBase64(length, "length", 1, file);
         IOHelper::writeDataArrayBase64(lengthCollision, "lengthCollision", 1, file);
-        IOHelper::writeDataArrayBase64(vel, "velocity", 3, file);
+
+        IOHelper::writeDataArrayBase64(vel, "vel", 3, file);
         IOHelper::writeDataArrayBase64(omega, "omega", 3, file);
-        IOHelper::writeDataArrayBase64(velBrown, "velocityBrown", 3, file);
-        IOHelper::writeDataArrayBase64(omegaBrown, "omegaBrown", 3, file);
-        IOHelper::writeDataArrayBase64(velCol, "velocityCollision", 3, file);
+        IOHelper::writeDataArrayBase64(velCol, "velCollision", 3, file);
         IOHelper::writeDataArrayBase64(omegaCol, "omegaCollision", 3, file);
-        IOHelper::writeDataArrayBase64(velBi, "velocityBilateral", 3, file);
+        IOHelper::writeDataArrayBase64(velBi, "velBilateral", 3, file);
         IOHelper::writeDataArrayBase64(omegaBi, "omegaBilateral", 3, file);
-        IOHelper::writeDataArrayBase64(velNonB, "velocityNonB", 3, file);
-        IOHelper::writeDataArrayBase64(omegaNonB, "omegaNonB", 3, file);
+        IOHelper::writeDataArrayBase64(velNonB, "velNonBrown", 3, file);
+        IOHelper::writeDataArrayBase64(omegaNonB, "omegaNonBrown", 3, file);
+
+        IOHelper::writeDataArrayBase64(force, "force", 3, file);
+        IOHelper::writeDataArrayBase64(torque, "torque", 3, file);
+        IOHelper::writeDataArrayBase64(forceCol, "forceCollision", 3, file);
+        IOHelper::writeDataArrayBase64(torqueCol, "torqueCollision", 3, file);
+        IOHelper::writeDataArrayBase64(forceBi, "forceBilateral", 3, file);
+        IOHelper::writeDataArrayBase64(torqueBi, "torqueBilateral", 3, file);
+        IOHelper::writeDataArrayBase64(forceNonB, "forceNonBrown", 3, file);
+        IOHelper::writeDataArrayBase64(torqueNonB, "torqueNonBrown", 3, file);
+
+        IOHelper::writeDataArrayBase64(velBrown, "velBrown", 3, file);
+        IOHelper::writeDataArrayBase64(omegaBrown, "omegaBrown", 3, file);
+
         IOHelper::writeDataArrayBase64(xnorm, "xnorm", 3, file);
         IOHelper::writeDataArrayBase64(znorm, "znorm", 3, file);
         file << "</CellData>\n";

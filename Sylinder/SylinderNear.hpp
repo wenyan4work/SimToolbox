@@ -255,14 +255,14 @@ class CalcSylinderNearForce {
                     const Evec3 normJ = -normI;
                     const Evec3 posI = Ploc - centerI;
                     const Evec3 posJ = Qloc - centerJ;
-                    biQue.emplace_back(delta0, gamma,    // current separation, initial guess of gamma
-                                       syI.gid, syJ.gid, //
-                                       syI.globalIndex,  //
-                                       syJ.globalIndex,  //
-                                       normI, normJ,     // direction of collision force
-                                       posI, posJ,       // location of collision relative to particle center
-                                       Ploc, Qloc,       // location of collision in lab frame
-                                       false, -1);       // kappa will be set to link kappa later
+                    biQue.emplace_back(delta0, gamma,      // current separation, initial guess of gamma
+                                       syI.gid, syJ.gid,   //
+                                       syI.globalIndex,    //
+                                       syJ.globalIndex,    //
+                                       normI, normJ,       // direction of collision force
+                                       posI, posJ,         // location of collision relative to particle center
+                                       Ploc, Qloc,         // location of collision in lab frame
+                                       false, true, -1.0); // kappa will be set to link kappa later
                     Emat3 stressIJ;
                     collideStress(directionI, directionJ, centerI, centerJ, syI.lengthCollision, syJ.lengthCollision,
                                   syI.radiusCollision, syJ.radiusCollision, 1.0, Ploc, Qloc, stressIJ);

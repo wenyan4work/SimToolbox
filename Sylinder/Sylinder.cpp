@@ -36,11 +36,26 @@ void Sylinder::clear() {
     Emap3(omega).setZero();
     Emap3(velCol).setZero();
     Emap3(omegaCol).setZero();
-    Emap3(velBrown).setZero();
-    Emap3(omegaBrown).setZero();
+    Emap3(velBi).setZero();
+    Emap3(omegaBi).setZero();
     Emap3(velNonB).setZero();
     Emap3(omegaNonB).setZero();
+
+    Emap3(force).setZero();
+    Emap3(torque).setZero();
+    Emap3(forceCol).setZero();
+    Emap3(torqueCol).setZero();
+    Emap3(forceBi).setZero();
+    Emap3(torqueBi).setZero();
+    Emap3(forceNonB).setZero();
+    Emap3(torqueNonB).setZero();
+
+    Emap3(velBrown).setZero();
+    Emap3(omegaBrown).setZero();
+
     sepmin = std::numeric_limits<double>::max();
+    globalIndex = GEO_INVALID_INDEX;
+    rank = -1;
 }
 
 void Sylinder::dumpSylinder() const {
@@ -63,16 +78,27 @@ void Sylinder::writePVTP(const std::string &prefix, const std::string &postfix, 
     cellDataFields.emplace_back(1, IOHelper::IOTYPE::Float32, "radiusCollision");
     cellDataFields.emplace_back(1, IOHelper::IOTYPE::Float32, "length");
     cellDataFields.emplace_back(1, IOHelper::IOTYPE::Float32, "lengthCollision");
-    cellDataFields.emplace_back(3, IOHelper::IOTYPE::Float32, "velocity");
+
+    cellDataFields.emplace_back(3, IOHelper::IOTYPE::Float32, "vel");
     cellDataFields.emplace_back(3, IOHelper::IOTYPE::Float32, "omega");
-    cellDataFields.emplace_back(3, IOHelper::IOTYPE::Float32, "velocityBrown");
-    cellDataFields.emplace_back(3, IOHelper::IOTYPE::Float32, "omegaBrown");
-    cellDataFields.emplace_back(3, IOHelper::IOTYPE::Float32, "velocityCollision");
+    cellDataFields.emplace_back(3, IOHelper::IOTYPE::Float32, "velCollision");
     cellDataFields.emplace_back(3, IOHelper::IOTYPE::Float32, "omegaCollision");
-    cellDataFields.emplace_back(3, IOHelper::IOTYPE::Float32, "velocityBilateral");
+    cellDataFields.emplace_back(3, IOHelper::IOTYPE::Float32, "velBilateral");
     cellDataFields.emplace_back(3, IOHelper::IOTYPE::Float32, "omegaBilateral");
-    cellDataFields.emplace_back(3, IOHelper::IOTYPE::Float32, "velocityNonB");
-    cellDataFields.emplace_back(3, IOHelper::IOTYPE::Float32, "omegaNonB");
+    cellDataFields.emplace_back(3, IOHelper::IOTYPE::Float32, "velNonBrown");
+    cellDataFields.emplace_back(3, IOHelper::IOTYPE::Float32, "omegaNonBrown");
+
+    cellDataFields.emplace_back(3, IOHelper::IOTYPE::Float32, "force");
+    cellDataFields.emplace_back(3, IOHelper::IOTYPE::Float32, "torque");
+    cellDataFields.emplace_back(3, IOHelper::IOTYPE::Float32, "forceCollision");
+    cellDataFields.emplace_back(3, IOHelper::IOTYPE::Float32, "torqueCollision");
+    cellDataFields.emplace_back(3, IOHelper::IOTYPE::Float32, "forceBilateral");
+    cellDataFields.emplace_back(3, IOHelper::IOTYPE::Float32, "torqueBilateral");
+    cellDataFields.emplace_back(3, IOHelper::IOTYPE::Float32, "forceNonBrown");
+    cellDataFields.emplace_back(3, IOHelper::IOTYPE::Float32, "torqueNonBrown");
+
+    cellDataFields.emplace_back(3, IOHelper::IOTYPE::Float32, "velBrown");
+    cellDataFields.emplace_back(3, IOHelper::IOTYPE::Float32, "omegaBrown");
     cellDataFields.emplace_back(3, IOHelper::IOTYPE::Float32, "xnorm");
     cellDataFields.emplace_back(3, IOHelper::IOTYPE::Float32, "znorm");
 

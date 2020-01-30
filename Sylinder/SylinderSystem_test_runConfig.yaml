@@ -27,7 +27,7 @@ sylinderDiameterColRatio: 1.0
 # timestepping
 dt: 0.001 # s
 timeTotal: 2.0 # s
-timeSnap: 0.01 # s
+timeSnap: 0.001 # s
 # ConstraintSolver
 usePotential: false
 conResTol: 0.00001 # 1e-5 format may be incompatible
