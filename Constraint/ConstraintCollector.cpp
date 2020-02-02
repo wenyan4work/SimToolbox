@@ -84,6 +84,7 @@ void ConstraintCollector::writePVTP(const std::string &folder, const std::string
 
     std::vector<IOHelper::FieldVTU> cellDataFields;
     cellDataFields.emplace_back(1, IOHelper::IOTYPE::Int32, "oneSide");
+    cellDataFields.emplace_back(1, IOHelper::IOTYPE::Int32, "bilateral");
     cellDataFields.emplace_back(1, IOHelper::IOTYPE::Float32, "delta0");
     cellDataFields.emplace_back(1, IOHelper::IOTYPE::Float32, "gamma");
     cellDataFields.emplace_back(1, IOHelper::IOTYPE::Float32, "kappa");
@@ -123,6 +124,7 @@ void ConstraintCollector::writeVTP(const std::string &folder, const std::string 
 
     // cell data for ColBlock
     std::vector<int32_t> oneSide(cBlockNum);
+    std::vector<int32_t> bilateral(cBlockNum);
     std::vector<float> delta0(cBlockNum);
     std::vector<float> gamma(cBlockNum);
     std::vector<float> kappa(cBlockNum);
@@ -170,6 +172,7 @@ void ConstraintCollector::writeVTP(const std::string &folder, const std::string 
             normIJ[6 * cIndex + 5] = block.normJ[2];
             // cell data
             oneSide[cIndex] = block.oneSide ? 1 : 0;
+            bilateral[cIndex] = block.bilateral ? 1 : 0;
             delta0[cIndex] = block.delta0;
             gamma[cIndex] = block.gamma;
             kappa[cIndex] = block.kappa;
@@ -206,6 +209,7 @@ void ConstraintCollector::writeVTP(const std::string &folder, const std::string 
     // cell data
     file << "<CellData Scalars=\"scalars\">\n";
     IOHelper::writeDataArrayBase64(oneSide, "oneSide", 1, file);
+    IOHelper::writeDataArrayBase64(bilateral, "bilateral", 1, file);
     IOHelper::writeDataArrayBase64(delta0, "delta0", 1, file);
     IOHelper::writeDataArrayBase64(gamma, "gamma", 1, file);
     IOHelper::writeDataArrayBase64(kappa, "kappa", 1, file);
