@@ -34,9 +34,8 @@ void SylinderSystem::initialize(const SylinderConfig &runConfig_, const std::str
 
     // TRNG pool must be initialized after mpi is initialized
     rngPoolPtr = std::make_shared<TRngPool>(runConfig.rngSeed);
-    constraintSolverPtr = std::make_shared<ConstraintSolver>();
-    uniConstraintPtr = std::make_shared<ConstraintCollector>();
-    biConstraintPtr = std::make_shared<ConstraintCollector>();
+    conSolverPtr = std::make_shared<ConstraintSolver>();
+    conCollectorPtr = std::make_shared<ConstraintCollector>();
 
     dinfo.initialize(); // init DomainInfo
     setDomainInfo();
@@ -312,12 +311,10 @@ void SylinderSystem::writeVTK(const std::string &baseFolder) {
     const int size = commRcp->getSize();
     Sylinder::writeVTP<PS::ParticleSystem<Sylinder>>(sylinderContainer, sylinderContainer.getNumberOfParticleLocal(),
                                                      baseFolder, std::to_string(snapID), rank);
-    uniConstraintPtr->writeVTP(baseFolder, "Col", std::to_string(snapID), rank);
-    biConstraintPtr->writeVTP(baseFolder, "Bi", std::to_string(snapID), rank);
+    conCollectorPtr->writeVTP(baseFolder, "", std::to_string(snapID), rank);
     if (rank == 0) {
         Sylinder::writePVTP(baseFolder, std::to_string(snapID), size); // write parallel head
-        uniConstraintPtr->writePVTP(baseFolder, "Col", std::to_string(snapID), size);
-        biConstraintPtr->writePVTP(baseFolder, "Bi", std::to_string(snapID), size);
+        conCollectorPtr->writePVTP(baseFolder, "", std::to_string(snapID), size);
     }
 }
 
@@ -633,14 +630,13 @@ void SylinderSystem::resolveConstraints() {
         Teuchos::TimeMonitor mon(*solveTimer);
         const double buffer = 0;
         printRank0("constraint solver setup");
-        constraintSolverPtr->setup(*uniConstraintPtr, *biConstraintPtr, mobilityOperatorRcp, velocityNonConRcp,
-                                   runConfig.dt);
+        conSolverPtr->setup(*conCollectorPtr, mobilityOperatorRcp, velocityNonConRcp, runConfig.dt);
         printRank0("set control");
-        constraintSolverPtr->setControlParams(runConfig.conResTol, runConfig.conMaxIte, runConfig.conSolverChoice);
+        conSolverPtr->setControlParams(runConfig.conResTol, runConfig.conMaxIte, runConfig.conSolverChoice);
         printRank0("solve");
-        constraintSolverPtr->solveConstraints();
+        conSolverPtr->solveConstraints();
         printRank0("writeback");
-        constraintSolverPtr->writebackGamma();
+        conSolverPtr->writebackGamma();
     }
 
     saveForceVelocityConstraints();
@@ -687,8 +683,7 @@ void SylinderSystem::prepareStep() {
 
     calcMobOperator();
 
-    uniConstraintPtr->clear();
-    biConstraintPtr->clear();
+    conCollectorPtr->clear();
 
     forcePartNonBrownRcp.reset();
     velocityPartNonBrownRcp.reset();
@@ -734,10 +729,10 @@ void SylinderSystem::runStep() {
 
 void SylinderSystem::saveForceVelocityConstraints() {
     // save results
-    forceUniRcp = constraintSolverPtr->getForceUni();
-    velocityUniRcp = constraintSolverPtr->getVelocityUni();
-    forceBiRcp = constraintSolverPtr->getForceBi();
-    velocityBiRcp = constraintSolverPtr->getVelocityBi();
+    forceUniRcp = conSolverPtr->getForceUni();
+    velocityUniRcp = conSolverPtr->getVelocityUni();
+    forceBiRcp = conSolverPtr->getForceBi();
+    velocityBiRcp = conSolverPtr->getVelocityBi();
 
     auto velUniPtr = velocityUniRcp->getLocalView<Kokkos::HostSpace>();
     auto velBiPtr = velocityBiRcp->getLocalView<Kokkos::HostSpace>();
@@ -854,16 +849,18 @@ void SylinderSystem::calcVelocityBrown() {
 }
 
 void SylinderSystem::collectWallCollision() {
-    auto collisionPoolPtr = uniConstraintPtr->constraintPoolPtr; // shared_ptr
+    auto collisionPoolPtr = conCollectorPtr->constraintPoolPtr; // shared_ptr
     const int nThreads = collisionPoolPtr->size();
     const int nLocal = sylinderContainer.getNumberOfParticleLocal();
 
     if (runConfig.wallLowZ) {
         // process collisions with bottom wall
+        Evec3 normZ(0, 0, 1);
         const double wallBot = runConfig.simBoxLow[2];
 #pragma omp parallel num_threads(nThreads)
         {
             const int threadId = omp_get_thread_num();
+            auto &que = (*collisionPoolPtr)[threadId];
 #pragma omp for
             for (int i = 0; i < nLocal; i++) {
                 const auto &sy = sylinderContainer[i];
@@ -892,22 +889,28 @@ void SylinderSystem::collectWallCollision() {
                 if (wallCollide != true) {
                     continue;
                 }
+                Evec3 posI = colLoc - ECmap3(sy.pos);
+                Evec3 posJ = Evec3::Zero();
+                Evec3 labI = colLoc;
+                Evec3 labJ = Evec3(colLoc[0], colLoc[1], wallBot);
                 // add a new collision block. this block has only 6 non zero entries.
                 // passing sy.gid+1/globalIndex+1 as a 'fake' colliding body j, which is actually not used in the solver
                 // when oneside=true, out of range index is ignored
-                (*collisionPoolPtr)[threadId].emplace_back(
-                    phi0, -phi0, sy.gid, sy.gid + 1, sy.globalIndex, sy.globalIndex + 1, Evec3(0, 0, 1), Evec3(0, 0, 0),
-                    colLoc - ECmap3(sy.pos), Evec3(0, 0, 0), colLoc, Evec3(colLoc[0], colLoc[1], wallBot), true);
+                que.emplace_back(phi0, -phi0, sy.gid, sy.gid, sy.globalIndex, sy.globalIndex, normZ.data(),
+                                 normZ.data(), posI.data(), posJ.data(), labI.data(), labJ.data(), true, false, 0.0,
+                                 0.0);
             }
         }
     }
 
     if (runConfig.wallHighZ) {
-        const double wallTop = runConfig.simBoxHigh[2];
         // process collisions with top wall
+        Evec3 normZ(0, 0, -1);
+        const double wallTop = runConfig.simBoxHigh[2];
 #pragma omp parallel num_threads(nThreads)
         {
             const int threadId = omp_get_thread_num();
+            auto &que = (*collisionPoolPtr)[threadId];
 #pragma omp for
             for (int i = 0; i < nLocal; i++) {
                 const auto &sy = sylinderContainer[i];
@@ -936,13 +939,16 @@ void SylinderSystem::collectWallCollision() {
                 if (wallCollide != true) {
                     continue;
                 }
+                Evec3 posI = colLoc - ECmap3(sy.pos);
+                Evec3 posJ = Evec3::Zero();
+                Evec3 labI = colLoc;
+                Evec3 labJ = Evec3(colLoc[0], colLoc[1], wallTop);
                 // add a new collision block. this block has only 6 non zero entries.
                 // passing sy.gid+1/globalIndex+1 as a 'fake' colliding body j, which is actually not used in the solver
                 // when oneside=true, out of range index is ignored
-                (*collisionPoolPtr)[threadId].emplace_back(phi0, -phi0, sy.gid, sy.gid + 1, sy.globalIndex,
-                                                           sy.globalIndex + 1, Evec3(0, 0, -1), Evec3(0, 0, 0),
-                                                           colLoc - ECmap3(sy.pos), Evec3(0, 0, 0), colLoc,
-                                                           Evec3(colLoc[0], colLoc[1], wallTop), true);
+                que.emplace_back(phi0, -phi0, sy.gid, sy.gid, sy.globalIndex, sy.globalIndex, normZ.data(),
+                                 normZ.data(), posI.data(), posJ.data(), labI.data(), labJ.data(), true, false, 0.0,
+                                 0.0);
             }
         }
     }
@@ -952,7 +958,7 @@ void SylinderSystem::collectWallCollision() {
 
 void SylinderSystem::collectPairCollision() {
 
-    CalcSylinderNearForce calcColFtr(uniConstraintPtr->constraintPoolPtr, biConstraintPtr->constraintPoolPtr);
+    CalcSylinderNearForce calcColFtr(conCollectorPtr->constraintPoolPtr);
 
     TEUCHOS_ASSERT(treeSylinderNearPtr);
     const int nLocal = sylinderContainer.getNumberOfParticleLocal();
@@ -964,12 +970,12 @@ void SylinderSystem::collectPairCollision() {
         sylinderContainer[i].sepmin = (treeSylinderNearPtr->getForce(i)).sepmin;
     }
 
-    const int nQue = biConstraintPtr->constraintPoolPtr->size();
+    const int nQue = conCollectorPtr->constraintPoolPtr->size();
 #pragma omp parallel for
     for (int q = 0; q < nQue; q++) {
-        auto &queue = biConstraintPtr->constraintPoolPtr->at(q);
+        auto &queue = conCollectorPtr->constraintPoolPtr->at(q);
         for (auto &block : queue) {
-            if (block.kappa < 0) {
+            if (block.bilateral && block.kappa < 0) {
                 block.kappa = runConfig.linkKappa;
                 block.gamma = block.kappa * block.delta0;
             }
@@ -1042,59 +1048,60 @@ void SylinderSystem::updateSylinderRank() {
 
 void SylinderSystem::applyBoxBC() { sylinderContainer.adjustPositionIntoRootDomain(dinfo); }
 
-void SylinderSystem::calcColStress() {
+void SylinderSystem::calcConStress() {
+    // TODO:
+    // Emat3 meanStress = Emat3::Zero();
+    // conCollePtr->sumLocalConstraintStress(meanStress, false);
 
-    Emat3 meanStress = Emat3::Zero();
-    uniConstraintPtr->sumLocalConstraintStress(meanStress, false);
+    // // scale to nkBT
+    // const double scaleFactor = 1 / (sylinderMapRcp->getGlobalNumElements() * runConfig.KBT);
+    // meanStress *= scaleFactor;
+    // // mpi reduction
+    // double meanStressLocal[9];
+    // double meanStressGlobal[9];
+    // for (int i = 0; i < 3; i++) {
+    //     for (int j = 0; j < 3; j++) {
+    //         meanStressLocal[i * 3 + j] = meanStress(i, j);
+    //         meanStressGlobal[i * 3 + j] = 0;
+    //     }
+    // }
 
-    // scale to nkBT
-    const double scaleFactor = 1 / (sylinderMapRcp->getGlobalNumElements() * runConfig.KBT);
-    meanStress *= scaleFactor;
-    // mpi reduction
-    double meanStressLocal[9];
-    double meanStressGlobal[9];
-    for (int i = 0; i < 3; i++) {
-        for (int j = 0; j < 3; j++) {
-            meanStressLocal[i * 3 + j] = meanStress(i, j);
-            meanStressGlobal[i * 3 + j] = 0;
-        }
-    }
+    // Teuchos::reduceAll(*commRcp, Teuchos::SumValueReductionOp<int, double>(), 9, meanStressLocal, meanStressGlobal);
 
-    Teuchos::reduceAll(*commRcp, Teuchos::SumValueReductionOp<int, double>(), 9, meanStressLocal, meanStressGlobal);
-
-    if (commRcp->getRank() == 0)
-        printf("RECORD: ColXF,%7g,%7g,%7g,%7g,%7g,%7g,%7g,%7g,%7g\n",         //
-               meanStressGlobal[0], meanStressGlobal[1], meanStressGlobal[2], //
-               meanStressGlobal[3], meanStressGlobal[4], meanStressGlobal[5], //
-               meanStressGlobal[6], meanStressGlobal[7], meanStressGlobal[8]);
+    // if (commRcp->getRank() == 0)
+    //     printf("RECORD: ColXF,%7g,%7g,%7g,%7g,%7g,%7g,%7g,%7g,%7g\n",         //
+    //            meanStressGlobal[0], meanStressGlobal[1], meanStressGlobal[2], //
+    //            meanStressGlobal[3], meanStressGlobal[4], meanStressGlobal[5], //
+    //            meanStressGlobal[6], meanStressGlobal[7], meanStressGlobal[8]);
 }
 
-void SylinderSystem::calcBiStress() {
+// void SylinderSystem::calcBiStress() {
+// TODO:
 
-    Emat3 meanStress = Emat3::Zero();
-    biConstraintPtr->sumLocalConstraintStress(meanStress, false);
+// Emat3 meanStress = Emat3::Zero();
+// biConstraintPtr->sumLocalConstraintStress(meanStress, false);
 
-    // scale to nkBT
-    const double scaleFactor = 1 / (sylinderMapRcp->getGlobalNumElements() * runConfig.KBT);
-    meanStress *= scaleFactor;
-    // mpi reduction
-    double meanStressLocal[9];
-    double meanStressGlobal[9];
-    for (int i = 0; i < 3; i++) {
-        for (int j = 0; j < 3; j++) {
-            meanStressLocal[i * 3 + j] = meanStress(i, j);
-            meanStressGlobal[i * 3 + j] = 0;
-        }
-    }
+// // scale to nkBT
+// const double scaleFactor = 1 / (sylinderMapRcp->getGlobalNumElements() * runConfig.KBT);
+// meanStress *= scaleFactor;
+// // mpi reduction
+// double meanStressLocal[9];
+// double meanStressGlobal[9];
+// for (int i = 0; i < 3; i++) {
+//     for (int j = 0; j < 3; j++) {
+//         meanStressLocal[i * 3 + j] = meanStress(i, j);
+//         meanStressGlobal[i * 3 + j] = 0;
+//     }
+// }
 
-    Teuchos::reduceAll(*commRcp, Teuchos::SumValueReductionOp<int, double>(), 9, meanStressLocal, meanStressGlobal);
+// Teuchos::reduceAll(*commRcp, Teuchos::SumValueReductionOp<int, double>(), 9, meanStressLocal, meanStressGlobal);
 
-    if (commRcp->getRank() == 0)
-        printf("RECORD: BiXF,%7g,%7g,%7g,%7g,%7g,%7g,%7g,%7g,%7g\n",          //
-               meanStressGlobal[0], meanStressGlobal[1], meanStressGlobal[2], //
-               meanStressGlobal[3], meanStressGlobal[4], meanStressGlobal[5], //
-               meanStressGlobal[6], meanStressGlobal[7], meanStressGlobal[8]);
-}
+// if (commRcp->getRank() == 0)
+//     printf("RECORD: BiXF,%7g,%7g,%7g,%7g,%7g,%7g,%7g,%7g,%7g\n",          //
+//            meanStressGlobal[0], meanStressGlobal[1], meanStressGlobal[2], //
+//            meanStressGlobal[3], meanStressGlobal[4], meanStressGlobal[5], //
+//            meanStressGlobal[6], meanStressGlobal[7], meanStressGlobal[8]);
+// }
 
 void SylinderSystem::calcOrderParameter() {
     double px = 0, py = 0, pz = 0;    // pvec
@@ -1259,140 +1266,4 @@ void SylinderSystem::buildSylinderNearDataDirectory() {
 
     // build index
     sylinderNearDataDirectory.buildIndex();
-}
-
-void SylinderSystem::collectLinkBilateral() {
-    // WARNING: periodic boundary condition is missing in this function. do not use.
-    auto &cPool = *(biConstraintPtr->constraintPoolPtr);
-    const int nThreads = cPool.size();
-    const int nLocal = sylinderContainer.getNumberOfParticleLocal();
-    const double kappa = runConfig.linkKappa;
-    // loop all links.
-    // add constraint block for each link where next != INVALID
-
-    // step 1, fill info where the next link is also on local mpi rank
-
-#pragma omp parallel num_threads(nThreads)
-    {
-        const int tid = omp_get_thread_num();
-        auto &cQue = cPool[tid];
-        cQue.clear();
-#pragma omp for
-        for (int i = 0; i < nLocal; i++) {
-            const auto &syI = sylinderContainer[i];
-            if (syI.link.next == GEO_INVALID_INDEX) {
-                continue; // no link, do nothing
-            }
-
-            const auto &J = sylinderGidIndex.find(syI.link.next);
-            if (J != sylinderGidIndex.end()) { // syJ is also on local. add to cQue
-                const Evec3 centerI = ECmap3(syI.pos);
-                const Evec3 directionI = ECmapq(syI.orientation) * Evec3(0, 0, 1);
-                // const Evec3 Pm = centerI - directionI * (0.5 * syI.length); // tail
-                const Evec3 Pp = centerI + directionI * (0.5 * syI.length); // head
-                const auto &syJ = sylinderContainer[J->second];
-                const Evec3 centerJ = ECmap3(syJ.pos);
-                const Evec3 directionJ = ECmapq(syJ.orientation) * Evec3(0, 0, 1);
-                const Evec3 Qm = centerJ - directionJ * (0.5 * syJ.length); // tail
-                // const Evec3 Qp = centerJ + directionJ * (0.5 * syJ.length); // head
-                Evec3 Ploc = Pp; // head of I is linked to tail of J
-                Evec3 Qloc = Qm;
-                const Evec3 vecIJ = Ploc - Qloc;
-                const double dist = vecIJ.norm();
-                const Evec3 normI = vecIJ / dist;
-                const Evec3 normJ = -normI;
-                const Evec3 posI = Ploc - centerI;
-                const Evec3 posJ = Qloc - centerJ;
-                const double sep = dist - (syI.radius + syJ.radius) * 1.05; // L - L0
-                double gamma = -sep * kappa;
-                cQue.emplace_back(sep, gamma,       // L - L0, initial guess of gamma
-                                  syI.gid, syJ.gid, //
-                                  syI.globalIndex,  //
-                                  syJ.globalIndex,  //
-                                  normI, normJ,     // direction of collision force
-                                  posI, posJ,       // location of collision relative to particle center
-                                  Ploc, Qloc,       // location of collision in lab frame
-                                  false, kappa);
-                Emat3 stressIJ;
-                CalcSylinderNearForce::collideStress(directionI, directionJ, centerI, centerJ, syI.length, syJ.length,
-                                                     syI.radius, syJ.radius, 1.0, Ploc, Qloc, stressIJ);
-                cQue.back().setStress(stressIJ);
-
-            } else { // syJ is not on local. add syI info to block only
-                printf("%d %d\n", syI.gid, syI.link.next);
-                cQue.emplace_back(0, 0,                           // L - L0, initial guess of gamma
-                                  syI.gid, syI.link.next,         //
-                                  syI.globalIndex,                //
-                                  GEO_INVALID_INDEX,              //
-                                  Evec3(0, 0, 1), Evec3(0, 0, 1), // direction of collision force
-                                  Evec3(0, 0, 1), Evec3(0, 0, 1), // location of collision relative to particle center
-                                  Evec3(0, 0, 1), Evec3(0, 0, 1), // location of collision in lab frame
-                                  false);
-            }
-        }
-    }
-
-    // step 2, fill missing information with DataDirectory from other mpi ranks.
-    sylinderNearDataDirectoryPtr->gidToFind.clear();
-    sylinderNearDataDirectoryPtr->dataToFind.clear();
-    for (auto &cQue : cPool) {
-        for (auto &block : cQue) {
-            if (block.globalIndexJ == GEO_INVALID_INDEX) {
-                sylinderNearDataDirectoryPtr->gidToFind.push_back(block.gidJ);
-            }
-        }
-    }
-    sylinderNearDataDirectoryPtr->find();
-    int findIndex = 0;
-    for (auto &cQue : cPool) {
-        for (auto &block : cQue) {
-            if (block.globalIndexJ == GEO_INVALID_INDEX) {
-                auto I = sylinderGidIndex.find(block.gidI);
-                if (I == sylinderGidIndex.end()) {
-                    printf("sylinderGidIndex Error 1\n");
-                    std::exit(1);
-                }
-                const auto &syI = sylinderContainer[I->second];
-                const auto &syNearJ = sylinderNearDataDirectoryPtr->dataToFind[findIndex];
-                if (syNearJ.gid != block.gidJ) {
-                    printf("sylinderGidIndex Error 2\n");
-                    std::exit(1);
-                }
-
-                const Evec3 centerI = ECmap3(syI.pos);
-                const Evec3 directionI = ECmapq(syI.orientation) * Evec3(0, 0, 1);
-                // const Evec3 Pm = centerI - directionI * (0.5 * syI.length); // tail
-                const Evec3 Pp = centerI + directionI * (0.5 * syI.length); // head
-
-                const Evec3 centerJ = ECmap3(syNearJ.pos);
-                const Evec3 directionJ = ECmap3(syNearJ.direction);
-                const Evec3 Qm = centerJ - directionJ * (0.5 * syNearJ.length); // tail
-                // const Evec3 Qp = centerJ + directionJ * (0.5 * syJ.length); // head
-                Evec3 Ploc = Pp; // head of I is linked to tail of J
-                Evec3 Qloc = Qm;
-                const Evec3 vecIJ = Ploc - Qloc;
-                const double dist = vecIJ.norm();
-                const Evec3 normI = vecIJ / dist;
-                const Evec3 normJ = -normI;
-                const Evec3 posI = Ploc - centerI;
-                const Evec3 posJ = Qloc - centerJ;
-                const double sep = dist - (syI.radius + syNearJ.radius) * 1.05; // L - L0
-                double gamma = -sep * kappa;
-                block = ConstraintBlock(sep, gamma,           // L - L0, initial guess of gamma
-                                        syI.gid, syNearJ.gid, //
-                                        syI.globalIndex,      //
-                                        syNearJ.globalIndex,  //
-                                        normI, normJ,         // direction of collision force
-                                        posI, posJ,           // location of collision relative to particle center
-                                        Ploc, Qloc,           // location of collision in lab frame
-                                        false, kappa);
-                Emat3 stressIJ;
-                CalcSylinderNearForce::collideStress(directionI, directionJ, centerI, centerJ, syI.length,
-                                                     syNearJ.length, syI.radius, syNearJ.radius, 1.0, Ploc, Qloc,
-                                                     stressIJ);
-                block.setStress(stressIJ);
-                findIndex++;
-            }
-        }
-    }
 }

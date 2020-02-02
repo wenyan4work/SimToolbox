@@ -40,9 +40,8 @@ class SylinderSystem {
     void setTreeSylinder();
 
     // Constraint stuff
-    std::shared_ptr<ConstraintSolver> constraintSolverPtr; ///< pointer to CollisionSolver object
-    std::shared_ptr<ConstraintCollector> uniConstraintPtr; ///<  pointer to unilateral constraints (collisions)
-    std::shared_ptr<ConstraintCollector> biConstraintPtr;  ///<  pointer to bilateral constraints (springs)
+    std::shared_ptr<ConstraintSolver> conSolverPtr; ///< pointer to ConstraintSolver
+    std::shared_ptr<ConstraintCollector> conCollectorPtr; ///<  pointer to ConstraintCollector
     Teuchos::RCP<const TV> forceUniRcp;                    ///< unilateral constraint force
     Teuchos::RCP<const TV> velocityUniRcp;                 ///< unilateral constraint velocity
     Teuchos::RCP<const TV> forceBiRcp;                     ///< bilateral constraint force
@@ -65,7 +64,6 @@ class SylinderSystem {
 
     // Data directory
     std::shared_ptr<ZDD<SylinderNearEP>> sylinderNearDataDirectoryPtr; ///< distributed data directory for sylinder data
-    std::unordered_map<int, int> sylinderGidIndex;
 
     // internal utility functions
     /**
@@ -301,7 +299,7 @@ class SylinderSystem {
      */
     void setVelocityNonBrown(const std::vector<double> &velNonBrown);
 
-    void setBilateralConstraints(ConstraintCollector &biConstraints_) { *biConstraintPtr = biConstraints_; }
+    ConstraintBlockPool& getConstraintPoolNonConst(){return *(conCollectorPtr->constraintPoolPtr);};
 
     /**
      * @brief resolve collision with given nonBrownian motion and advance the system configuration
@@ -329,18 +327,24 @@ class SylinderSystem {
      */
     void addNewSylinder(std::vector<Sylinder> &newSylinder, std::vector<Link> &linkage);
 
-    /**
-     * @brief calculate collision stress with constraint solution
-     *
-     * The result is shown on screen
-     */
-    void calcColStress();
+    // /**
+    //  * @brief calculate collision stress with constraint solution
+    //  *
+    //  * The result is shown on screen
+    //  */
+    // void calcColStress();
+
+    // /**
+    //  * @brief calculate bilateral stress with constraint solution
+    //  *
+    //  */
+    // void calcBiStress();
 
     /**
-     * @brief calculate bilateral stress with constraint solution
-     *
+     * @brief calculate both Col and Bi stress
+     * 
      */
-    void calcBiStress();
+    void calcConStress();
 
     /**
      * @brief calculate polar and nematic order parameter

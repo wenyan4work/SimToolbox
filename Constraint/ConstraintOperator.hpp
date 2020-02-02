@@ -34,8 +34,7 @@ class ConstraintOperator : public TOP {
      * @param biDbMat
      * @param invKappaDiagMat
      */
-    ConstraintOperator(Teuchos::RCP<TOP> &mobOp, Teuchos::RCP<TCMAT> &uniDuMatTrans, Teuchos::RCP<TCMAT> &biDbMatTrans,
-                       std::vector<double> &invKappaDiagMat);
+    ConstraintOperator(Teuchos::RCP<TOP> &mobOp_, Teuchos::RCP<TCMAT> &DMatTransRcp_, Teuchos::RCP<TV> &invKappa_);
 
     /**
      * @brief apply this operator, ensuring the block structure
@@ -75,48 +74,30 @@ class ConstraintOperator : public TOP {
     void enableTimer();
     void disableTimer();
 
-    Teuchos::RCP<const TV> getForceUni() { return mobForceRcp->getVector(0); }
-    Teuchos::RCP<const TV> getForceBi() { return mobForceRcp->getVector(1); }
-    Teuchos::RCP<const TV> getVelUni() { return mobVelRcp->getVector(0); }
-    Teuchos::RCP<const TV> getVelBi() { return mobVelRcp->getVector(1); }
-    Teuchos::RCP<const TMAP> getUniBlockMap() { return gammaUniBlockMapRcp; }
-    Teuchos::RCP<const TMAP> getBiBlockMap() { return gammaBiBlockMapRcp; }
+    Teuchos::RCP<TV> getForce() { return forceRcp; }
+    Teuchos::RCP<TV> getVel() { return velRcp; }
+    Teuchos::RCP<TCMAT> getDMat() { return DMatRcp; }
 
   private:
     // comm
     Teuchos::RCP<const TCOMM> commRcp; ///< the mpi communicator
     // constant operators
-    Teuchos::RCP<TOP> mobOpRcp;           ///< mobility matrix
-    Teuchos::RCP<TCMAT> uniDuMatRcp;      ///< unilateral (collision) constraint geometry matrix D_c
-    Teuchos::RCP<TCMAT> uniDuMatTransRcp; ///< explicit transpose of D_c
-    Teuchos::RCP<TCMAT> biDbMatRcp;       ///< bilateral (spring) constraint geometry matrix D_b
-    Teuchos::RCP<TCMAT> biDbMatTransRcp;  ///< explicit transpose of D_b
-    std::vector<double> invKappaDiagMat;  ///< 1/h K^{-1} diagonal matrix, in std::vector format
+    Teuchos::RCP<TOP> mobOpRcp; ///< mobility matrix
+    Teuchos::RCP<TCMAT> DMatTransRcp;
+    Teuchos::RCP<TCMAT> DMatRcp;
+    Teuchos::RCP<TV> invKappa; ///< 1/h K^{-1} diagonal matrix
 
-    // maps
-    Teuchos::RCP<const TMAP> mobMapRcp;           ///< map for mobility matrix. 6 DOF per obj
-    Teuchos::RCP<const TMAP> gammaMapRcp;         ///< map for combined vector [gammau; gammab]^T
-    Teuchos::RCP<const TMAP> gammaUniBlockMapRcp; ///< map for the rows in gammaMapRcp for the gammau block
-    Teuchos::RCP<const TMAP> gammaBiBlockMapRcp;  ///< map for the rows in gammaMapRcp for the gammab block
+    Teuchos::RCP<const TMAP> mobMapRcp;   ///< map for mobility matrix. 6 DOF per obj
+    Teuchos::RCP<const TMAP> gammaMapRcp; ///< map for combined vector [gammau; gammab]^T
 
-    // working multivectors with 2 columns
-    Teuchos::RCP<TMV> mobForceRcp; ///< force & torque vectors = [Du gamma_u, Db gamma_b]
-    Teuchos::RCP<TMV> mobVelRcp;   ///< U & Omega vectors = [M Du gamma_u, M Db gamma_b]
-    Teuchos::RCP<TMV> deltaUniRcp; ///< changes in constraint vectors = Du^T [M Du gamma_u, M Db gamma_b]
-    Teuchos::RCP<TMV> deltaBiRcp;  ///< changes in constraint vectors = Db^T [M Du gamma_u, M Db gamma_b]
+    Teuchos::RCP<TV> forceRcp; ///< force = D gamma
+    Teuchos::RCP<TV> velRcp;   ///< vel = M force
 
     // time monitor
     Teuchos::RCP<Teuchos::Time> transposeDMat;
     Teuchos::RCP<Teuchos::Time> applyMobMat;
-    Teuchos::RCP<Teuchos::Time> applyDuMat;
-    Teuchos::RCP<Teuchos::Time> applyDbMat;
-    Teuchos::RCP<Teuchos::Time> applyDuTransMat;
-    Teuchos::RCP<Teuchos::Time> applyDbTransMat;
-
-    /**
-     * @brief build gammaMapRcp
-     */
-    void buildBlockMaps();
+    Teuchos::RCP<Teuchos::Time> applyDMat;
+    Teuchos::RCP<Teuchos::Time> applyDTransMat;
 };
 
 #endif

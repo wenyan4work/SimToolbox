@@ -1,6 +1,6 @@
 #! /bin/bash
 
-export USER_LOCAL=$HOME_MNT/local
+export USER_LOCAL=$HOME/local
 export SYSTEM_LOCAL=/usr/local
 
 cmake \

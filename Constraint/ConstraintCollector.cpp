@@ -34,32 +34,42 @@ int ConstraintCollector::getLocalNumberOfConstraints() {
     return sum;
 }
 
-void ConstraintCollector::sumLocalConstraintStress(Emat3 &stress, bool withOneSide) const {
+void ConstraintCollector::sumLocalConstraintStress(Emat3 &uniStress, Emat3 &biStress, bool withOneSide) const {
     const auto &cPool = *constraintPoolPtr;
     const int poolSize = cPool.size();
 
-    Emat3 stressTotal = Emat3::Zero();
+    Emat3 biStressTotal = Emat3::Zero();
+    Emat3 uniStressTotal = Emat3::Zero();
 
 #pragma omp parallel for
     for (int que = 0; que < poolSize; que++) {
         // reduction of stress, one que for each thread
 
-        Emat3 stressSumQue = Emat3::Zero();
-        for (const auto &cBlock : cPool[que]) {
+        Emat3 uniStressSumQue = Emat3::Zero();
+        Emat3 biStressSumQue = Emat3::Zero();
+        const auto &conQue = cPool[que];
+        for (const auto &cBlock : conQue) {
             if (cBlock.oneSide && !withOneSide) {
                 // skip counting oneside collision blocks
                 continue;
             } else {
                 Emat3 stressBlock;
                 cBlock.getStress(stressBlock);
-                stressSumQue = stressSumQue + stressBlock;
+                if (cBlock.bilateral) {
+                    biStressSumQue = biStressSumQue + stressBlock;
+                } else {
+                    uniStressSumQue = uniStressSumQue + stressBlock;
+                }
             }
         }
 #pragma omp critical
-        { stressTotal = stressTotal + stressSumQue; }
+        {
+            biStressTotal = biStressTotal + biStressSumQue;
+            uniStressTotal = uniStressTotal + uniStressSumQue;
+        }
     }
-
-    stress = stressTotal;
+    uniStress = uniStressTotal;
+    biStress = biStressTotal;
 }
 
 void ConstraintCollector::writePVTP(const std::string &folder, const std::string &prefix, const std::string &postfix,
@@ -219,8 +229,11 @@ void ConstraintCollector::dumpBlocks() const {
     }
 }
 
-int ConstraintCollector::buildConstraintMatrixVector(Teuchos::RCP<const TMAP> &mobMapRcp,
-                                                     Teuchos::RCP<TCMAT> &DMatTransRcp, Teuchos::RCP<TV> &delta0VecRcp,
+int ConstraintCollector::buildConstraintMatrixVector(const Teuchos::RCP<const TMAP> &mobMapRcp, //
+                                                     Teuchos::RCP<TCMAT> &DMatTransRcp,         //
+                                                     Teuchos::RCP<TV> &delta0Rcp,               //
+                                                     Teuchos::RCP<TV> &invKappaRcp,             //
+                                                     Teuchos::RCP<TV> &biFlagRcp,               //
                                                      Teuchos::RCP<TV> &gammaGuessRcp) const {
     Teuchos::RCP<const TCOMM> commRcp = mobMapRcp->getComm();
 
@@ -232,7 +245,7 @@ int ConstraintCollector::buildConstraintMatrixVector(Teuchos::RCP<const TMAP> &m
     std::vector<int> cQueIndex;
     buildConIndex(cQueSize, cQueIndex);
 
-    // prepare 2, allocate the map
+    // prepare 2, allocate the map and vectors
     const int localGammaSize = cQueIndex.back();
     Teuchos::RCP<const TMAP> gammaMapRcp = getTMAPFromLocalSize(localGammaSize, commRcp);
 
@@ -370,48 +383,51 @@ int ConstraintCollector::buildConstraintMatrixVector(Teuchos::RCP<const TMAP> &m
     DMatTransRcp = Teuchos::rcp(new TCMAT(gammaMapRcp, colMapRcp, rowPointers, columnIndices, values));
     DMatTransRcp->fillComplete(mobMapRcp, gammaMapRcp); // domainMap, rangeMap
 
-    // step 5, allocate the delta0 vector
-    std::vector<double> delta0(localGammaSize);
-#pragma omp parallel for
+    // step 5, fill the delta0, gammaGuess, invKappa, conFlag vectors
+    delta0Rcp = Teuchos::rcp(new TV(gammaMapRcp, true));
+    invKappaRcp = Teuchos::rcp(new TV(gammaMapRcp, true));
+    biFlagRcp = Teuchos::rcp(new TV(gammaMapRcp, true));
+    gammaGuessRcp = Teuchos::rcp(new TV(gammaMapRcp, true));
+    auto delta0 = delta0Rcp->getLocalView<Kokkos::HostSpace>();
+    auto gammaGuess = gammaGuessRcp->getLocalView<Kokkos::HostSpace>();
+    auto invKappa = invKappaRcp->getLocalView<Kokkos::HostSpace>();
+    auto biFlag = biFlagRcp->getLocalView<Kokkos::HostSpace>();
+    delta0Rcp->modify<Kokkos::HostSpace>();
+    gammaGuessRcp->modify<Kokkos::HostSpace>();
+    invKappaRcp->modify<Kokkos::HostSpace>();
+    biFlagRcp->modify<Kokkos::HostSpace>();
+
+#pragma omp parallel for num_threads(cQueNum)
     for (int que = 0; que < cQueNum; que++) {
         const auto &cQue = cPool[que];
         const int cIndexBase = cQueIndex[que];
         const int queSize = cQue.size();
         for (int j = 0; j < queSize; j++) {
-            delta0[cIndexBase + j] = cQue[j].delta0;
+            const auto &block = cQue[j];
+            const auto idx = cIndexBase + j;
+            delta0(idx, 0) = block.delta0;
+            gammaGuess(idx, 0) = block.gamma;
+            if (block.bilateral) {
+                gammaGuess(idx, 0) = block.kappa > 0 ? 1 / block.kappa : 0;
+                biFlag(idx, 0) = 1;
+            }
         }
     }
-
-    delta0VecRcp = getTVFromVector(delta0, commRcp);
-
-    // step 6, allocate the gammaGuess vector
-    std::vector<double> gammaGuess(localGammaSize);
-#pragma omp parallel for
-    for (int que = 0; que < cQueNum; que++) {
-        const auto &cQue = cPool[que];
-        const int cIndexBase = cQueIndex[que];
-        const int queSize = cQue.size();
-        for (int j = 0; j < queSize; j++) {
-            delta0[cIndexBase + j] = cQue[j].gamma;
-        }
-    }
-
-    gammaGuessRcp = getTVFromVector(gammaGuess, commRcp);
 
     return 0;
 }
 
-int ConstraintCollector::buildInvKappa(std::vector<double> &invKappa) const {
-    const auto &cPool = *constraintPoolPtr;
-    invKappa.clear();
-    invKappa.reserve(1000);
-    for (const auto &que : cPool) {
-        for (const auto &block : que) {
-            invKappa.push_back(1.0 / block.kappa);
-        }
-    }
-    return 0;
-}
+// int ConstraintCollector::buildInvKappa(std::vector<double> &invKappa) const {
+//     const auto &cPool = *constraintPoolPtr;
+//     invKappa.clear();
+//     invKappa.reserve(1000);
+//     for (const auto &que : cPool) {
+//         for (const auto &block : que) {
+//             invKappa.push_back(1.0 / block.kappa);
+//         }
+//     }
+//     return 0;
+// }
 
 int ConstraintCollector::buildConIndex(std::vector<int> &cQueSize, std::vector<int> &cQueIndex) const {
     const auto &cPool = *constraintPoolPtr;

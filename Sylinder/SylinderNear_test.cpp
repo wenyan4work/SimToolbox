@@ -41,10 +41,8 @@ void testFixedPair() {
     Evec3 Q1(2, 2 * sqrt(3), 1);
 
     CalcSylinderNearForce calc;
-    calc.colPoolPtr = std::make_shared<ConstraintBlockPool>();
-    calc.colPoolPtr->resize(1);
-    calc.biPoolPtr = std::make_shared<ConstraintBlockPool>();
-    calc.biPoolPtr->resize(1);
+    calc.conPoolPtr = std::make_shared<ConstraintBlockPool>();
+    calc.conPoolPtr->resize(1);
 
     std::vector<SylinderNearEP> sylinderP(1);
     std::vector<SylinderNearEP> sylinderQ(1);
@@ -87,8 +85,8 @@ void testFixedPair() {
     }
     ForceNear fnear;
     calc(sylinderP.data(), 1, sylinderQ.data(), 1, &fnear);
-    printf("%zu collisions recorded\n", calc.colPoolPtr->front().size());
-    auto stress = calc.colPoolPtr->front().front().stress;
+    printf("%zu collisions recorded\n", calc.conPoolPtr->front().size());
+    auto stress = calc.conPoolPtr->front().front().stress;
     printf("%g,%g,%g,%g,%g,%g,%g,%g,%g\n", stress[0], stress[1], stress[2], stress[3], stress[4], stress[5], stress[6],
            stress[7], stress[8]);
     bool pass = true;
@@ -117,10 +115,8 @@ void testParallel() {
     Evec3 Q1(2.005685087440173, 1.462109203504082, 1.4999983414464);
 
     CalcSylinderNearForce calc;
-    calc.colPoolPtr = std::make_shared<ConstraintBlockPool>();
-    calc.colPoolPtr->resize(1);
-    calc.biPoolPtr = std::make_shared<ConstraintBlockPool>();
-    calc.biPoolPtr->resize(1);
+    calc.conPoolPtr = std::make_shared<ConstraintBlockPool>();
+    calc.conPoolPtr->resize(1);
 
     std::vector<SylinderNearEP> sylinderP(1);
     std::vector<SylinderNearEP> sylinderQ(1);
@@ -163,9 +159,9 @@ void testParallel() {
     }
     ForceNear fnear;
     calc(sylinderP.data(), 1, sylinderQ.data(), 1, &fnear);
-    printf("%zu collisions recorded\n", calc.colPoolPtr->front().size());
-    auto stress = calc.colPoolPtr->front().front().stress;
-    auto block = calc.colPoolPtr->front().front();
+    printf("%zu collisions recorded\n", calc.conPoolPtr->front().size());
+    auto stress = calc.conPoolPtr->front().front().stress;
+    auto block = calc.conPoolPtr->front().front();
     printf("%g,%g,%g,%g,%g,%g,%g,%g,%g\n", stress[0], stress[1], stress[2], stress[3], stress[4], stress[5], stress[6],
            stress[7], stress[8]);
     printf("posI %18.16g %18.16g %18.16g, posJ %18.16g %18.16g %18.16g\n", block.posI[0], block.posI[1], block.posI[2],

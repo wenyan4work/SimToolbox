@@ -151,8 +151,7 @@ class CalcSylinderNearForce {
     const bool usePotential = false; ///< TODO: switch of using repulsive potential instead of constraints
 
   public:
-    std::shared_ptr<ConstraintBlockPool> colPoolPtr; ///< shared object for collecting collision constraints
-    std::shared_ptr<ConstraintBlockPool> biPoolPtr;  ///< shared object for collecting bilateral constraints
+    std::shared_ptr<ConstraintBlockPool> conPoolPtr; ///< shared object for collecting collision constraints
 
     /**
      * @brief Construct a new CalcSylinderNearForce object
@@ -165,17 +164,14 @@ class CalcSylinderNearForce {
      *
      * @param colPoolPtr_ the CollisionBlockPool object to write to
      */
-    CalcSylinderNearForce(std::shared_ptr<ConstraintBlockPool> &colPoolPtr_,
-                          std::shared_ptr<ConstraintBlockPool> &biPoolPtr_, const bool usePotential_ = false)
+    CalcSylinderNearForce(std::shared_ptr<ConstraintBlockPool> &conPoolPtr_, const bool usePotential_ = false)
         : usePotential(usePotential_) {
 #ifdef DEBUGSYLINDERNEAR
         std::cout << "stress recoder size:" << colPoolPtr_->size() << std::endl;
 #endif
 
-        assert(colPoolPtr_);
-        assert(biPoolPtr_);
-        colPoolPtr = colPoolPtr_;
-        biPoolPtr = biPoolPtr_;
+        conPoolPtr = conPoolPtr_;
+        assert(conPoolPtr);
     }
 
     /**
@@ -191,8 +187,7 @@ class CalcSylinderNearForce {
                     const PS::S32 Njp, ForceNear *const forceNear) {
         constexpr double COLBUF = 0.3;
         const int myThreadId = omp_get_thread_num();
-        auto &colQue = (*colPoolPtr)[myThreadId];
-        auto &biQue = (*biPoolPtr)[myThreadId];
+        auto &conQue = (*conPoolPtr)[myThreadId];
         DCPQuery<3, double, Evec3> DistSegSeg3;
 
         for (PS::S32 i = 0; i < Nip; ++i) {
@@ -231,18 +226,18 @@ class CalcSylinderNearForce {
                     const Evec3 normJ = -normI;
                     const Evec3 posI = Ploc - centerI;
                     const Evec3 posJ = Qloc - centerJ;
-                    colQue.emplace_back(delta0, gamma,    // current separation, initial guess of gamma
-                                        syI.gid, syJ.gid, //
-                                        syI.globalIndex,  //
-                                        syJ.globalIndex,  //
-                                        normI, normJ,     // direction of collision force
-                                        posI, posJ,       // location of collision relative to particle center
-                                        Ploc, Qloc,       // location of collision in lab frame
-                                        false);
+                    conQue.emplace_back(delta0, gamma,              // current separation, initial guess of gamma
+                                        syI.gid, syJ.gid,           //
+                                        syI.globalIndex,            //
+                                        syJ.globalIndex,            //
+                                        normI.data(), normJ.data(), // direction of collision force
+                                        posI.data(), posJ.data(),   // location of collision relative to particle center
+                                        Ploc.data(), Qloc.data(),   // location of collision in lab frame
+                                        false, false, 0.0, 0.0);
                     Emat3 stressIJ;
                     collideStress(directionI, directionJ, centerI, centerJ, syI.lengthCollision, syJ.lengthCollision,
                                   syI.radiusCollision, syJ.radiusCollision, 1.0, Ploc, Qloc, stressIJ);
-                    colQue.back().setStress(stressIJ);
+                    conQue.back().setStress(stressIJ);
                 }
 
                 // record bilateral blocks
@@ -255,18 +250,18 @@ class CalcSylinderNearForce {
                     const Evec3 normJ = -normI;
                     const Evec3 posI = Ploc - centerI;
                     const Evec3 posJ = Qloc - centerJ;
-                    biQue.emplace_back(delta0, gamma,      // current separation, initial guess of gamma
-                                       syI.gid, syJ.gid,   //
-                                       syI.globalIndex,    //
-                                       syJ.globalIndex,    //
-                                       normI, normJ,       // direction of collision force
-                                       posI, posJ,         // location of collision relative to particle center
-                                       Ploc, Qloc,         // location of collision in lab frame
-                                       false, true, -1.0); // kappa will be set to link kappa later
+                    conQue.emplace_back(delta0, gamma,              // current separation, initial guess of gamma
+                                        syI.gid, syJ.gid,           //
+                                        syI.globalIndex,            //
+                                        syJ.globalIndex,            //
+                                        normI.data(), normJ.data(), // direction of collision force
+                                        posI.data(), posJ.data(),   // location of collision relative to particle center
+                                        Ploc.data(), Qloc.data(),   // location of collision in lab frame
+                                        false, true, -1.0, 0.0);    // kappa will be set to link kappa later
                     Emat3 stressIJ;
                     collideStress(directionI, directionJ, centerI, centerJ, syI.lengthCollision, syJ.lengthCollision,
                                   syI.radiusCollision, syJ.radiusCollision, 1.0, Ploc, Qloc, stressIJ);
-                    biQue.back().setStress(stressIJ);
+                    conQue.back().setStress(stressIJ);
                 }
             }
         }

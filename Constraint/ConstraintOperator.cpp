@@ -1,42 +1,28 @@
 #include "ConstraintOperator.hpp"
 
-ConstraintOperator::ConstraintOperator(Teuchos::RCP<TOP> &mobOp_, Teuchos::RCP<TCMAT> &uniDuMatTrans_,
-                                       Teuchos::RCP<TCMAT> &biDbMatTrans_, std::vector<double> &invKappaDiagMat_)
-    : commRcp(mobOp_->getDomainMap()->getComm()), mobOpRcp(mobOp_), uniDuMatTransRcp(uniDuMatTrans_),
-      biDbMatTransRcp(biDbMatTrans_), invKappaDiagMat(invKappaDiagMat_) {
+ConstraintOperator::ConstraintOperator(Teuchos::RCP<TOP> &mobOp_, Teuchos::RCP<TCMAT> &DMatTransRcp_,
+                                       Teuchos::RCP<TV> &invKappa_)
+    : commRcp(mobOp_->getDomainMap()->getComm()), mobOpRcp(mobOp_), DMatTransRcp(DMatTransRcp_), invKappa(invKappa_) {
     // timer
     transposeDMat = Teuchos::TimeMonitor::getNewCounter("ConstraintOperator::TransposeDMat");
     applyMobMat = Teuchos::TimeMonitor::getNewCounter("ConstraintOperator::ApplyMobility");
-    applyDuMat = Teuchos::TimeMonitor::getNewCounter("ConstraintOperator::ApplyDuMat");
-    applyDuTransMat = Teuchos::TimeMonitor::getNewCounter("ConstraintOperator::ApplyDuTransMat");
-    applyDbMat = Teuchos::TimeMonitor::getNewCounter("ConstraintOperator::ApplyDbMat");
-    applyDbTransMat = Teuchos::TimeMonitor::getNewCounter("ConstraintOperator::ApplyDbTransMat");
+    applyDMat = Teuchos::TimeMonitor::getNewCounter("ConstraintOperator::ApplyDuMat");
+    applyDTransMat = Teuchos::TimeMonitor::getNewCounter("ConstraintOperator::ApplyDuTransMat");
 
     enableTimer();
 
     // explicit transpose
     {
-
         Teuchos::TimeMonitor mon(*transposeDMat);
-        Tpetra::RowMatrixTransposer<double, int, int> transposerDu(uniDuMatTransRcp);
-        uniDuMatRcp = transposerDu.createTranspose();
-        Tpetra::RowMatrixTransposer<double, int, int> transposerDb(biDbMatTransRcp);
-        biDbMatRcp = transposerDb.createTranspose();
+        Tpetra::RowMatrixTransposer<double, int, int> transposerDu(DMatTransRcp);
+        DMatRcp = transposerDu.createTranspose();
     }
 
-    // block maps
     mobMapRcp = mobOpRcp->getDomainMap(); // symmetric & domainmap=rangemap
 
-    // setup global map
-    // both Du and Db are globally & contiguously partitioned by rows
-    // The total map should include rows from both Du and Db, where Db follows Du
-    buildBlockMaps();
-
     // initialize working multivectors, zero out
-    mobForceRcp = Teuchos::rcp(new TMV(mobMapRcp, 2, true)); // two columns: Du gammac,  Db gammab
-    mobVelRcp = Teuchos::rcp(new TMV(mobMapRcp, 2, true));   // two columns: M Du gamma, M Db gammab
-    deltaUniRcp = Teuchos::rcp(new TMV(uniDuMatTransRcp->getRangeMap(), 2, true)); // two columns: DuT M Du, DuT M Db
-    deltaBiRcp = Teuchos::rcp(new TMV(biDbMatTransRcp->getRangeMap(), 2, true));   // two columns: DbT M Du, DbT M Db
+    forceRcp = Teuchos::rcp(new TV(mobMapRcp, true));
+    velRcp = Teuchos::rcp(new TV(mobMapRcp, true));
 }
 
 void ConstraintOperator::apply(const TMV &X, TMV &Y, Teuchos::ETransp mode, scalar_type alpha, scalar_type beta) const {
@@ -44,63 +30,40 @@ void ConstraintOperator::apply(const TMV &X, TMV &Y, Teuchos::ETransp mode, scal
                                "X and Y do not have the same numbers of vectors (columns).");
     TEUCHOS_TEST_FOR_EXCEPTION(!X.getMap()->isSameAs(*Y.getMap()), std::invalid_argument,
                                "X and Y do not have the same Map.\n");
-    const int blockoffset = gammaUniBlockMapRcp->getNodeNumElements();
 
     const int numVecs = X.getNumVectors();
     for (int i = 0; i < numVecs; i++) {
         auto XcolRcp = X.getVector(i);
         auto YcolRcp = Y.getVectorNonConst(i);
-        auto gammaUniBlock = XcolRcp->offsetView(gammaUniBlockMapRcp, 0);
-        auto gammaBiBlock = XcolRcp->offsetView(gammaBiBlockMapRcp, blockoffset);
-        auto deltaUniBlock = YcolRcp->offsetViewNonConst(gammaUniBlockMapRcp, 0);
-        auto deltaBiBlock = YcolRcp->offsetViewNonConst(gammaBiBlockMapRcp, blockoffset);
 
-        // step 1, Du and Db multiply X, block by block
+        // step 1, D multiply X
         {
-            Teuchos::TimeMonitor mon(*applyDuMat);
-            auto ftCol0 = mobForceRcp->getVectorNonConst(0);
-            uniDuMatRcp->apply(*gammaUniBlock, *ftCol0); // Du gammac
-        }
-        {
-            Teuchos::TimeMonitor mon(*applyDbMat);
-            auto ftCol1 = mobForceRcp->getVectorNonConst(1);
-            biDbMatRcp->apply(*gammaBiBlock, *ftCol1); // Db gammab
+            Teuchos::TimeMonitor mon(*applyDMat);
+            DMatRcp->apply(*XcolRcp, *forceRcp); // Du gammac
         }
 
         // step 2, Vel = Mobility * FT
         {
             Teuchos::TimeMonitor mon(*applyMobMat);
-            mobOpRcp->apply(*mobForceRcp, *mobVelRcp);
+            mobOpRcp->apply(*forceRcp, *velRcp);
         }
 
-        // step 3, Du^T and Db^T multiply velocity
+        // step 3, D^T multiply velocity
+        // Y = alpha * Op * X + beta * Y
         {
-            Teuchos::TimeMonitor mon(*applyDuTransMat);
-            uniDuMatTransRcp->apply(*mobVelRcp, *deltaUniRcp);
+            Teuchos::TimeMonitor mon(*applyDTransMat);
+            DMatTransRcp->apply(*velRcp, *YcolRcp, Teuchos::NO_TRANS, alpha, beta);
         }
-        {
 
-            Teuchos::TimeMonitor mon(*applyDbTransMat);
-            biDbMatTransRcp->apply(*mobVelRcp, *deltaBiRcp);
-        }
-        // step 4, Y = [deltaUniBlock ; deltaBiBlock] = alpha * Op * X + beta * Y
-        // Op * X = [ deltaUni(0)+deltaUni(1); deltaBi(0)+deltaBi(1)]
-        // 5.1 uni block
-        deltaUniBlock->update(alpha, *(deltaUniRcp->getVector(0)), alpha, *(deltaUniRcp->getVector(1)), beta);
-        // 5.2 bi block
-        deltaBiBlock->update(alpha, *(deltaBiRcp->getVector(0)), alpha, *(deltaBiRcp->getVector(1)), beta);
-
-        // step 5, add spring constant effect: K^{-1}gammab
-        // deltaUniBlock[i] += alpha * K^{-1}[i]*gammab[i]
-        auto deltaBiPtr = deltaBiBlock->getLocalView<Kokkos::HostSpace>();
-        deltaBiBlock->modify<Kokkos::HostSpace>();
-        auto gammaBiPtr = gammaBiBlock->getLocalView<Kokkos::HostSpace>();
-        const int gammaBiSize = gammaBiPtr.dimension_0();
-        TEUCHOS_TEST_FOR_EXCEPTION(!gammaBiSize == invKappaDiagMat.size(), std::invalid_argument,
-                                   "Kinv and gammaBi size error\n")
+        // step 4, add diagonal. Y += alpha * invK * X
+        auto XcolPtr = XcolRcp->getLocalView<Kokkos::HostSpace>();
+        auto YcolPtr = YcolRcp->getLocalView<Kokkos::HostSpace>();
+        YcolRcp->modify<Kokkos::HostSpace>();
+        auto invKappaPtr = invKappa->getLocalView<Kokkos::HostSpace>();
+        const int localSize = YcolPtr.dimension_0();
 #pragma omp parallel for
-        for (int k = 0; k < gammaBiSize; k++) {
-            deltaBiPtr(k, 0) += alpha * invKappaDiagMat[k] * gammaBiPtr(k, 0);
+        for (int k = 0; k < localSize; k++) {
+            YcolPtr(k, 0) += alpha * invKappaPtr(k, 0) * XcolPtr(k, 0);
         }
     }
 }
@@ -115,35 +78,16 @@ Teuchos::RCP<const TMAP> ConstraintOperator::getRangeMap() const {
     return gammaMapRcp;
 }
 
-void ConstraintOperator::buildBlockMaps() {
-    /****
-     *  For details about this sub map, see Tpetra::MultiVector::offsetView() and ::offsetViewNonConst()
-     */
-
-    auto map1 = uniDuMatRcp->getDomainMap(); // the first map, starting from 0, contiguous
-    auto map2 = biDbMatRcp->getDomainMap();  // the second map, starting from 0, contiguous
-
-    // the two sub block maps
-    gammaUniBlockMapRcp = map1;
-    gammaBiBlockMapRcp = map2;
-
-    gammaMapRcp = getTMAPFromTwoBlockTMAP(map1, map2);
-}
-
 void ConstraintOperator::enableTimer() {
     transposeDMat->enable();
     applyMobMat->enable();
-    applyDuMat->enable();
-    applyDuTransMat->enable();
-    applyDbMat->enable();
-    applyDbTransMat->enable();
+    applyDMat->enable();
+    applyDTransMat->enable();
 }
 
 void ConstraintOperator::disableTimer() {
     transposeDMat->disable();
     applyMobMat->disable();
-    applyDuMat->disable();
-    applyDuTransMat->disable();
-    applyDbMat->disable();
-    applyDbTransMat->disable();
+    applyDMat->disable();
+    applyDTransMat->disable();
 }

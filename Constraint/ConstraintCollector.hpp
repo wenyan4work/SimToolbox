@@ -23,9 +23,6 @@
 
 #include <omp.h>
 
-using ConstraintBlockQue = std::vector<ConstraintBlock>;     ///< a queue contains blocks collected by one thread
-using ConstraintBlockPool = std::vector<ConstraintBlockQue>; ///< a pool contains queues on different threads
-
 /**
  * @brief collecter of collision blocks
  *
@@ -34,12 +31,10 @@ using ConstraintBlockPool = std::vector<ConstraintBlockQue>; ///< a pool contain
  */
 class ConstraintCollector {
   public:
-    std::shared_ptr<ConstraintBlockPool> constraintPoolPtr; ///< all copy of collector share a pointer to collision pool
+    std::shared_ptr<ConstraintBlockPool> constraintPoolPtr;
+    ///< all copy of collector share a pointer to collision pool
+    ///< this is required by FDPS
 
-    /**
-     * @brief Construct a new Constraint Collector object
-     *
-     */
     ConstraintCollector();
 
     /**
@@ -88,7 +83,7 @@ class ConstraintCollector {
      * @param stress the sum of all stress blocks for all threads on the local rank
      * @param withOneSide include the stress (without proper definition) of one side collisions
      */
-    void sumLocalConstraintStress(Emat3 &stress, bool withOneSide = false) const;
+    void sumLocalConstraintStress(Emat3 &uniStress, Emat3 &biStress, bool withOneSide = false) const;
 
     /**
      * @brief write VTK XML PVTP Header file from rank 0
@@ -128,36 +123,43 @@ class ConstraintCollector {
     void dumpBlocks() const;
 
     /**
-     * @brief build the D^Transpose matrix and delta^0 vector
+     * @brief build the matrix and vectors used in constraint solver
      *
-     * @param mobMapRcp
-     * @param DMatTransRcp
-     * @param delta0VecRcp
-     * @return int error code (future)
+     * @param [in] mobMapRcp  mobility map
+     * @param DTransRcp D^Trans matrix
+     * @param delta0Rcp delta_0 vector
+     * @param invKappaRcp K^{-1} vector
+     * @param biFlagRcp 1 for bilateral, 1 for unilateral
+     * @param gammaGuessRcp initial guess of gamma
+     * @return int error code (TODO:)
      */
-    int buildConstraintMatrixVector(Teuchos::RCP<const TMAP> &mobMapRcp, Teuchos::RCP<TCMAT> &DMatTransRcp,
-                                    Teuchos::RCP<TV> &delta0VecRcp, Teuchos::RCP<TV> &gammaGuessRcp) const;
+    int buildConstraintMatrixVector(const Teuchos::RCP<const TMAP> &mobMapRcp, //
+                                    Teuchos::RCP<TCMAT> &DMatTransRcp,         //
+                                    Teuchos::RCP<TV> &delta0Rcp,               //
+                                    Teuchos::RCP<TV> &invKappaRcp,             //
+                                    Teuchos::RCP<TV> &biFlagRcp,               //
+                                    Teuchos::RCP<TV> &gammaGuessRcp) const;
 
-    /**
-     * @brief build the K^{-1} diagonal matrix
-     *
-     * @param invKappa
-     * @return int  error code (future)
-     */
-    int buildInvKappa(std::vector<double> &invKappa) const;
+    // /**
+    //  * @brief build the K^{-1} diagonal matrix
+    //  *
+    //  * @param invKappa
+    //  * @return int  error code (future)
+    //  */
+    // int buildInvKappa(std::vector<double> &invKappa) const;
 
     /**
      * @brief build the index of constraints in the ConstraintPool
-     * 
+     *
      * @param cQueSize size of each queue
      * @param cQueIndex index of queue
      * @return int error code (future)
      */
-    int buildConIndex(std::vector<int> & cQueSize, std::vector<int>& cQueIndex) const;
+    int buildConIndex(std::vector<int> &cQueSize, std::vector<int> &cQueIndex) const;
 
     /**
      * @brief write back the solution gamma to the blocks
-     * 
+     *
      * @param gammaRcp solution
      * @return int error code (future)
      */
