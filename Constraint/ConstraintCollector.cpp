@@ -408,7 +408,7 @@ int ConstraintCollector::buildConstraintMatrixVector(const Teuchos::RCP<const TM
             delta0(idx, 0) = block.delta0;
             gammaGuess(idx, 0) = block.gamma;
             if (block.bilateral) {
-                gammaGuess(idx, 0) = block.kappa > 0 ? 1 / block.kappa : 0;
+                invKappa(idx, 0) = block.kappa > 0 ? 1 / block.kappa : 0;
                 biFlag(idx, 0) = 1;
             }
         }
@@ -416,18 +416,6 @@ int ConstraintCollector::buildConstraintMatrixVector(const Teuchos::RCP<const TM
 
     return 0;
 }
-
-// int ConstraintCollector::buildInvKappa(std::vector<double> &invKappa) const {
-//     const auto &cPool = *constraintPoolPtr;
-//     invKappa.clear();
-//     invKappa.reserve(1000);
-//     for (const auto &que : cPool) {
-//         for (const auto &block : que) {
-//             invKappa.push_back(1.0 / block.kappa);
-//         }
-//     }
-//     return 0;
-// }
 
 int ConstraintCollector::buildConIndex(std::vector<int> &cQueSize, std::vector<int> &cQueIndex) const {
     const auto &cPool = *constraintPoolPtr;

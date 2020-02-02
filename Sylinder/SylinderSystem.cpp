@@ -1049,59 +1049,42 @@ void SylinderSystem::updateSylinderRank() {
 void SylinderSystem::applyBoxBC() { sylinderContainer.adjustPositionIntoRootDomain(dinfo); }
 
 void SylinderSystem::calcConStress() {
-    // TODO:
-    // Emat3 meanStress = Emat3::Zero();
-    // conCollePtr->sumLocalConstraintStress(meanStress, false);
+    Emat3 sumBiStress = Emat3::Zero();
+    Emat3 sumUniStress = Emat3::Zero();
+    conCollectorPtr->sumLocalConstraintStress(sumUniStress, sumBiStress, false);
 
-    // // scale to nkBT
-    // const double scaleFactor = 1 / (sylinderMapRcp->getGlobalNumElements() * runConfig.KBT);
-    // meanStress *= scaleFactor;
-    // // mpi reduction
-    // double meanStressLocal[9];
-    // double meanStressGlobal[9];
-    // for (int i = 0; i < 3; i++) {
-    //     for (int j = 0; j < 3; j++) {
-    //         meanStressLocal[i * 3 + j] = meanStress(i, j);
-    //         meanStressGlobal[i * 3 + j] = 0;
-    //     }
-    // }
+    // scale to nkBT
+    const double scaleFactor = 1 / (sylinderMapRcp->getGlobalNumElements() * runConfig.KBT);
+    sumBiStress *= scaleFactor;
+    sumUniStress *= scaleFactor;
+    // mpi reduction
+    double uniStressLocal[9];
+    double biStressLocal[9];
+    double uniStressGlobal[9];
+    double biStressGlobal[9];
+    for (int i = 0; i < 3; i++) {
+        for (int j = 0; j < 3; j++) {
+            uniStressLocal[i * 3 + j] = sumUniStress(i, j);
+            uniStressGlobal[i * 3 + j] = 0;
+            biStressLocal[i * 3 + j] = sumBiStress(i, j);
+            biStressGlobal[i * 3 + j] = 0;
+        }
+    }
 
-    // Teuchos::reduceAll(*commRcp, Teuchos::SumValueReductionOp<int, double>(), 9, meanStressLocal, meanStressGlobal);
+    Teuchos::reduceAll(*commRcp, Teuchos::SumValueReductionOp<int, double>(), 9, uniStressLocal, uniStressGlobal);
+    Teuchos::reduceAll(*commRcp, Teuchos::SumValueReductionOp<int, double>(), 9, biStressLocal, biStressGlobal);
 
-    // if (commRcp->getRank() == 0)
-    //     printf("RECORD: ColXF,%7g,%7g,%7g,%7g,%7g,%7g,%7g,%7g,%7g\n",         //
-    //            meanStressGlobal[0], meanStressGlobal[1], meanStressGlobal[2], //
-    //            meanStressGlobal[3], meanStressGlobal[4], meanStressGlobal[5], //
-    //            meanStressGlobal[6], meanStressGlobal[7], meanStressGlobal[8]);
+    if (commRcp->getRank() == 0) {
+        printf("RECORD: ColXF,%7g,%7g,%7g,%7g,%7g,%7g,%7g,%7g,%7g\n",      //
+               uniStressGlobal[0], uniStressGlobal[1], uniStressGlobal[2], //
+               uniStressGlobal[3], uniStressGlobal[4], uniStressGlobal[5], //
+               uniStressGlobal[6], uniStressGlobal[7], uniStressGlobal[8]);
+        printf("RECORD: BiXF,%7g,%7g,%7g,%7g,%7g,%7g,%7g,%7g,%7g\n",    //
+               biStressGlobal[0], biStressGlobal[1], biStressGlobal[2], //
+               biStressGlobal[3], biStressGlobal[4], biStressGlobal[5], //
+               biStressGlobal[6], biStressGlobal[7], biStressGlobal[8]);
+    }
 }
-
-// void SylinderSystem::calcBiStress() {
-// TODO:
-
-// Emat3 meanStress = Emat3::Zero();
-// biConstraintPtr->sumLocalConstraintStress(meanStress, false);
-
-// // scale to nkBT
-// const double scaleFactor = 1 / (sylinderMapRcp->getGlobalNumElements() * runConfig.KBT);
-// meanStress *= scaleFactor;
-// // mpi reduction
-// double meanStressLocal[9];
-// double meanStressGlobal[9];
-// for (int i = 0; i < 3; i++) {
-//     for (int j = 0; j < 3; j++) {
-//         meanStressLocal[i * 3 + j] = meanStress(i, j);
-//         meanStressGlobal[i * 3 + j] = 0;
-//     }
-// }
-
-// Teuchos::reduceAll(*commRcp, Teuchos::SumValueReductionOp<int, double>(), 9, meanStressLocal, meanStressGlobal);
-
-// if (commRcp->getRank() == 0)
-//     printf("RECORD: BiXF,%7g,%7g,%7g,%7g,%7g,%7g,%7g,%7g,%7g\n",          //
-//            meanStressGlobal[0], meanStressGlobal[1], meanStressGlobal[2], //
-//            meanStressGlobal[3], meanStressGlobal[4], meanStressGlobal[5], //
-//            meanStressGlobal[6], meanStressGlobal[7], meanStressGlobal[8]);
-// }
 
 void SylinderSystem::calcOrderParameter() {
     double px = 0, py = 0, pz = 0;    // pvec

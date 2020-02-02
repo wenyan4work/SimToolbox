@@ -19,6 +19,7 @@ ConstraintOperator::ConstraintOperator(Teuchos::RCP<TOP> &mobOp_, Teuchos::RCP<T
     }
 
     mobMapRcp = mobOpRcp->getDomainMap(); // symmetric & domainmap=rangemap
+    gammaMapRcp = invKappa->getMap();
 
     // initialize working multivectors, zero out
     forceRcp = Teuchos::rcp(new TV(mobMapRcp, true));

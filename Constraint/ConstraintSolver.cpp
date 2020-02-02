@@ -16,11 +16,14 @@ void ConstraintSolver::setup(ConstraintCollector &conCollector_, Teuchos::RCP<TO
 
     delta0Rcp->scale(1.0 / dt);
     invKappaRcp->scale(1.0 / dt);
-    DMatTransRcp->apply(*velncRcp, *deltancRcp, Teuchos::NO_TRANS, 1.0, 1.0);
+
+    deltancRcp = Teuchos::rcp(new TV(delta0Rcp->getMap(), true));
+    DMatTransRcp->apply(*velncRcp, *deltancRcp);
 
     // the BCQP problem
     MOpRcp = Teuchos::rcp(new ConstraintOperator(mobOpRcp, DMatTransRcp, invKappaRcp));
-    qRcp = Teuchos::rcp(new TV(*delta0Rcp, Teuchos::DataAccess::Copy));
+    qRcp = Teuchos::rcp(new TV(delta0Rcp->getMap(), true));
+    qRcp->update(1.0, *delta0Rcp, 1.0, *deltancRcp, 0.0);
 
     // result
     forcebRcp = Teuchos::rcp(new TV(mobMapRcp, true));
@@ -57,10 +60,12 @@ void ConstraintSolver::solveConstraints() {
     const auto &commRcp = gammaRcp->getMap()->getComm();
     // solver
     BCQPSolver solver(MOpRcp, qRcp);
+    printf("solver constructed\n");
 
     // the bound of BCQP. 0 for gammau, unbound for gammab.
     Teuchos::RCP<TV> lbRcp = solver.getLowerBound();
     lbRcp->scale(-1e8, *biFlagRcp); // 0 if biFlag=0, -1e8 if biFlag=1
+    printf("bound constructed\n");
 
     // solve
     IteHistory history;
