@@ -6,8 +6,8 @@ ConstraintOperator::ConstraintOperator(Teuchos::RCP<TOP> &mobOp_, Teuchos::RCP<T
     // timer
     transposeDMat = Teuchos::TimeMonitor::getNewCounter("ConstraintOperator::TransposeDMat");
     applyMobMat = Teuchos::TimeMonitor::getNewCounter("ConstraintOperator::ApplyMobility");
-    applyDMat = Teuchos::TimeMonitor::getNewCounter("ConstraintOperator::ApplyDuMat");
-    applyDTransMat = Teuchos::TimeMonitor::getNewCounter("ConstraintOperator::ApplyDuTransMat");
+    applyDMat = Teuchos::TimeMonitor::getNewCounter("ConstraintOperator::ApplyDMat");
+    applyDTransMat = Teuchos::TimeMonitor::getNewCounter("ConstraintOperator::ApplyDMatTrans");
 
     enableTimer();
 
