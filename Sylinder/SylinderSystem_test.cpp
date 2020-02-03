@@ -60,10 +60,11 @@ void testSedimentation(int argc, char **argv) {
         std::vector<double> forceNonBrown(nLocal * 6, 0.0);
         for (int i = 0; i < nLocal; i++) {
             if (sylinderContainer[i].link.group != GEO_INVALID_INDEX &&
-                sylinderContainer[i].link.next == GEO_INVALID_INDEX)
-                forceNonBrown[6 * i + 1] = 10; // const force
+                sylinderContainer[i].link.next == GEO_INVALID_INDEX) {
+                forceNonBrown[6 * i + 1] = 10; // y 
+                forceNonBrown[6 * i + 2] = 10; // z
+            }
         }
-        sylinderSystem.setForceNonBrown(forceNonBrown);
         sylinderSystem.setForceNonBrown(forceNonBrown);
         sylinderSystem.runStep();
     }

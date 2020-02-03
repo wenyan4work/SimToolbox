@@ -60,12 +60,12 @@ void ConstraintSolver::solveConstraints() {
     const auto &commRcp = gammaRcp->getMap()->getComm();
     // solver
     BCQPSolver solver(MOpRcp, qRcp);
-    printf("solver constructed\n");
+    // printf("solver constructed\n");
 
     // the bound of BCQP. 0 for gammau, unbound for gammab.
     Teuchos::RCP<TV> lbRcp = solver.getLowerBound();
     lbRcp->scale(-1e8, *biFlagRcp); // 0 if biFlag=0, -1e8 if biFlag=1
-    printf("bound constructed\n");
+    // printf("bound constructed\n");
 
     // solve
     IteHistory history;
