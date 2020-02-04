@@ -105,7 +105,7 @@ struct SylinderNearEP {
      * Here length*2 ensures contact is detected with Symmetry search mode
      * @return PS::F64
      */
-    PS::F64 getRSearch() const { return (length + 2 * radiusCollision) * (1 + 0.5 * GEO_DEFAULT_COLBUF); }
+    PS::F64 getRSearch() const { return (length + 2 * radiusCollision) * (1 + GEO_DEFAULT_COLBUF); }
 
     /**
      * @brief Set pos with a PS::F64vec3 object
@@ -148,7 +148,7 @@ static_assert(std::is_default_constructible<ForceNear>::value, "");
  *
  */
 class CalcSylinderNearForce {
-    const bool usePotential = false; ///< TODO: switch of using repulsive potential instead of constraints
+    double colbuf;
 
   public:
     std::shared_ptr<ConstraintBlockPool> conPoolPtr; ///< shared object for collecting collision constraints
@@ -157,15 +157,15 @@ class CalcSylinderNearForce {
      * @brief Construct a new CalcSylinderNearForce object
      *
      */
-    CalcSylinderNearForce(const bool usePotential_ = false) : usePotential(usePotential_) {}
+    CalcSylinderNearForce(const double colbuf_ = GEO_DEFAULT_COLBUF) : colbuf(colbuf_) {}
 
     /**
      * @brief Construct a new CalcSylinderNearForce object
      *
      * @param colPoolPtr_ the CollisionBlockPool object to write to
      */
-    CalcSylinderNearForce(std::shared_ptr<ConstraintBlockPool> &conPoolPtr_, const bool usePotential_ = false)
-        : usePotential(usePotential_) {
+    CalcSylinderNearForce(std::shared_ptr<ConstraintBlockPool> &conPoolPtr_, const double colbuf_ = GEO_DEFAULT_COLBUF)
+        : colbuf(colbuf_) {
 #ifdef DEBUGSYLINDERNEAR
         std::cout << "stress recoder size:" << colPoolPtr_->size() << std::endl;
 #endif
@@ -185,7 +185,6 @@ class CalcSylinderNearForce {
      */
     void operator()(const SylinderNearEP *const ep_i, const PS::S32 Nip, const SylinderNearEP *const ep_j,
                     const PS::S32 Njp, ForceNear *const forceNear) {
-        constexpr double COLBUF = 0.3;
         const int myThreadId = omp_get_thread_num();
         auto &conQue = (*conPoolPtr)[myThreadId];
         DCPQuery<3, double, Evec3> DistSegSeg3;
@@ -219,7 +218,7 @@ class CalcSylinderNearForce {
                 const double sep = distMin - (syI.radiusCollision + syJ.radiusCollision); // target is sep >=0
 
                 // record collision blocks
-                if (sep < COLBUF * (syI.radiusCollision + syJ.radiusCollision) && syI.gid < syJ.gid) {
+                if (sep < colbuf * (syI.radiusCollision + syJ.radiusCollision) && syI.gid < syJ.gid) {
                     const double delta0 = sep;
                     const double gamma = sep < 0 ? -sep : 0;
                     const Evec3 normI = (Ploc - Qloc).normalized();

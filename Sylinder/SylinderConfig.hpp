@@ -11,6 +11,8 @@
 #ifndef SYLINDERCONFIG_HPP_
 #define SYLINDERCONFIG_HPP_
 
+#include "Util/GeoCommon.h"
+
 #include <iostream>
 
 /**
@@ -46,8 +48,9 @@ class SylinderConfig {
     double sylinderDiameter = 1.0;  ///< sylinder diameter
 
     // collision radius and diameter
-    double sylinderDiameterColRatio = 1.0; ///< collision diameter = ratio * real diameter
-    double sylinderLengthColRatio = 1.0;   ///< collision length = ratio * real length
+    double sylinderDiameterColRatio = 1.0;      ///< collision diameter = ratio * real diameter
+    double sylinderLengthColRatio = 1.0;        ///< collision length = ratio * real length
+    double sylinderColBuf = GEO_DEFAULT_COLBUF; ///<  threshold for recording possible collision
 
     // time stepping
     double dt = 0.01;        ///< timestep size
@@ -55,11 +58,10 @@ class SylinderConfig {
     double timeSnap = 0.01;  ///< snapshot time. save one group of data for each snapshot
 
     // constraint solver
-    bool usePotential = false; ///< TODO: use repulsive potential
-    double conResTol = 1e-5;   ///< constraint solver residual
-    int conMaxIte = 1e5;       ///< constraint solver maximum iteration
-    int conSolverChoice = 0;   ///< choose a iterative solver. 0 for BBPGD, 1 for APGD, etc
-    double linkKappa = 100.0;   ///< stiffness of sylinder links
+    double conResTol = 1e-5;  ///< constraint solver residual
+    int conMaxIte = 1e5;      ///< constraint solver maximum iteration
+    int conSolverChoice = 0;  ///< choose a iterative solver. 0 for BBPGD, 1 for APGD, etc
+    double linkKappa = 100.0; ///< stiffness of sylinder links
 
     SylinderConfig() = default;
     SylinderConfig(std::string filename);

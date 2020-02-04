@@ -24,12 +24,12 @@ sylinderLengthColRatio: 1.0
 sylinderLengthSigma: -1.0
 sylinderDiameter: 1.0
 sylinderDiameterColRatio: 1.0
+sylinderColBuf: 1.0 
 # timestepping
 dt: 0.001 # s
 timeTotal: 10.0 # s
 timeSnap: 0.01 # s
 # ConstraintSolver
-usePotential: false
 conResTol: 0.00001 # 1e-5 format may be incompatible
 conMaxIte: 100000
 conSolverChoice: 0 # 0 for BBPGD, 1 for APGD, etc

@@ -29,12 +29,12 @@ SylinderConfig::SylinderConfig(std::string filename) {
     readConfig(config, VARNAME(sylinderDiameter), sylinderDiameter, "");
     readConfig(config, VARNAME(sylinderDiameterColRatio), sylinderDiameterColRatio, "");
     readConfig(config, VARNAME(sylinderLengthColRatio), sylinderLengthColRatio, "");
+    readConfig(config, VARNAME(sylinderColBuf), sylinderColBuf, "");
 
     readConfig(config, VARNAME(dt), dt, "");
     readConfig(config, VARNAME(timeTotal), timeTotal, "");
     readConfig(config, VARNAME(timeSnap), timeSnap, "");
 
-    readConfig(config, VARNAME(usePotential), usePotential, "");
     readConfig(config, VARNAME(conResTol), conResTol, "");
     readConfig(config, VARNAME(conMaxIte), conMaxIte, "");
     readConfig(config, VARNAME(conSolverChoice), conSolverChoice, "");

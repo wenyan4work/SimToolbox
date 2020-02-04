@@ -600,14 +600,10 @@ void SylinderSystem::resolveConstraints() {
 
     Teuchos::RCP<Teuchos::Time> collectColTimer =
         Teuchos::TimeMonitor::getNewCounter("SylinderSystem::CollectCollision");
-    Teuchos::RCP<Teuchos::Time> collectBiTimer =
-        Teuchos::TimeMonitor::getNewCounter("SylinderSystem::CollectBilateral");
     if (enableTimer) {
         collectColTimer->enable();
-        collectBiTimer->enable();
     } else {
         collectColTimer->disable();
-        collectBiTimer->disable();
     }
 
     printRank0("start collect collisions");
