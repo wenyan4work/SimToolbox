@@ -105,7 +105,7 @@ struct SylinderNearEP {
      * Here length*2 ensures contact is detected with Symmetry search mode
      * @return PS::F64
      */
-    PS::F64 getRSearch() const { return (length + 2 * radiusCollision) * (1 + GEO_DEFAULT_COLBUF); }
+    PS::F64 getRSearch() const { return (length + 2 * radiusCollision) * (1 + 0.5 * GEO_DEFAULT_COLBUF); }
 
     /**
      * @brief Set pos with a PS::F64vec3 object
