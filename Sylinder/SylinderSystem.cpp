@@ -954,7 +954,7 @@ void SylinderSystem::collectWallCollision() {
 
 void SylinderSystem::collectPairCollision() {
 
-    CalcSylinderNearForce calcColFtr(conCollectorPtr->constraintPoolPtr);
+    CalcSylinderNearForce calcColFtr(conCollectorPtr->constraintPoolPtr, runConfig.sylinderColBuf);
 
     TEUCHOS_ASSERT(treeSylinderNearPtr);
     const int nLocal = sylinderContainer.getNumberOfParticleLocal();
