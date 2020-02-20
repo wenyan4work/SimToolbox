@@ -46,7 +46,9 @@ class TRngPool {
   public:
     /**
      * @brief Set the Log Normal Parameters \f$\mu,\sigma\f$
-     *
+     * sigma2 = sigma*sigma
+     * mean = exp(mu + sigma2 / 2))
+     * var  = (exp(sigma2) - 1) * exp(2 * mu + sigma2)) 
      * @param mu
      * @param sigma
      */
