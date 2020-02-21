@@ -50,11 +50,13 @@ bool SphereShell::check(const double query[3], const double project[3], const do
     Proj -= ECmap3(center);
     // 1. project on sphere
     if (fabs(Proj.norm() - radius) > eps) {
+        printf("1\n");
         return false;
     }
     // 2. |query - project| = |delta|
     Evec3 PQ = Query - Proj;
     if (fabs(PQ.norm() - delta.norm()) > eps) {
+        printf("2\n");
         return false;
     }
     // 3. inside outside direction
@@ -64,6 +66,7 @@ bool SphereShell::check(const double query[3], const double project[3], const do
         norm *= -1; // toward sphere inside
     }
     if (fabs(1 - norm.dot(delta.normalized())) > eps) {
+        printf("3\n");
         return false;
     }
     return true;
@@ -111,15 +114,18 @@ bool Wall::check(const double query[3], const double project[3], const double de
     Evec3 delta = ECmap3(delta_);
     // 1. project on plane
     if (fabs((Proj - ECmap3(center)).dot(ECmap3(norm))) > eps) {
+        printf("1\n");
         return false;
     }
     // 2. |query - project| = |delta|
     Evec3 PQ = Query - Proj;
     if (fabs(PQ.norm() - delta.norm()) > eps) {
+        printf("2\n");
         return false;
     }
     // 3. inside outside direction
     if (fabs(1 - ECmap3(norm).dot(delta.normalized())) > eps) {
+        printf("3\n");
         return false;
     }
     return true;
@@ -130,17 +136,75 @@ bool Wall::check(const double query[3], const double project[3], const double de
  *     cylinderical infinitely long tube
  *
  ***********************************************************/
-// Tube::Tube(double center_[3], double axis_[3], double radius_, bool inside_) {
-//     std::copy(center_, center_ + 3, center);
-//     std::copy(axis_, axis_ + 3, axis);
-//     radius = radius_;
-//     inside = inside_;
-// }
+Tube::Tube(double center_[3], double axis_[3], double radius_, bool inside_) {
+    std::copy(center_, center_ + 3, center);
+    std::copy(axis_, axis_ + 3, axis);
+    radius = radius_;
+    inside = inside_;
+    Emap3(axis).normalize();
+}
 
-// void Tube::initialize(const YAML::Node &config) {
-//     readConfig(config, VARNAME(center), center, 3, "");
-//     readConfig(config, VARNAME(axis), axis, 3, "");
-//     readConfig(config, VARNAME(inside), inside, "");
-// }
+void Tube::initialize(const YAML::Node &config) {
+    readConfig(config, VARNAME(center), center, 3, "");
+    readConfig(config, VARNAME(axis), axis, 3, "");
+    readConfig(config, VARNAME(inside), inside, "");
+}
 
-// void Tube::project(double query[3], double project[3], double normI[3]) const {}
+void Tube::project(const double query[3], double project[3], double delta_[3]) const {
+    Evec3 Query = ECmap3(query);
+    double t = (Query - ECmap3(center)).dot(ECmap3(axis));
+    Evec3 ProjAxis = ECmap3(center) + t * ECmap3(axis);
+    Evec3 ProjAxisQ = Query - ProjAxis;
+    Evec3 Proj = ProjAxis + radius * (ProjAxisQ.normalized());
+    Evec3 delta = Query - Proj;
+    if (ProjAxisQ.norm() > radius) { // Q is outside the tube
+        if (inside) {
+            delta *= -1;
+        }
+    } else { // Q is inside the tube
+        if (!inside) {
+            delta *= -1;
+        }
+    }
+    project[0] = Proj[0];
+    project[1] = Proj[1];
+    project[2] = Proj[2];
+    delta_[0] = delta[0];
+    delta_[1] = delta[1];
+    delta_[2] = delta[2];
+}
+
+bool Tube::check(const double query[3], const double project[3], const double delta_[3]) const {
+    std::cout << "query: " << ECmap3(query).transpose() << "\t";
+    std::cout << "project: " << ECmap3(project).transpose() << "\t";
+    std::cout << "delta: " << ECmap3(delta_).transpose() << std::endl;
+    Evec3 Query = ECmap3(query);
+    Evec3 Proj = ECmap3(project);
+    Evec3 delta = ECmap3(delta_);
+    double t = (Proj - ECmap3(center)).dot(ECmap3(axis));
+    Evec3 ProjAxis = ECmap3(center) + t * ECmap3(axis);
+    // 1. project on tube
+    if (fabs(radius - (Proj - ProjAxis).norm()) > eps) {
+        printf("1\n");
+        return false;
+    }
+    // 2. |query - project| = |delta|
+    Evec3 PQ = Query - Proj;
+    if (fabs(PQ.norm() - delta.norm()) > eps) {
+        printf("2\n");
+        return false;
+    }
+    // 3. inside outside direction
+    Evec3 norm;
+    if (inside) {
+        norm = ProjAxis - Proj;
+    } else {
+        norm = Proj - ProjAxis;
+    }
+    norm.normalize();
+    if (fabs(1 - (delta.normalized()).dot(norm)) > eps) {
+        printf("3\n");
+        return false;
+    }
+    return true;
+}
