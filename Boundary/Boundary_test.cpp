@@ -6,18 +6,19 @@
 
 int main() {
     double center[3] = {2, 2, 2};
-    double axis[3] = {1, 0, 0};
+    double axis[3] = {1, 2, 3};
 
     bool pass = true;
 
-    { // test spherical shell inside
-        std::unique_ptr<Boundary> b0 = std::make_unique<SphereShell>(center, 2.0, true);
+    {
+        std::cout << "test spherical shell inside" << std::endl;
+        std::unique_ptr<Boundary> b = std::make_unique<SphereShell>(center, 2.0, true);
         for (int i = 0; i < 1000; i++) {
-            Evec3 query = Evec3::Random() * 5;
+            Evec3 query = (Evec3::Random() * 5) + Emap3(center);
             Evec3 projection = Evec3::Zero();
             Evec3 normI = Evec3::Zero();
-            b0->project(query.data(), projection.data(), normI.data());
-            if (!b0->check(query.data(), projection.data(), normI.data())) {
+            b->project(query.data(), projection.data(), normI.data());
+            if (!b->check(query.data(), projection.data(), normI.data())) {
                 pass = false;
                 break;
             }
@@ -26,14 +27,15 @@ int main() {
             std::exit(1);
         }
     }
-    { // test spherical shell outside
-        std::unique_ptr<Boundary> b0 = std::make_unique<SphereShell>(center, 2.0, false);
+    {
+        std::cout << "test spherical shell outside" << std::endl;
+        std::unique_ptr<Boundary> b = std::make_unique<SphereShell>(center, 2.0, false);
         for (int i = 0; i < 1000; i++) {
-            Evec3 query = Evec3::Random() * 5;
+            Evec3 query = (Evec3::Random() * 5) + Emap3(center);
             Evec3 projection = Evec3::Zero();
             Evec3 normI = Evec3::Zero();
-            b0->project(query.data(), projection.data(), normI.data());
-            if (!b0->check(query.data(), projection.data(), normI.data())) {
+            b->project(query.data(), projection.data(), normI.data());
+            if (!b->check(query.data(), projection.data(), normI.data())) {
                 pass = false;
                 break;
             }
@@ -42,7 +44,23 @@ int main() {
             std::exit(1);
         }
     }
-    // { std::unique_ptr<Boundary> b1 = std::make_unique<Wall>(center, axis); }
+    {
+        std::cout << "test wall" << std::endl;
+        std::unique_ptr<Boundary> b = std::make_unique<Wall>(center, axis);
+        for (int i = 0; i < 1000; i++) {
+            Evec3 query = (Evec3::Random() * 5) + Emap3(center);
+            Evec3 projection = Evec3::Zero();
+            Evec3 normI = Evec3::Zero();
+            b->project(query.data(), projection.data(), normI.data());
+            if (!b->check(query.data(), projection.data(), normI.data())) {
+                pass = false;
+                break;
+            }
+        }
+        if (!pass) {
+            std::exit(1);
+        }
+    }
     // { std::unique_ptr<Boundary> b2 = std::make_unique<Tube>(center, axis, 2.0, true); }
 
     if (pass) {

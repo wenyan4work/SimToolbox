@@ -35,18 +35,19 @@ class SphereShell : public Boundary {
     bool inside = true; ///< if particles should be confined inside this spherical shell
 };
 
-// class Wall : public Boundary {
-//   public:
-//     Wall() = default;
-//     Wall(double center_[3], double norm_[3]);
-//     ~Wall() = default;
-//     void initialize(const YAML::Node &config);
-//     void project(double query[3], double project[3], double normI[3]) const;
+class Wall : public Boundary {
+  public:
+    Wall() = default;
+    Wall(double center_[3], double norm_[3]);
+    ~Wall() = default;
+    void initialize(const YAML::Node &config);
+    virtual void project(const double query[3], double project[3], double delta[3]) const;
+    virtual bool check(const double query[3], const double project[3], const double delta[3]) const;
 
-//   private:
-//     double center[3] = {0, 0, 0};
-//     double norm[3] = {0, 0, 1}; ///< the direction toward the particles
-// };
+  private:
+    double center[3] = {0, 0, 0};
+    double norm[3] = {0, 0, 1}; ///< the direction toward the particles
+};
 
 // class Tube : public Boundary {
 //   public:

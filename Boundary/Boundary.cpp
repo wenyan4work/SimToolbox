@@ -74,17 +74,56 @@ bool SphereShell::check(const double query[3], const double project[3], const do
  *     flat wall
  *
  ***********************************************************/
-// Wall::Wall(double center_[3], double norm_[3]) {
-//     std::copy(center_, center_ + 3, center);
-//     std::copy(norm_, norm_ + 3, norm);
-// }
+Wall::Wall(double center_[3], double norm_[3]) {
+    std::copy(center_, center_ + 3, center);
+    std::copy(norm_, norm_ + 3, norm);
+    Emap3(norm).normalize();
+}
 
-// void Wall::initialize(const YAML::Node &config) {
-//     readConfig(config, VARNAME(center), center, 3, "");
-//     readConfig(config, VARNAME(norm), norm, 3, "");
-// }
+void Wall::initialize(const YAML::Node &config) {
+    readConfig(config, VARNAME(center), center, 3, "");
+    readConfig(config, VARNAME(norm), norm, 3, "");
+}
 
-// void Wall::project(double query[3], double project[3], double normI[3]) const {}
+void Wall::project(const double query[3], double project[3], double delta[3]) const {
+    Evec3 Query = ECmap3(query);
+    Evec3 CQ = Query - ECmap3(center);
+    double t = CQ.dot(ECmap3(norm));
+    Evec3 Proj = Query - t * ECmap3(norm);
+    Evec3 PQ = Query - Proj;
+    if (t < 0) {
+        PQ *= -1;
+    }
+    project[0] = Proj[0];
+    project[1] = Proj[1];
+    project[2] = Proj[2];
+    delta[0] = PQ[0];
+    delta[1] = PQ[1];
+    delta[2] = PQ[2];
+}
+
+bool Wall::check(const double query[3], const double project[3], const double delta_[3]) const {
+    std::cout << "query: " << ECmap3(query).transpose() << "\t";
+    std::cout << "project: " << ECmap3(project).transpose() << "\t";
+    std::cout << "delta: " << ECmap3(delta_).transpose() << std::endl;
+    Evec3 Query = ECmap3(query);
+    Evec3 Proj = ECmap3(project);
+    Evec3 delta = ECmap3(delta_);
+    // 1. project on plane
+    if (fabs((Proj - ECmap3(center)).dot(ECmap3(norm))) > eps) {
+        return false;
+    }
+    // 2. |query - project| = |delta|
+    Evec3 PQ = Query - Proj;
+    if (fabs(PQ.norm() - delta.norm()) > eps) {
+        return false;
+    }
+    // 3. inside outside direction
+    if (fabs(1 - ECmap3(norm).dot(delta.normalized())) > eps) {
+        return false;
+    }
+    return true;
+}
 
 /************************************************************
  *
