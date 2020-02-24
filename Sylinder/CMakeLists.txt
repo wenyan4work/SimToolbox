@@ -14,6 +14,7 @@ add_executable(
   SylinderConfig.cpp
   Sylinder.cpp
   ${PROJECT_SOURCE_DIR}/Trilinos/TpetraUtil.cpp
+  ${PROJECT_SOURCE_DIR}/Boundary/Boundary.cpp
   ${PROJECT_SOURCE_DIR}/Constraint/BCQPSolver.cpp
   ${PROJECT_SOURCE_DIR}/Constraint/ConstraintCollector.cpp
   ${PROJECT_SOURCE_DIR}/Constraint/ConstraintOperator.cpp
@@ -22,7 +23,7 @@ add_executable(
 target_compile_options(SylinderSystem_test PRIVATE ${OpenMP_CXX_FLAGS})
 target_compile_definitions(
   SylinderSystem_test PRIVATE PARTICLE_SIMULATOR_THREAD_PARALLEL
-  PARTICLE_SIMULATOR_MPI_PARALLEL)
+                              PARTICLE_SIMULATOR_MPI_PARALLEL)
 target_include_directories(
   SylinderSystem_test PRIVATE ${PROJECT_SOURCE_DIR} ${Trilinos_INCLUDE_DIRS}
                               ${TRNG_INCLUDE_DIR} ${YAML_CPP_INCLUDE_DIR})
@@ -40,9 +41,10 @@ add_test(NAME SylinderSystem COMMAND SylinderSystem_test)
 # copy the SylinderSystem_test_runConfig.yaml file to the build directory
 add_custom_command(
   OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/SylinderSystem_test_runConfig.yaml
-  COMMAND ${CMAKE_COMMAND} -E copy
-          ${CMAKE_CURRENT_SOURCE_DIR}/SylinderSystem_test_runConfig.yaml
-          ${CMAKE_CURRENT_BINARY_DIR}
+  COMMAND
+    ${CMAKE_COMMAND} -E copy
+    ${CMAKE_CURRENT_SOURCE_DIR}/SylinderSystem_test_runConfig.yaml
+    ${CMAKE_CURRENT_BINARY_DIR}
   DEPENDS "${CMAKE_CURRENT_SOURCE_DIR}/SylinderSystem_test_runConfig.yaml")
 # Custom target for activate the custom command above
 add_custom_target(

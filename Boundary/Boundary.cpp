@@ -72,6 +72,18 @@ bool SphereShell::check(const double query[3], const double project[3], const do
     return true;
 }
 
+void SphereShell::echo() const {
+    printf("------------------------\n");
+    printf("Spherical shell boundary\n");
+    if (inside)
+        printf("particles inside\n");
+    else
+        printf("particles outside\n");
+    printf("radius: %g\n", radius);
+    printf("center: %g, %g, %g\n", center[0], center[1], center[2]);
+    printf("------------------------\n");
+}
+
 /************************************************************
  *
  *     flat wall
@@ -131,6 +143,14 @@ bool Wall::check(const double query[3], const double project[3], const double de
     return true;
 }
 
+void Wall::echo() const {
+    printf("------------------------\n");
+    printf("flat wall boundary\n");
+    printf("center: %g, %g, %g\n", center[0], center[1], center[2]);
+    printf("norm:   %g, %g, %g\n", norm[0], norm[1], norm[2]);
+    printf("------------------------\n");
+}
+
 /************************************************************
  *
  *     cylinderical infinitely long tube
@@ -148,6 +168,7 @@ void Tube::initialize(const YAML::Node &config) {
     readConfig(config, VARNAME(center), center, 3, "");
     readConfig(config, VARNAME(axis), axis, 3, "");
     readConfig(config, VARNAME(inside), inside, "");
+    readConfig(config, VARNAME(radius), radius, "");
 }
 
 void Tube::project(const double query[3], double project[3], double delta_[3]) const {
@@ -207,4 +228,17 @@ bool Tube::check(const double query[3], const double project[3], const double de
         return false;
     }
     return true;
+}
+
+void Tube::echo() const {
+    printf("------------------------\n");
+    printf("Tube boundary\n");
+    if (inside)
+        printf("particles inside\n");
+    else
+        printf("particles outside\n");
+    printf("radius: %g\n", radius);
+    printf("center: %g, %g, %g\n", center[0], center[1], center[2]);
+    printf("axis: %g, %g, %g\n", axis[0], axis[1], axis[2]);
+    printf("------------------------\n");
 }

@@ -11,9 +11,11 @@
 #ifndef SYLINDERCONFIG_HPP_
 #define SYLINDERCONFIG_HPP_
 
+#include "Boundary/Boundary.hpp"
 #include "Util/GeoCommon.h"
 
 #include <iostream>
+#include <memory>
 
 /**
  * @brief read configuration parameters from a yaml file
@@ -25,43 +27,43 @@ class SylinderConfig {
     unsigned int rngSeed = 0;
 
     // domain setting
-    double simBoxHigh[3] = {100.0, 100.0, 100.0}; ///< simulation box size
-    double simBoxLow[3] = {0, 0, 0};              ///< simulation box size
-    bool simBoxPBC[3] = {false, false, false};    ///< flag of true/false of periodic in that direction
-    bool wallLowZ = false;                        ///< a collision wall in xy-plane at z=simBoxLow[2]
-    bool wallHighZ = false;                       ///< a collision wall in xy-plane at z=simBoxHigh[2]
+    double simBoxHigh[3]; ///< simulation box size
+    double simBoxLow[3];  ///< simulation box size
+    bool simBoxPBC[3];    ///< flag of true/false of periodic in that direction
 
-    double initBoxHigh[3] = {1.0, 1.0, 1.0}; ///< initialize sylinders within this box
-    double initBoxLow[3] = {0, 0, 0};        ///< initialize sylinders within this box
-    double initOrient[3] = {2.0, 2.0, 2.0};  ///< initial orientation for each sylinder. >1 <-1 means random
-    bool initCircularX = false;              ///< set the initial cross-section as a circle in the yz-plane
+    double initBoxHigh[3]; ///< initialize sylinders within this box
+    double initBoxLow[3];  ///< initialize sylinders within this box
+    double initOrient[3];  ///< initial orientation for each sylinder. >1 <-1 means random
+    bool initCircularX;    ///< set the initial cross-section as a circle in the yz-plane
 
     // physical constant
-    double viscosity = 0.01; ///< unit pN/(um^2 s), water ~ 0.0009
-    double KBT = 0.00411;    ///< pN.um, at 300K
+    double viscosity; ///< unit pN/(um^2 s), water ~ 0.0009
+    double KBT;       ///< pN.um, 0.00411 at 300K
+    double linkKappa; ///< pN/um stiffness of sylinder links
 
     // sylinder settings
-    bool sylinderFixed = false;     ///< sylinders do not move
-    int sylinderNumber = 100;       ///< initial number of sylinders
-    double sylinderLength = 2.0;    ///< sylinder length (mean if sigma>0)
-    double sylinderLengthSigma = 0; ///< sylinder length lognormal distribution sigma
-    double sylinderDiameter = 1.0;  ///< sylinder diameter
+    bool sylinderFixed;         ///< sylinders do not move
+    int sylinderNumber;         ///< initial number of sylinders
+    double sylinderLength;      ///< sylinder length (mean if sigma>0)
+    double sylinderLengthSigma; ///< sylinder length lognormal distribution sigma
+    double sylinderDiameter;    ///< sylinder diameter
 
     // collision radius and diameter
-    double sylinderDiameterColRatio = 1.0;      ///< collision diameter = ratio * real diameter
-    double sylinderLengthColRatio = 1.0;        ///< collision length = ratio * real length
-    double sylinderColBuf = GEO_DEFAULT_COLBUF; ///<  threshold for recording possible collision
+    double sylinderDiameterColRatio; ///< collision diameter = ratio * real diameter
+    double sylinderLengthColRatio;   ///< collision length = ratio * real length
+    double sylinderColBuf;           ///< threshold for recording possible collision
 
     // time stepping
-    double dt = 0.01;        ///< timestep size
-    double timeTotal = 0.01; ///< total simulation time
-    double timeSnap = 0.01;  ///< snapshot time. save one group of data for each snapshot
+    double dt;        ///< timestep size
+    double timeTotal; ///< total simulation time
+    double timeSnap;  ///< snapshot time. save one group of data for each snapshot
 
     // constraint solver
-    double conResTol = 1e-5;  ///< constraint solver residual
-    int conMaxIte = 1e5;      ///< constraint solver maximum iteration
-    int conSolverChoice = 0;  ///< choose a iterative solver. 0 for BBPGD, 1 for APGD, etc
-    double linkKappa = 100.0; ///< stiffness of sylinder links
+    double conResTol;    ///< constraint solver residual
+    int conMaxIte;       ///< constraint solver maximum iteration
+    int conSolverChoice; ///< choose a iterative solver. 0 for BBPGD, 1 for APGD, etc
+
+    std::vector<std::shared_ptr<Boundary>> boundaryPtr;
 
     SylinderConfig() = default;
     SylinderConfig(std::string filename);

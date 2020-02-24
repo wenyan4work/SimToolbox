@@ -15,6 +15,7 @@
 #include "SylinderConfig.hpp"
 #include "SylinderNear.hpp"
 
+#include "Boundary/Boundary.hpp"
 #include "Constraint/ConstraintSolver.hpp"
 #include "FDPS/particle_simulator.hpp"
 #include "Trilinos/TpetraUtil.hpp"
@@ -40,12 +41,12 @@ class SylinderSystem {
     void setTreeSylinder();
 
     // Constraint stuff
-    std::shared_ptr<ConstraintSolver> conSolverPtr; ///< pointer to ConstraintSolver
+    std::shared_ptr<ConstraintSolver> conSolverPtr;       ///< pointer to ConstraintSolver
     std::shared_ptr<ConstraintCollector> conCollectorPtr; ///<  pointer to ConstraintCollector
-    Teuchos::RCP<const TV> forceUniRcp;                    ///< unilateral constraint force
-    Teuchos::RCP<const TV> velocityUniRcp;                 ///< unilateral constraint velocity
-    Teuchos::RCP<const TV> forceBiRcp;                     ///< bilateral constraint force
-    Teuchos::RCP<const TV> velocityBiRcp;                  ///< bilateral constraint velocity
+    Teuchos::RCP<const TV> forceUniRcp;                   ///< unilateral constraint force
+    Teuchos::RCP<const TV> velocityUniRcp;                ///< unilateral constraint velocity
+    Teuchos::RCP<const TV> forceBiRcp;                    ///< bilateral constraint force
+    Teuchos::RCP<const TV> velocityBiRcp;                 ///< bilateral constraint velocity
 
     // computed without knowledge of constraints
     Teuchos::RCP<TV> forcePartNonBrownRcp;    ///< force specified by setForceNonBrown()
@@ -121,11 +122,11 @@ class SylinderSystem {
     void writeBox();
 
     /**
-     * @brief directly set the position of sylinders to non-overlap with wall
+     * @brief directly set the position of sylinders to non-overlap with boundaries
      *
      * used only for randomly generated initial configuration
      */
-    void setPosWithWall();
+    void setPosWithBoundary();
 
     /**
      * @brief Get orientation quaternion with givne px,py,pz
@@ -155,12 +156,12 @@ class SylinderSystem {
   public:
     SylinderConfig runConfig; ///< system configuration. Be careful if this is modified on the fly
 
-    /**
-     * @brief Construct a new SylinderSystem object
-     *
-     * initialize() should be called after this constructor
-     */
-    SylinderSystem() = default;
+    // /**
+    //  * @brief Construct a new SylinderSystem object
+    //  *
+    //  * initialize() should be called after this constructor
+    //  */
+    // SylinderSystem() = default;
 
     /**
      * @brief Construct a new SylinderSystem object
@@ -299,7 +300,7 @@ class SylinderSystem {
      */
     void setVelocityNonBrown(const std::vector<double> &velNonBrown);
 
-    ConstraintBlockPool& getConstraintPoolNonConst(){return *(conCollectorPtr->constraintPoolPtr);};
+    ConstraintBlockPool &getConstraintPoolNonConst() { return *(conCollectorPtr->constraintPoolPtr); };
 
     /**
      * @brief resolve collision with given nonBrownian motion and advance the system configuration
@@ -342,7 +343,7 @@ class SylinderSystem {
 
     /**
      * @brief calculate both Col and Bi stress
-     * 
+     *
      */
     void calcConStress();
 
@@ -419,7 +420,7 @@ class SylinderSystem {
     std::shared_ptr<ZDD<SylinderNearEP>> &getSylinderNearDataDirectory() { return sylinderNearDataDirectoryPtr; }
 
     // resolve constraints
-    void collectWallCollision();         ///< collect wall collision constraints
+    void collectBoundaryCollision();     ///< collect boundary collision constraints
     void collectPairCollision();         ///< collect pair collision constraints
     void resolveConstraints();           ///< resolve constraints
     void saveForceVelocityConstraints(); ///< write back to sylinder.velCol and velBi

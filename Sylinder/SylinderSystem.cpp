@@ -60,7 +60,7 @@ void SylinderSystem::initialize(const SylinderConfig &runConfig_, const std::str
     treeSylinderNumber = 0;
     setTreeSylinder();
 
-    setPosWithWall();
+    // setPosWithWall();
 
     calcVolFrac();
 
@@ -610,7 +610,7 @@ void SylinderSystem::resolveConstraints() {
     {
         Teuchos::TimeMonitor mon(*collectColTimer);
         collectPairCollision();
-        collectWallCollision();
+        // collectWallCollision();
     }
 
     // solve collision
@@ -844,111 +844,23 @@ void SylinderSystem::calcVelocityBrown() {
     }
 }
 
-void SylinderSystem::collectWallCollision() {
+void SylinderSystem::collectBoundaryCollision() {
     auto collisionPoolPtr = conCollectorPtr->constraintPoolPtr; // shared_ptr
     const int nThreads = collisionPoolPtr->size();
     const int nLocal = sylinderContainer.getNumberOfParticleLocal();
 
-    if (runConfig.wallLowZ) {
-        // process collisions with bottom wall
-        Evec3 normZ(0, 0, 1);
-        const double wallBot = runConfig.simBoxLow[2];
+    // process collisions with all boundaries
 #pragma omp parallel num_threads(nThreads)
-        {
-            const int threadId = omp_get_thread_num();
-            auto &que = (*collisionPoolPtr)[threadId];
+    {
+        const int threadId = omp_get_thread_num();
+        auto &que = (*collisionPoolPtr)[threadId];
 #pragma omp for
-            for (int i = 0; i < nLocal; i++) {
-                const auto &sy = sylinderContainer[i];
-                const Evec3 direction = ECmapq(sy.orientation) * Evec3(0, 0, 1);
-                const Evec3 Pm = ECmap3(sy.pos) - direction * (sy.lengthCollision * 0.5);
-                const Evec3 Pp = ECmap3(sy.pos) + direction * (sy.lengthCollision * 0.5);
-                const double distm = Pm[2] - wallBot - sy.radius;
-                const double distp = Pp[2] - wallBot - sy.radius;
-                // if collision, norm is always (0,0,1), loc could be Pm, Pp, or middle
-                Evec3 colLoc;
-                double phi0;
-                bool wallCollide = false;
-                if (distm < distp && distm < 0) {
-                    colLoc = Pm;
-                    phi0 = distm;
-                    wallCollide = true;
-                } else if (distm > distp && distp < 0) {
-                    colLoc = Pp;
-                    phi0 = distp;
-                    wallCollide = true;
-                } else if (distm == distp && distm < 0) {
-                    colLoc = (Pm + Pp) * 0.5; // middle point
-                    phi0 = distm;
-                    wallCollide = true;
-                }
-                if (wallCollide != true) {
-                    continue;
-                }
-                Evec3 posI = colLoc - ECmap3(sy.pos);
-                Evec3 posJ = Evec3::Zero();
-                Evec3 labI = colLoc;
-                Evec3 labJ = Evec3(colLoc[0], colLoc[1], wallBot);
-                // add a new collision block. this block has only 6 non zero entries.
-                // passing sy.gid+1/globalIndex+1 as a 'fake' colliding body j, which is actually not used in the solver
-                // when oneside=true, out of range index is ignored
-                que.emplace_back(phi0, -phi0, sy.gid, sy.gid, sy.globalIndex, sy.globalIndex, normZ.data(),
-                                 normZ.data(), posI.data(), posJ.data(), labI.data(), labJ.data(), true, false, 0.0,
-                                 0.0);
-            }
+        for (int i = 0; i < nLocal; i++) {
+            const auto &sy = sylinderContainer[i];
+            // que.emplace_back(phi0, -phi0, sy.gid, sy.gid, sy.globalIndex, sy.globalIndex, normZ.data(), normZ.data(),
+            //                  posI.data(), posJ.data(), labI.data(), labJ.data(), true, false, 0.0, 0.0);
         }
     }
-
-    if (runConfig.wallHighZ) {
-        // process collisions with top wall
-        Evec3 normZ(0, 0, -1);
-        const double wallTop = runConfig.simBoxHigh[2];
-#pragma omp parallel num_threads(nThreads)
-        {
-            const int threadId = omp_get_thread_num();
-            auto &que = (*collisionPoolPtr)[threadId];
-#pragma omp for
-            for (int i = 0; i < nLocal; i++) {
-                const auto &sy = sylinderContainer[i];
-                const Evec3 direction = ECmapq(sy.orientation) * Evec3(0, 0, 1);
-                const Evec3 Pm = ECmap3(sy.pos) - direction * (sy.lengthCollision * 0.5);
-                const Evec3 Pp = ECmap3(sy.pos) + direction * (sy.lengthCollision * 0.5);
-                const double distm = wallTop - Pm[2] - sy.radius;
-                const double distp = wallTop - Pp[2] - sy.radius;
-                // if collision, norm is always (0,0,-1), loc could be Pm, Pp, or middle
-                Evec3 colLoc;
-                double phi0;
-                bool wallCollide = false;
-                if (distm < distp && distm < 0) {
-                    colLoc = Pm;
-                    phi0 = distm;
-                    wallCollide = true;
-                } else if (distm > distp && distp < 0) {
-                    colLoc = Pp;
-                    phi0 = distp;
-                    wallCollide = true;
-                } else if (distm == distp && distm < 0) {
-                    colLoc = (Pm + Pp) * 0.5; // middle point
-                    phi0 = distm;
-                    wallCollide = true;
-                }
-                if (wallCollide != true) {
-                    continue;
-                }
-                Evec3 posI = colLoc - ECmap3(sy.pos);
-                Evec3 posJ = Evec3::Zero();
-                Evec3 labI = colLoc;
-                Evec3 labJ = Evec3(colLoc[0], colLoc[1], wallTop);
-                // add a new collision block. this block has only 6 non zero entries.
-                // passing sy.gid+1/globalIndex+1 as a 'fake' colliding body j, which is actually not used in the solver
-                // when oneside=true, out of range index is ignored
-                que.emplace_back(phi0, -phi0, sy.gid, sy.gid, sy.globalIndex, sy.globalIndex, normZ.data(),
-                                 normZ.data(), posI.data(), posJ.data(), labI.data(), labJ.data(), true, false, 0.0,
-                                 0.0);
-            }
-        }
-    }
-
     return;
 }
 
@@ -1128,45 +1040,9 @@ void SylinderSystem::calcOrderParameter() {
     }
 }
 
-void SylinderSystem::setPosWithWall() {
+void SylinderSystem::setPosWithBoundary() {
     const int nLocal = sylinderContainer.getNumberOfParticleLocal();
     const double buffer = 1e-4;
-    // directly move sylinders to avoid overlapping with the wall
-    if (runConfig.wallLowZ) {
-        const double wallBot = runConfig.simBoxLow[2];
-#pragma omp parallel for
-        for (int i = 0; i < nLocal; i++) {
-            auto &sy = sylinderContainer[i];
-            const Evec3 direction = Emapq(sy.orientation) * Evec3(0, 0, 1);
-            const Evec3 Pm = Emap3(sy.pos) - direction * (sy.lengthCollision * 0.5);
-            const Evec3 Pp = Emap3(sy.pos) + direction * (sy.lengthCollision * 0.5);
-            const double distm = Pm[2] - sy.radius - wallBot;
-            const double distp = Pp[2] - sy.radius - wallBot;
-            if (distm < distp && distm < 0) {
-                Emap3(sy.pos) += Evec3(0, 0, -distm + buffer);
-            } else if (distp <= distm && distp < 0) {
-                Emap3(sy.pos) += Evec3(0, 0, -distp + buffer);
-            }
-        }
-    }
-
-    if (runConfig.wallHighZ) {
-        const double wallTop = runConfig.simBoxHigh[2];
-#pragma omp parallel for
-        for (int i = 0; i < nLocal; i++) {
-            auto &sy = sylinderContainer[i];
-            const Evec3 direction = Emapq(sy.orientation) * Evec3(0, 0, 1);
-            const Evec3 Pm = Emap3(sy.pos) - direction * (sy.lengthCollision * 0.5);
-            const Evec3 Pp = Emap3(sy.pos) + direction * (sy.lengthCollision * 0.5);
-            const double distm = wallTop - (Pm[2] + sy.radius);
-            const double distp = wallTop - (Pp[2] + sy.radius);
-            if (distm < distp && distm < 0) {
-                Emap3(sy.pos) -= Evec3(0, 0, -distm + buffer);
-            } else if (distp <= distm && distp < 0) {
-                Emap3(sy.pos) -= Evec3(0, 0, -distp + buffer);
-            }
-        }
-    }
 }
 
 void SylinderSystem::addNewSylinder(std::vector<Sylinder> &newSylinder, std::vector<Link> &linkage) {

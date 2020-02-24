@@ -15,8 +15,6 @@ SylinderConfig::SylinderConfig(std::string filename) {
     readConfig(config, VARNAME(initBoxHigh), initBoxHigh, 3, "");
     readConfig(config, VARNAME(initOrient), initOrient, 3, "");
 
-    readConfig(config, VARNAME(wallLowZ), wallLowZ, "");
-    readConfig(config, VARNAME(wallHighZ), wallHighZ, "");
     readConfig(config, VARNAME(initCircularX), initCircularX, "");
 
     readConfig(config, VARNAME(viscosity), viscosity, "");
@@ -39,6 +37,21 @@ SylinderConfig::SylinderConfig(std::string filename) {
     readConfig(config, VARNAME(conMaxIte), conMaxIte, "");
     readConfig(config, VARNAME(conSolverChoice), conSolverChoice, "");
     readConfig(config, VARNAME(linkKappa), linkKappa, "");
+
+    boundaryPtr.clear();
+    if (config["boundaries"]) {
+        const auto &boundaries = config["boundaries"];
+        for (const auto &b : boundaries) {
+            const auto &name = b.first.as<std::string>();
+            if (name == "wall") {
+                boundaryPtr.push_back(std::make_shared<Wall>(b));
+            } else if (name == "tube") {
+                boundaryPtr.push_back(std::make_shared<Tube>(b));
+            } else if (name == "sphere") {
+                boundaryPtr.push_back(std::make_shared<SphereShell>(b));
+            }
+        }
+    }
 }
 
 void SylinderConfig::dump() const {
@@ -62,18 +75,24 @@ void SylinderConfig::dump() const {
         printf("Physical setting: \n");
         printf("viscosity: %g\n", viscosity);
         printf("kBT: %g\n", KBT);
+        printf("Link Kappa: %g\n", linkKappa);
         printf("Sylinder Number: %d\n", sylinderNumber);
         printf("Sylinder Length: %g\n", sylinderLength);
         printf("Sylinder Length Sigma: %g\n", sylinderLengthSigma);
         printf("Sylinder Diameter: %g\n", sylinderDiameter);
         printf("Sylinder Length Collision Ratio: %g\n", sylinderLengthColRatio);
         printf("Sylinder Diameter Collision Ratio: %g\n", sylinderDiameterColRatio);
+        printf("Sylinder Collision Buffer: %g\n", sylinderColBuf);
         printf("-------------------------------------------\n");
         printf("Constraint Solver Setting:\n");
         printf("Residual Tolerance: %g\n", conResTol);
         printf("Max Iteration: %d\n", conMaxIte);
         printf("Solver Choice: %d\n", conSolverChoice);
-        printf("Link Kappa: %g\n", linkKappa);
         printf("-------------------------------------------\n");
+    }
+    {
+        for (const auto &b : boundaryPtr) {
+            b->echo();
+        }
     }
 }
