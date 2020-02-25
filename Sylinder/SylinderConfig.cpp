@@ -39,10 +39,14 @@ SylinderConfig::SylinderConfig(std::string filename) {
     readConfig(config, VARNAME(linkKappa), linkKappa, "");
 
     boundaryPtr.clear();
+    printf("b\n");
+
     if (config["boundaries"]) {
-        const auto &boundaries = config["boundaries"];
+        YAML::Node boundaries = config["boundaries"];
+        printf("b2\n");
         for (const auto &b : boundaries) {
-            const auto &name = b.first.as<std::string>();
+            std::string name = b["type"].as<std::string>();
+            std::cout << name << std::endl;
             if (name == "wall") {
                 boundaryPtr.push_back(std::make_shared<Wall>(b));
             } else if (name == "tube") {

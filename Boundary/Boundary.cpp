@@ -98,6 +98,7 @@ Wall::Wall(double center_[3], double norm_[3]) {
 void Wall::initialize(const YAML::Node &config) {
     readConfig(config, VARNAME(center), center, 3, "");
     readConfig(config, VARNAME(norm), norm, 3, "");
+    Emap3(norm).normalize();
 }
 
 void Wall::project(const double query[3], double project[3], double delta[3]) const {
@@ -169,6 +170,7 @@ void Tube::initialize(const YAML::Node &config) {
     readConfig(config, VARNAME(axis), axis, 3, "");
     readConfig(config, VARNAME(inside), inside, "");
     readConfig(config, VARNAME(radius), radius, "");
+    Emap3(axis).normalize();
 }
 
 void Tube::project(const double query[3], double project[3], double delta_[3]) const {

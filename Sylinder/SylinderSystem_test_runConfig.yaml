@@ -33,18 +33,18 @@ conMaxIte: 100000 # max iteration
 conSolverChoice: 0 # 0 for BBPGD, 1 for APGD, etc
 # Boundaries
 boundaries:
-  - wall:
-      - center: [5, 5, 5]
-      - axis: [1, 1, 0]
-  - wall:
-      - center: [5, 5, 5]
-      - axis: [1, 1, 0]
-  - tube:
-      - center: [12, 12, 12]
-      - radius: 4
-      - axis: [1, 1, 1]
-      - inside: true
-  - sphere:
-      - center: [12, 12, 12]
-      - radius: 8
-      - inside: true
+  - type: "wall"
+    center: [5, 5, 5]
+    norm: [1, 1, 0]
+  - type: "wall"
+    center: [5, 5, 5]
+    norm: [1, 1, 0]
+  - type: "tube"
+    center: [12, 12, 12]
+    radius: 4
+    axis: [1, 1, 1]
+    inside: true
+  - type: "sphere"
+    center: [12, 12, 12]
+    radius: 8
+    inside: true

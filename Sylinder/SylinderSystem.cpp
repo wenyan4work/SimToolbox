@@ -31,6 +31,7 @@ void SylinderSystem::initialize(const SylinderConfig &runConfig_, const std::str
     MPI_Initialized(&mpiflag);
     TEUCHOS_ASSERT(mpiflag);
     commRcp = getMPIWORLDTCOMM();
+    showOnScreenRank0();
 
     // TRNG pool must be initialized after mpi is initialized
     rngPoolPtr = std::make_shared<TRngPool>(runConfig.rngSeed);
@@ -49,8 +50,7 @@ void SylinderSystem::initialize(const SylinderConfig &runConfig_, const std::str
         setInitialFromConfig();
     }
 
-    // showOnScreenRank0(); // at this point all sylinders located on rank 0
-
+    // at this point all sylinders located on rank 0
     commRcp->barrier();
     decomposeDomain();
     exchangeSylinder(); // distribute to ranks, initial domain decomposition
@@ -348,13 +348,13 @@ void SylinderSystem::showOnScreenRank0() {
     if (commRcp->getRank() == 0) {
         printf("-----------SylinderSystem Settings-----------\n");
         runConfig.dump();
-        printf("-----------Sylinder Configurations-----------\n");
-        const int nLocal = sylinderContainer.getNumberOfParticleLocal();
-        for (int i = 0; i < nLocal; i++) {
-            sylinderContainer[i].dumpSylinder();
-        }
+        // printf("-----------Sylinder Configurations-----------\n");
+        // const int nLocal = sylinderContainer.getNumberOfParticleLocal();
+        // for (int i = 0; i < nLocal; i++) {
+        //     sylinderContainer[i].dumpSylinder();
+        // }
     }
-    commRcp->barrier();
+    // commRcp->barrier();
 }
 
 void SylinderSystem::setDomainInfo() {
