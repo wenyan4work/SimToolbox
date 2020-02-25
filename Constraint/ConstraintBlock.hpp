@@ -71,7 +71,7 @@ struct ConstraintBlock {
      * @param oneSide_ flag for one side constarint
      * @param bilateral_ flag for bilateral constraint
      * @param kappa_ flag for kappa of bilateral constraint
-     * @param gammaLB_ lower bound of gamm afor unilateral constraints
+     * @param gammaLB_ lower bound of gamma for unilateral constraints
      */
     ConstraintBlock(double delta0_, double gamma_, int gidI_, int gidJ_, int globalIndexI_, int globalIndexJ_,
                     const double normI_[3], const double normJ_[3], const double posI_[3], const double posJ_[3],

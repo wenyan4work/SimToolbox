@@ -15,7 +15,7 @@ viscosity: 0.01 #pN/(um^2.s)
 KBT: 0.00411 #pN.um, 300K
 linkKappa: 1000.0 # pN/um spring constant for sylinder links.
 # Sylinder
-sylinderFixed: true
+sylinderFixed: false
 sylinderNumber: 400
 sylinderLength: 3.0
 sylinderLengthColRatio: 1.0
@@ -37,14 +37,14 @@ boundaries:
     center: [5, 5, 5]
     norm: [1, 1, 0]
   - type: "wall"
-    center: [5, 5, 5]
-    norm: [1, 1, 0]
+    center: [0, 0, 20]
+    norm: [0, 0, -1]
   - type: "tube"
     center: [12, 12, 12]
-    radius: 4
+    radius: 8
     axis: [1, 1, 1]
     inside: true
   - type: "sphere"
     center: [12, 12, 12]
-    radius: 8
+    radius: 10
     inside: true

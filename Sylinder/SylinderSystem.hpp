@@ -121,12 +121,12 @@ class SylinderSystem {
      */
     void writeBox();
 
-    /**
-     * @brief directly set the position of sylinders to non-overlap with boundaries
-     *
-     * used only for randomly generated initial configuration
-     */
-    void setPosWithBoundary();
+    // /**
+    //  * @brief directly set the position of sylinders to non-overlap with boundaries
+    //  *
+    //  * used only for randomly generated initial configuration
+    //  */
+    // void setPosWithBoundary();
 
     /**
      * @brief Get orientation quaternion with givne px,py,pz

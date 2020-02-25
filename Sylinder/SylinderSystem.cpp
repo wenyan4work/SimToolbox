@@ -60,8 +60,6 @@ void SylinderSystem::initialize(const SylinderConfig &runConfig_, const std::str
     treeSylinderNumber = 0;
     setTreeSylinder();
 
-    // setPosWithWall();
-
     calcVolFrac();
 
     if (commRcp->getRank() == 0) {
@@ -610,7 +608,7 @@ void SylinderSystem::resolveConstraints() {
     {
         Teuchos::TimeMonitor mon(*collectColTimer);
         collectPairCollision();
-        // collectWallCollision();
+        collectBoundaryCollision();
     }
 
     // solve collision
@@ -850,15 +848,48 @@ void SylinderSystem::collectBoundaryCollision() {
     const int nLocal = sylinderContainer.getNumberOfParticleLocal();
 
     // process collisions with all boundaries
+    for (const auto &bPtr : runConfig.boundaryPtr) {
 #pragma omp parallel num_threads(nThreads)
-    {
-        const int threadId = omp_get_thread_num();
-        auto &que = (*collisionPoolPtr)[threadId];
+        {
+            const int threadId = omp_get_thread_num();
+            auto &que = (*collisionPoolPtr)[threadId];
 #pragma omp for
-        for (int i = 0; i < nLocal; i++) {
-            const auto &sy = sylinderContainer[i];
-            // que.emplace_back(phi0, -phi0, sy.gid, sy.gid, sy.globalIndex, sy.globalIndex, normZ.data(), normZ.data(),
-            //                  posI.data(), posJ.data(), labI.data(), labJ.data(), true, false, 0.0, 0.0);
+            for (int i = 0; i < nLocal; i++) {
+                const auto &sy = sylinderContainer[i];
+                const Evec3 center = ECmap3(sy.pos);
+                const Equatn orientation = ECmapq(sy.orientation);
+                const Evec3 direction = orientation * Evec3(0, 0, 1);
+                const double length = sy.lengthCollision;
+                const Evec3 Qm = center - direction * (length * 0.5);
+                const Evec3 Qp = center + direction * (length * 0.5);
+
+                auto checkEnd = [&](const Evec3 &Query) {
+                    // check one end
+                    double Proj[3], delta[3];
+                    bPtr->project(Query.data(), Proj, delta);
+                    // if (!bPtr->check(Query.data(), Proj, delta)) {
+                    //     printf("boundary projection error\n");
+                    // }
+                    // if inside boundary, delta = Q-Proj
+                    // if outside boundary, delta = Proj-Q
+                    double deltanorm = Emap3(delta).norm();
+                    Evec3 norm = Emap3(delta) * (1 / deltanorm);
+                    Evec3 posI = Query - center;
+
+                    if ((Query - ECmap3(Proj)).dot(ECmap3(delta)) < 0) { // outside boundary
+                        que.emplace_back(-deltanorm - sy.radiusCollision, 0, sy.gid, sy.gid, sy.globalIndex,
+                                         sy.globalIndex, norm.data(), norm.data(), posI.data(), posI.data(),
+                                         Query.data(), Proj, true, false, 0.0, 0.0);
+                    } else if (deltanorm <
+                               (1 + runConfig.sylinderColBuf * 2) * sy.radiusCollision) { // inside boundary but close
+                        que.emplace_back(deltanorm - sy.radiusCollision, 0, sy.gid, sy.gid, sy.globalIndex,
+                                         sy.globalIndex, norm.data(), norm.data(), posI.data(), posI.data(),
+                                         Query.data(), Proj, true, false, 0.0, 0.0);
+                    }
+                };
+                checkEnd(Qm);
+                checkEnd(Qp);
+            }
         }
     }
     return;
@@ -1040,10 +1071,10 @@ void SylinderSystem::calcOrderParameter() {
     }
 }
 
-void SylinderSystem::setPosWithBoundary() {
-    const int nLocal = sylinderContainer.getNumberOfParticleLocal();
-    const double buffer = 1e-4;
-}
+// void SylinderSystem::setPosWithBoundary() {
+//     const int nLocal = sylinderContainer.getNumberOfParticleLocal();
+//     const double buffer = 1e-4;
+// }
 
 void SylinderSystem::addNewSylinder(std::vector<Sylinder> &newSylinder, std::vector<Link> &linkage) {
     // assign unique new gid for sylinders on all ranks
