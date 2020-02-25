@@ -156,12 +156,12 @@ class SylinderSystem {
   public:
     SylinderConfig runConfig; ///< system configuration. Be careful if this is modified on the fly
 
-    // /**
-    //  * @brief Construct a new SylinderSystem object
-    //  *
-    //  * initialize() should be called after this constructor
-    //  */
-    // SylinderSystem() = default;
+    /**
+     * @brief Construct a new SylinderSystem object
+     *
+     * initialize() should be called after this constructor
+     */
+    SylinderSystem() = default;
 
     /**
      * @brief Construct a new SylinderSystem object
