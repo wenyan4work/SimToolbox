@@ -30,6 +30,7 @@ class SylinderConfig {
     double simBoxHigh[3]; ///< simulation box size
     double simBoxLow[3];  ///< simulation box size
     bool simBoxPBC[3];    ///< flag of true/false of periodic in that direction
+    bool monolayer; ///< flag for simulating monolayer on x-y plane
 
     double initBoxHigh[3]; ///< initialize sylinders within this box
     double initBoxLow[3];  ///< initialize sylinders within this box

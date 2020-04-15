@@ -4,6 +4,7 @@ rngSeed: 1234
 simBoxLow: [0, 0, 0]
 simBoxHigh: [25, 25, 25]
 simBoxPBC: [true, true, false]
+monolayer: false
 # initialization box
 initBoxLow: [0, 0, 0]
 initBoxHigh: [25, 25, 25]

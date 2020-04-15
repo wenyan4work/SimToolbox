@@ -10,6 +10,7 @@ SylinderConfig::SylinderConfig(std::string filename) {
     readConfig(config, VARNAME(simBoxLow), simBoxLow, 3, "");
     readConfig(config, VARNAME(simBoxHigh), simBoxHigh, 3, "");
     readConfig(config, VARNAME(simBoxPBC), simBoxPBC, 3, "");
+    readConfig(config, VARNAME(monolayer), monolayer, "");
 
     readConfig(config, VARNAME(initBoxLow), initBoxLow, 3, "");
     readConfig(config, VARNAME(initBoxHigh), initBoxHigh, 3, "");

@@ -519,8 +519,10 @@ void SylinderSystem::calcMobOperator() {
 }
 
 void SylinderSystem::calcVelocityNonCon() {
-    // velocityNonCon = velocityBrown + velocityPartNonBrown + mobility * forcePartNonBrown
+    // velocityNonCon = velocityBrown + velocityNonBrown + mobility * forcePartNonBrown
+    // if monolayer, set velBrownZ =0, velPartNonBrownZ =0, frocePartNonBrownZ =0
     velocityNonConRcp = Teuchos::rcp<TV>(new TV(sylinderMobilityMapRcp, true)); // allocate and zero out
+    auto velNCPtr = velocityNonConRcp->getLocalView<Kokkos::HostSpace>();
 
     const int nLocal = sylinderContainer.getNumberOfParticleLocal();
     TEUCHOS_ASSERT(nLocal * 6 == velocityNonConRcp->getLocalLength());
@@ -528,6 +530,14 @@ void SylinderSystem::calcVelocityNonCon() {
     if (!forcePartNonBrownRcp.is_null()) {
         TEUCHOS_ASSERT(!mobilityOperatorRcp.is_null());
         mobilityOperatorRcp->apply(*forcePartNonBrownRcp, *velocityNonConRcp);
+        if (runConfig.monolayer) {
+#pragma omp parallel for
+            for (int i = 0; i < nLocal; i++) {
+                velNCPtr(6 * i + 2, 0) = 0; // fv
+                velNCPtr(6 * i + 3, 0) = 0; // omegax
+                velNCPtr(6 * i + 4, 0) = 0; // omegay
+            }
+        }
         auto forcePtr = forcePartNonBrownRcp->getLocalView<Kokkos::HostSpace>();
 #pragma omp parallel for
         for (int i = 0; i < nLocal; i++) {
@@ -543,26 +553,42 @@ void SylinderSystem::calcVelocityNonCon() {
     }
 
     if (!velocityNonBrownRcp.is_null()) {
+        if (runConfig.monolayer) {
+            auto velNBPtr = velocityNonBrownRcp->getLocalView<Kokkos::HostSpace>();
+#pragma omp parallel for
+            for (int i = 0; i < nLocal; i++) {
+                velNBPtr(6 * i + 2, 0) = 0; // vz
+                velNBPtr(6 * i + 3, 0) = 0; // omegax
+                velNBPtr(6 * i + 4, 0) = 0; // omegay
+            }
+        }
         velocityNonConRcp->update(1.0, *velocityNonBrownRcp, 1.0);
     }
 
     // write back total non Brownian velocity
     // combine and sync the velNonB set in two places
-    auto velPtr = velocityNonConRcp->getLocalView<Kokkos::HostSpace>();
-
 #pragma omp parallel for
     for (int i = 0; i < nLocal; i++) {
         auto &sy = sylinderContainer[i];
         // velocity
-        sy.velNonB[0] = velPtr(6 * i + 0, 0);
-        sy.velNonB[1] = velPtr(6 * i + 1, 0);
-        sy.velNonB[2] = velPtr(6 * i + 2, 0);
-        sy.omegaNonB[0] = velPtr(6 * i + 3, 0);
-        sy.omegaNonB[1] = velPtr(6 * i + 4, 0);
-        sy.omegaNonB[2] = velPtr(6 * i + 5, 0);
+        sy.velNonB[0] = velNCPtr(6 * i + 0, 0);
+        sy.velNonB[1] = velNCPtr(6 * i + 1, 0);
+        sy.velNonB[2] = velNCPtr(6 * i + 2, 0);
+        sy.omegaNonB[0] = velNCPtr(6 * i + 3, 0);
+        sy.omegaNonB[1] = velNCPtr(6 * i + 4, 0);
+        sy.omegaNonB[2] = velNCPtr(6 * i + 5, 0);
     }
 
     if (!velocityBrownRcp.is_null()) {
+        if (runConfig.monolayer) {
+            auto velBPtr = velocityBrownRcp->getLocalView<Kokkos::HostSpace>();
+#pragma omp parallel for
+            for (int i = 0; i < nLocal; i++) {
+                velBPtr(6 * i + 2, 0) = 0; // vz
+                velBPtr(6 * i + 3, 0) = 0; // omegax
+                velBPtr(6 * i + 4, 0) = 0; // omegay
+            }
+        }
         velocityNonConRcp->update(1.0, *velocityBrownRcp, 1.0);
     }
 }
@@ -623,13 +649,13 @@ void SylinderSystem::resolveConstraints() {
     {
         Teuchos::TimeMonitor mon(*solveTimer);
         const double buffer = 0;
-        printRank0("constraint solver setup");
+        // printRank0("constraint solver setup");
         conSolverPtr->setup(*conCollectorPtr, mobilityOperatorRcp, velocityNonConRcp, runConfig.dt);
-        printRank0("set control");
+        // printRank0("set control");
         conSolverPtr->setControlParams(runConfig.conResTol, runConfig.conMaxIte, runConfig.conSolverChoice);
-        printRank0("solve");
+        // printRank0("solve");
         conSolverPtr->solveConstraints();
-        printRank0("writeback");
+        // printRank0("writeback");
         conSolverPtr->writebackGamma();
     }
 
@@ -671,6 +697,18 @@ void SylinderSystem::prepareStep() {
         sy.radiusCollision = sylinderContainer[i].radius * runConfig.sylinderDiameterColRatio;
         sy.lengthCollision = sylinderContainer[i].length * runConfig.sylinderLengthColRatio;
         sy.rank = commRcp->getRank();
+    }
+    if (runConfig.monolayer) {
+        const double monoZ = (runConfig.simBoxHigh[2] + runConfig.simBoxLow[2]) / 2;
+#pragma omp parallel for
+        for (int i = 0; i < nLocal; i++) {
+            auto &sy = sylinderContainer[i];
+            sy.pos[2] = monoZ;
+            Evec3 drt = Emapq(sy.orientation) * Evec3(0, 0, 1);
+            drt[2] = 0;
+            drt.normalize();
+            Emapq(sy.orientation).setFromTwoVectors(Evec3(0, 0, 1), drt);
+        }
     }
 
     updateSylinderMap();
