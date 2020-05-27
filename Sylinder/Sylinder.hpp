@@ -49,6 +49,10 @@ class Sylinder {
     double radiusSearch;    ///< radiusSearch for short range interactions
     double sepmin;          ///< minimal separation with its neighbors within radiusSearch
 
+    double tg;
+    double t;
+    double L0;
+
     Link link; ///< link of this sylinder
 
     double pos[3];         ///< position
