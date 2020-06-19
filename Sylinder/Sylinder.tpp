@@ -4,8 +4,8 @@
 /*****************************************************
  *  Sphero-cylinder
  ******************************************************/
-
-Sylinder::Sylinder(const int &gid_, const double &radius_, const double &radiusCollision_, const double &length_,
+template<int N>
+Sylinder<N>::Sylinder(const int &gid_, const double &radius_, const double &radiusCollision_, const double &length_,
                    const double &lengthCollision_, const double pos_[3], const double orientation_[4]) {
     gid = gid_;
     radius = radius_;
@@ -27,11 +27,16 @@ Sylinder::Sylinder(const int &gid_, const double &radius_, const double &radiusC
         }
     }
 
+    // Clear forceHydro only upon initilization
+    using EmatN = Eigen::Array<double, 3, N, Eigen::DontAlign>;
+    using EmatmapN = Eigen::Map<EmatN, Eigen::Unaligned>;
+    EmatmapN(forceHydro).setZero();
     clear();
     return;
 }
 
-void Sylinder::clear() {
+template<int N>
+void Sylinder<N>::clear() {
     Emap3(vel).setZero();
     Emap3(omega).setZero();
     Emap3(velCol).setZero();
@@ -40,6 +45,8 @@ void Sylinder::clear() {
     Emap3(omegaBi).setZero();
     Emap3(velNonB).setZero();
     Emap3(omegaNonB).setZero();
+    Emap3(velHydro).setZero();
+    Emap3(omegaHydro).setZero();
 
     Emap3(force).setZero();
     Emap3(torque).setZero();
@@ -58,14 +65,16 @@ void Sylinder::clear() {
     rank = -1;
 }
 
-void Sylinder::dumpSylinder() const {
+template<int N>
+void Sylinder<N>::dumpSylinder() const {
     printf("gid %d, R %g, RCol %g, L %g, LCol %g, pos %g, %g, %g\n", gid, radius, radiusCollision, length,
            lengthCollision, pos[0], pos[1], pos[2]);
     printf("vel %g, %g, %g; omega %g, %g, %g\n", vel[0], vel[1], vel[2], omega[0], omega[1], omega[2]);
     printf("orient %g, %g, %g, %g\n", orientation[0], orientation[1], orientation[2], orientation[3]);
 }
 
-void Sylinder::writePVTP(const std::string &prefix, const std::string &postfix, const int nProcs) {
+template<int N>
+void Sylinder<N>::writePVTP(const std::string &prefix, const std::string &postfix, const int nProcs) {
     std::vector<std::string> pieceNames;
 
     std::vector<IOHelper::FieldVTU> pointDataFields;
@@ -110,7 +119,8 @@ void Sylinder::writePVTP(const std::string &prefix, const std::string &postfix, 
     IOHelper::writePVTPFile(prefix + "Sylinder_" + postfix + ".pvtp", pointDataFields, cellDataFields, pieceNames);
 }
 
-void Sylinder::stepEuler(double dt) {
+template<int N>
+void Sylinder<N>::stepEuler(double dt) {
     Emap3(pos) += Emap3(vel) * dt;
     Equatn currOrient = Emapq(orientation);
     EquatnHelper::rotateEquatn(currOrient, Emap3(omega), dt);
@@ -120,7 +130,8 @@ void Sylinder::stepEuler(double dt) {
     Emapq(orientation).w() = currOrient.w();
 }
 
-void Sylinder::writeAscii(FILE *fptr) const {
+template<int N>
+void Sylinder<N>::writeAscii(FILE *fptr) const {
     Evec3 direction = ECmapq(orientation) * Evec3(0, 0, 1);
     Evec3 minus = ECmap3(pos) - 0.5 * length * direction;
     Evec3 plus = ECmap3(pos) + 0.5 * length * direction;

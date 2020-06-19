@@ -70,7 +70,7 @@ struct SylinderNearEP {
      * interface for FDPS
      * @param fp
      */
-    void copyFromFP(const Sylinder &fp) {
+    void copyFromFP(auto &fp) {
         gid = fp.gid;
         globalIndex = fp.globalIndex;
         rank = fp.rank;

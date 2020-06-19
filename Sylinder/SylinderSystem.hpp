@@ -26,6 +26,7 @@
  * @brief A collection of sylinders distributed to multiple MPI ranks.
  *
  */
+template<int N>
 class SylinderSystem {
     bool enableTimer = false;
     int snapID;    ///< the current id of the snapshot file to be saved. sequentially numbered from 0
@@ -35,7 +36,7 @@ class SylinderSystem {
     PS::DomainInfo dinfo; ///< domain size, boundary condition, and decomposition info
     void setDomainInfo();
 
-    PS::ParticleSystem<Sylinder> sylinderContainer;        ///< sylinders
+    PS::ParticleSystem<Sylinder<N>> sylinderContainer;        ///< sylinders
     std::unique_ptr<TreeSylinderNear> treeSylinderNearPtr; ///< short range interaction of sylinders
     int treeSylinderNumber;                                ///< the current max_glb number of treeSylinderNear
     void setTreeSylinder();
@@ -239,10 +240,10 @@ class SylinderSystem {
     /**
      * @brief Get sylinderContainer
      *
-     * @return PS::ParticleSystem<Sylinder>&
+     * @return PS::ParticleSystem<Sylinder<N>>&
      */
-    const PS::ParticleSystem<Sylinder> &getContainer() { return sylinderContainer; }
-    PS::ParticleSystem<Sylinder> &getContainerNonConst() { return sylinderContainer; }
+    const PS::ParticleSystem<Sylinder<N>> &getContainer() { return sylinderContainer; }
+    PS::ParticleSystem<Sylinder<N>> &getContainerNonConst() { return sylinderContainer; }
 
     // PS::ParticleSystem<Sylinder> *getContainerPtr() { return &sylinderContainer; }
 
@@ -326,7 +327,7 @@ class SylinderSystem {
      * @param linkage specify linkage of new sylinders.
      *
      */
-    void addNewSylinder(std::vector<Sylinder> &newSylinder, std::vector<Link> &linkage);
+    void addNewSylinder(std::vector<Sylinder<N>> &newSylinder, std::vector<Link> &linkage);
 
     // /**
     //  * @brief calculate collision stress with constraint solution
@@ -463,4 +464,6 @@ class SylinderSystem {
     std::pair<int, int> getMaxGid();
 };
 
+//Include the SylinderSystem implimentation
+#include "SylinderSystem.tpp"
 #endif

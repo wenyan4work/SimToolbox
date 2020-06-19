@@ -36,6 +36,7 @@ struct Link {
  * @brief Sphero-cylinder class
  *
  */
+template<int N>
 class Sylinder {
   public:
     int gid = GEO_INVALID_INDEX;         ///< unique global id
@@ -71,6 +72,8 @@ class Sylinder {
     double omegaBi[3];   ///< bilateral constraint angular velocity
     double velNonB[3];   ///< all non-Brownian deterministic velocity before constraint resolution
     double omegaNonB[3]; ///< all non-Brownian deterministic angular velocity before constraint resolution
+    double velHydro[3];   ///< hydrodynamic velocity 
+    double omegaHydro[3]; ///< hydrodynamic angular velocity
 
     // force
     double force[3];      ///< force
@@ -85,7 +88,10 @@ class Sylinder {
     // Brownian displacement
     double velBrown[3];   ///< Brownian velocity
     double omegaBrown[3]; ///< Brownian angular velocity
-
+    
+    // Hydrodynamic quadrature point data
+    double forceHydro[3 * N];  ///< hydrodynamic force at each quadrature point
+    
     /**
      * @brief Construct a new Sylinder object
      *
@@ -396,7 +402,9 @@ class SylinderAsciiHeader {
     void writeAscii(FILE *fp) const { fprintf(fp, "%d \n %lf\n", nparticle, time); }
 };
 
-static_assert(std::is_trivially_copyable<Sylinder>::value, "");
-static_assert(std::is_default_constructible<Sylinder>::value, "");
+static_assert(std::is_trivially_copyable<Sylinder<10>>::value, "");
+static_assert(std::is_default_constructible<Sylinder<10>>::value, "");
 
+//Include the Sylinder implimentation
+#include "Sylinder.tpp"
 #endif

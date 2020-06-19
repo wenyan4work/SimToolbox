@@ -3,7 +3,8 @@
 void testSedimentation(int argc, char **argv) {
     auto runConfig = SylinderConfig("SylinderSystem_test_runConfig.yaml");
 
-    SylinderSystem sylinderSystem(runConfig, "posInitial.dat", argc, argv);
+    constexpr int numQuadPt = 10;
+    SylinderSystem<numQuadPt> sylinderSystem(runConfig, "posInitial.dat", argc, argv);
     sylinderSystem.setTimer(true);
     auto &rngPoolPtr = sylinderSystem.getRngPoolPtr();
 
@@ -17,11 +18,11 @@ void testSedimentation(int argc, char **argv) {
     int rank;
     MPI_Comm_rank(MPI_COMM_WORLD, &rank); // using rank as group id
     const int nLocalNew = 20;
-    std::vector<Sylinder> newSylinder(nLocalNew);
+    std::vector<Sylinder<numQuadPt>> newSylinder(nLocalNew);
     std::vector<Link> linkage(nLocalNew);
     for (int i = 0; i < nLocalNew; i++) {
-        newSylinder[i] = Sylinder(i, runConfig.sylinderDiameter / 2, runConfig.sylinderDiameter / 2,
-                                  runConfig.sylinderLength / 2, runConfig.sylinderLength / 2);
+        newSylinder[i] = Sylinder<numQuadPt>(i, runConfig.sylinderDiameter / 2, runConfig.sylinderDiameter / 2,
+                                  runConfig.sylinderLength, runConfig.sylinderLength);
         linkage[i].group = rank;
     }
     // sequentially linked

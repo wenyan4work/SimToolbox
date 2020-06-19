@@ -10,9 +10,7 @@ add_test(NAME SylidnerNear COMMAND SylinderNear_test)
 add_executable(
   SylinderSystem_test
   SylinderSystem_test.cpp
-  SylinderSystem.cpp
   SylinderConfig.cpp
-  Sylinder.cpp
   ${PROJECT_SOURCE_DIR}/Trilinos/TpetraUtil.cpp
   ${PROJECT_SOURCE_DIR}/Boundary/Boundary.cpp
   ${PROJECT_SOURCE_DIR}/Constraint/BCQPSolver.cpp
