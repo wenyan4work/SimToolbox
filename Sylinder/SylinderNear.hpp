@@ -70,7 +70,8 @@ struct SylinderNearEP {
      * interface for FDPS
      * @param fp
      */
-    void copyFromFP(auto &fp) {
+    template<class T>
+    void copyFromFP(T &fp) {
         gid = fp.gid;
         globalIndex = fp.globalIndex;
         rank = fp.rank;
