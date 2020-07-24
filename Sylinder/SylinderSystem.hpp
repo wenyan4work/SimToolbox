@@ -103,11 +103,18 @@ class SylinderSystem {
     void updateSylinderMap(); ///< update sylindermap and sylinderMobilityMap
 
     /**
-     * @brief write VTK parallel XML file into baseFolder
+     * @brief write VTK parallel XML file containing single-cell polydata into baseFolder 
      *
      * @param baseFolder
      */
     void writeVTK(const std::string &baseFolder);
+  
+    /**
+     * @brief write VTK parallel XML file containing multi-cell polydata into baseFolder 
+     *
+     * @param baseFolder
+     */
+    void writeVTKdist(const std::string &baseFolder);
 
     /**
      * @brief write Ascii file controlled by FDPS into baseFolder

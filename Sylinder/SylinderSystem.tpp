@@ -327,6 +327,17 @@ void SylinderSystem<N>::writeVTK(const std::string &baseFolder) {
 }
 
 template<int N>
+void SylinderSystem<N>::writeVTKdist(const std::string &baseFolder) {
+    const int rank = commRcp->getRank();
+    const int size = commRcp->getSize();
+    Sylinder<N>::template writeVTPdist<PS::ParticleSystem<Sylinder<N>>>(sylinderContainer, sylinderContainer.getNumberOfParticleLocal(),
+                                                     baseFolder, std::to_string(snapID), rank);
+    if (rank == 0) {
+        Sylinder<N>::writePVTPdist(baseFolder, std::to_string(snapID), size); // write parallel head
+    }
+}
+
+template<int N>
 void SylinderSystem<N>::writeBox() {
     FILE *boxFile = fopen("./result/simBox.vtk", "w");
     fprintf(boxFile, "# vtk DataFile Version 3.0\n");
@@ -351,6 +362,7 @@ void SylinderSystem<N>::writeResult() {
     IOHelper::makeSubFolder(baseFolder);
     writeAscii(baseFolder);
     writeVTK(baseFolder);
+    writeVTKdist(baseFolder);
     snapID++;
 }
 

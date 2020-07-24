@@ -31,6 +31,8 @@ Sylinder<N>::Sylinder(const int &gid_, const double &radius_, const double &radi
     using EmatN = Eigen::Array<double, 3, N, Eigen::DontAlign>;
     using EmatmapN = Eigen::Map<EmatN, Eigen::Unaligned>;
     EmatmapN(forceHydro).setZero();
+    EmatmapN(uinfHydro).setZero();
+
     clear();
     return;
 }
@@ -117,6 +119,25 @@ void Sylinder<N>::writePVTP(const std::string &prefix, const std::string &postfi
     }
 
     IOHelper::writePVTPFile(prefix + "Sylinder_" + postfix + ".pvtp", pointDataFields, cellDataFields, pieceNames);
+}
+
+template<int N>
+void Sylinder<N>::writePVTPdist(const std::string &prefix, const std::string &postfix, const int nProcs) {
+    std::vector<std::string> pieceNames;
+
+    std::vector<IOHelper::FieldVTU> pointDataFields;
+    pointDataFields.emplace_back(1, IOHelper::IOTYPE::Float32, "endLabel");
+    pointDataFields.emplace_back(3, IOHelper::IOTYPE::Float32, "forceHydro");
+    pointDataFields.emplace_back(3, IOHelper::IOTYPE::Float32, "uinfHydro");
+
+    std::vector<IOHelper::FieldVTU> cellDataFields;
+
+    for (int i = 0; i < nProcs; i++) {
+        pieceNames.emplace_back(std::string("Sylinder_") + std::string("rdist") + std::to_string(i) + "_" + postfix +
+                                ".vtp");
+    }
+
+    IOHelper::writePVTPFile(prefix + "Sylinder_dist" + postfix + ".pvtp", pointDataFields, cellDataFields, pieceNames);
 }
 
 template<int N>

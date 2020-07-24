@@ -91,7 +91,8 @@ class Sylinder {
     
     // Hydrodynamic quadrature point data
     double forceHydro[3 * N];  ///< hydrodynamic force at each quadrature point
-    
+    double uinfHydro[3 * N];   ///< background flow at each quadrature point (imposed plus those due to rod-rod hydrodynamic interactions) 
+
     /**
      * @brief Construct a new Sylinder object
      *
@@ -199,7 +200,7 @@ class Sylinder {
     void writeAscii(FILE *fptr) const;
 
     /**
-     * @brief write VTK XML PVTP Header file from rank 0
+     * @brief write VTK XML PVTP Header file from rank 0 for single-cell polylines
      *
      * @param prefix
      * @param postfix
@@ -208,7 +209,16 @@ class Sylinder {
     static void writePVTP(const std::string &prefix, const std::string &postfix, const int nProcs);
 
     /**
-     * @brief write VTK XML binary base64 VTP data file from every MPI rank
+     * @brief write VTK XML PVTP Header file from rank 0 for multi-cell polylines
+     *
+     * @param prefix
+     * @param postfix
+     * @param nProcs
+     */
+    static void writePVTPdist(const std::string &prefix, const std::string &postfix, const int nProcs);
+
+    /**
+     * @brief write VTK XML binary base64 VTP data file containing single-cell polylines from every MPI rank
      *
      * Procedure for dumping sylinders in the system:
      * Each sylinder writes a polyline with two (connected) points.
@@ -384,6 +394,108 @@ class Sylinder {
 
         IOHelper::writeDataArrayBase64(xnorm, "xnorm", 3, file);
         IOHelper::writeDataArrayBase64(znorm, "znorm", 3, file);
+        file << "</CellData>\n";
+        file << "</Piece>\n";
+
+        IOHelper::writeTailVTP(file);
+        file.close();
+    }
+
+    /**
+     * @brief write VTK XML binary base64 VTP data file containing muli-cell polylines from every MPI rank
+     *
+     * Procedure for dumping sylinders in the system:
+     * Each sylinder writes a polyline with N (connected) points.
+     * Points are labeled with evenly spaded float between -0.5 and 0.5
+     * Sylinder data fields are written as cell data for each segment
+     * Rank 0 writes the parallel header , then each rank write its own serial vtp/vtu file
+     *
+     * @tparam Container container for local sylinders which supports [] operator
+     * @param sylinder
+     * @param sylinderNumber
+     * @param prefix
+     * @param postfix
+     * @param rank
+     */
+    template <class Container>
+    static void writeVTPdist(const Container &sylinder, const int sylinderNumber, const std::string &prefix,
+                         const std::string &postfix, int rank) {
+        // for each sylinder:
+
+        // write VTP for data distributed along the sylinder
+        // use float to save some space
+        // point and point data
+        std::vector<double> pos(3 * N * sylinderNumber); // position always in Float64
+        std::vector<float> label(N * sylinderNumber);
+
+        // point connectivity of line
+        std::vector<int32_t> connectivity(2 * (N - 1) * sylinderNumber);
+        std::vector<int32_t> offset((N - 1) * sylinderNumber);
+
+        // force
+        std::vector<float> forceHydro(3 * N * sylinderNumber);
+
+        // vel
+        std::vector<float> uinfHydro(3 * N * sylinderNumber);
+
+#pragma omp parallel for
+        for (int i = 0; i < sylinderNumber; i++) {
+            const auto &sy = sylinder[i];
+
+            const double deltaS = 1.0 / (N - 1); 
+            Evec3 direction = ECmapq(sy.orientation) * Evec3(0, 0, 1);
+           
+            // Loop over each line segment:
+            for (int iCell = 0; iCell < N - 1; iCell++) {
+                // connectivity
+                connectivity[iCell * 2 + (N - 1) * i * 2] = iCell + N * i;            // index of beginning of each cell on line
+                connectivity[iCell * 2 + (N - 1) * i * 2 + 1] = iCell + N * i + 1;    // index of end of each cell on line
+                offset[iCell + (N - 1) * i] = iCell * 2 + (N - 1) * i * 2 + 2;        // offset is the end of each line. in fortran indexing
+            }
+
+            // Loop over each point:
+            for (int iPoint = 0; iPoint < N; iPoint++) {
+                // position data
+                Evec3 loc = ECmap3(sy.pos) + (sy.length * deltaS * iPoint - sy.length * 0.5) * direction;
+                pos[iPoint * 3 + N * i * 3 + 0] = loc[0];
+                pos[iPoint * 3 + N * i * 3 + 1] = loc[1];
+                pos[iPoint * 3 + N * i * 3 + 2] = loc[2];
+
+                // sylinder data
+                for (int j = 0; j < 3; j++) {
+                    forceHydro[iPoint * 3 + N * i * 3 + j] = sy.forceHydro[iPoint * 3 + j]; 
+                    uinfHydro[iPoint * 3 + N * i * 3 + j] = sy.uinfHydro[iPoint * 3 + j];
+                }
+
+                // point label 
+                label[iPoint + N * i] = deltaS * iPoint - 0.5;
+            }
+        }
+
+        std::ofstream file(prefix + std::string("Sylinder_") + "rdist" + std::to_string(rank) + std::string("_") + postfix +
+                               std::string(".vtp"),
+                           std::ios::out);
+
+        IOHelper::writeHeadVTP(file);
+
+        file << "<Piece NumberOfPoints=\"" << sylinderNumber * N << "\" NumberOfLines=\"" << sylinderNumber * (N - 1) << "\">\n";
+        // Points
+        file << "<Points>\n";
+        IOHelper::writeDataArrayBase64(pos, "position", 3, file);
+        file << "</Points>\n";
+        // cell definition
+        file << "<Lines>\n";
+        IOHelper::writeDataArrayBase64(connectivity, "connectivity", 1, file);
+        IOHelper::writeDataArrayBase64(offset, "offsets", 1, file);
+        file << "</Lines>\n";
+        // point data
+        file << "<PointData Scalars=\"scalars\">\n";
+        IOHelper::writeDataArrayBase64(label, "endLabel", 1, file);
+        file << "</PointData>\n";
+        // cell data
+        file << "<CellData Scalars=\"scalars\">\n";
+        IOHelper::writeDataArrayBase64(forceHydro, "forceHydro", 3, file);
+        IOHelper::writeDataArrayBase64(uinfHydro, "uinfHydro", 3, file);
         file << "</CellData>\n";
         file << "</Piece>\n";
 
