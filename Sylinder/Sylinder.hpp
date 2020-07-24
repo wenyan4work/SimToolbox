@@ -422,6 +422,16 @@ class Sylinder {
                          const std::string &postfix, int rank) {
         // for each sylinder:
 
+        // Point data located at Gauss-Chebyshev quadrature points distributed from -0.5 to 0.5  
+        const double lowerB = -0.5;
+        const double upperB = 0.5;
+        std::vector<double> sQuadPt(N);
+        for (int iQuadPt = 0; iQuadPt < N; iQuadPt++) {
+            double k = iQuadPt + 1;
+            double xi = - std::cos((2 * k - 1) * Pi / (2 * N));
+            sQuadPt[iQuadPt] = lowerB + (upperB - lowerB) * (xi + 1) / 2;
+        }
+
         // write VTP for data distributed along the sylinder
         // use float to save some space
         // point and point data
@@ -442,7 +452,6 @@ class Sylinder {
         for (int i = 0; i < sylinderNumber; i++) {
             const auto &sy = sylinder[i];
 
-            const double deltaS = 1.0 / (N - 1); 
             Evec3 direction = ECmapq(sy.orientation) * Evec3(0, 0, 1);
            
             // Loop over each line segment:
@@ -456,7 +465,7 @@ class Sylinder {
             // Loop over each point:
             for (int iPoint = 0; iPoint < N; iPoint++) {
                 // position data
-                Evec3 loc = ECmap3(sy.pos) + (sy.length * deltaS * iPoint - sy.length * 0.5) * direction;
+                Evec3 loc = ECmap3(sy.pos) + sy.length * sQuadPt[iPoint] * direction;
                 pos[iPoint * 3 + N * i * 3 + 0] = loc[0];
                 pos[iPoint * 3 + N * i * 3 + 1] = loc[1];
                 pos[iPoint * 3 + N * i * 3 + 2] = loc[2];
@@ -468,7 +477,7 @@ class Sylinder {
                 }
 
                 // point label 
-                label[iPoint + N * i] = deltaS * iPoint - 0.5;
+                label[iPoint + N * i] = sQuadPt[iPoint];
             }
         }
 
@@ -491,11 +500,11 @@ class Sylinder {
         // point data
         file << "<PointData Scalars=\"scalars\">\n";
         IOHelper::writeDataArrayBase64(label, "endLabel", 1, file);
+        IOHelper::writeDataArrayBase64(forceHydro, "forceHydro", 3, file);
+        IOHelper::writeDataArrayBase64(uinfHydro, "uinfHydro", 3, file);
         file << "</PointData>\n";
         // cell data
         file << "<CellData Scalars=\"scalars\">\n";
-        IOHelper::writeDataArrayBase64(forceHydro, "forceHydro", 3, file);
-        IOHelper::writeDataArrayBase64(uinfHydro, "uinfHydro", 3, file);
         file << "</CellData>\n";
         file << "</Piece>\n";
 
