@@ -481,7 +481,7 @@ class Sylinder {
             }
         }
 
-        std::ofstream file(prefix + std::string("Sylinder_") + "rdist" + std::to_string(rank) + std::string("_") + postfix +
+        std::ofstream file(prefix + std::string("SylinderDist_") + "r" + std::to_string(rank) + std::string("_") + postfix +
                                std::string(".vtp"),
                            std::ios::out);
 

@@ -22,6 +22,15 @@
 #include "Trilinos/ZDD.hpp"
 #include "Util/TRngPool.hpp"
 
+#include <vtkCellData.h>
+#include <vtkPoints.h>
+#include <vtkPolyData.h>
+#include <vtkPointData.h>
+#include <vtkSmartPointer.h>
+#include <vtkXMLPPolyDataReader.h>
+#include <vtkAppendPolyData.h> 
+#include <vtkDataArray.h>
+
 /**
  * @brief A collection of sylinders distributed to multiple MPI ranks.
  *
@@ -83,6 +92,16 @@ class SylinderSystem {
     void setInitialFromFile(const std::string &filename);
 
     /**
+     * @brief set initial configuration as given in the (.dat) file
+     *
+     * The simBox and BC settings in runConfig are still used
+     * @param pvtpFileName 
+     * @param pvtpDistFileName
+     */
+    void setInitialFromVTKFile(const std::string &pvtpFileName, 
+                               const std::string &pvtpDistFileName);
+
+    /**
      * @brief set initial configuration if runConfig.initCircularX is set
      *
      * This function move the position of all sylinders into a cylindrical tube fit in initBox
@@ -122,6 +141,13 @@ class SylinderSystem {
      * @param baseFolder
      */
     void writeAscii(const std::string &baseFolder);
+
+    /**
+     * @brief write a txt file containing timestep and most recent pvtp filenames info into baseFolder
+     *
+     * @param baseFolder
+     */
+    void writeTimeStepInfo(const std::string &baseFolder);
 
     /**
      * @brief write a simple legacy VTK file for simBox
@@ -208,6 +234,16 @@ class SylinderSystem {
      * @param argv command line argument
      */
     void initialize(const SylinderConfig &config, const std::string &posFile, int argc, char **argv);
+
+    /**
+     * @brief reinitialize from vtk files
+     *
+     * @param config SylinderConfig object
+     * @param restartFile txt file containing timestep and most recent pvtp file names
+     * @param argc command line argument
+     * @param argv command line argument
+     */
+    void reinitialize(const SylinderConfig &config, const std::string &restartFile, int argc, char **argv);
 
     /**
      * @brief enable the timer in step()
