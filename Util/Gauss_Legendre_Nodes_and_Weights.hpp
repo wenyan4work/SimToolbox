@@ -14,7 +14,7 @@
 #define Gauss_Legendre_Nodes_and_Weights_hpp__
 
 #include <cassert>
-
+#include <vector>
 template <class Real>
 void Gauss_Legendre_Nodes_and_Weights(int N, std::vector<Real> &nodes, std::vector<Real> &weights) {
     assert(N >= 1 && "Number of nodes must be atleast 1.");
