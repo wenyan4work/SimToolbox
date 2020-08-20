@@ -28,7 +28,7 @@
 #include <vtkPointData.h>
 #include <vtkSmartPointer.h>
 #include <vtkXMLPPolyDataReader.h>
-#include <vtkAppendPolyData.h> 
+// #include <vtkAppendPolyData.h> 
 #include <vtkDataArray.h>
 
 /**
