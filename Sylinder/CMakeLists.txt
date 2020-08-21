@@ -7,6 +7,8 @@ target_link_libraries(
                             Eigen3::Eigen OpenMP::OpenMP_CXX MPI::MPI_CXX)
 add_test(NAME SylidnerNear COMMAND SylinderNear_test)
 
+find_package(VTK REQUIRED)
+
 add_executable(
   SylinderSystem_test
   SylinderSystem_test.cpp
@@ -32,6 +34,7 @@ target_link_libraries(
           ${YAML_CPP_LIBRARIES}
           ${TRNG_LIBRARY}
           Eigen3::Eigen
+          VTK::IOXML
           OpenMP::OpenMP_CXX
           MPI::MPI_CXX)
 add_test(NAME SylinderSystem COMMAND SylinderSystem_test)

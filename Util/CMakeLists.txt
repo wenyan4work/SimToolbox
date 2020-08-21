@@ -25,3 +25,11 @@ target_link_libraries(TRngPool_test PRIVATE OpenMP::OpenMP_CXX MPI::MPI_CXX
 add_test(NAME TRngPool COMMAND TRngPool_test)
 set_tests_properties(TRngPool PROPERTIES PASS_REGULAR_EXPRESSION
                                          "TestPassed;All ok")
+
+add_executable(QuadInt_test QuadInt_test.cpp)
+target_compile_options(QuadInt_test PRIVATE ${OpenMP_CXX_FLAGS})
+target_link_libraries(QuadInt_test PRIVATE OpenMP::OpenMP_CXX)
+
+add_test(NAME QuadInt COMMAND QuadInt_test)
+set_tests_properties(QuadInt PROPERTIES PASS_REGULAR_EXPRESSION
+                                        "TestPassed;All ok")
