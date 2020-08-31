@@ -12,6 +12,7 @@ Sylinder<N>::Sylinder(const int &gid_, const double &radius_, const double &radi
     radiusCollision = radiusCollision_;
     length = length_;
     lengthCollision = lengthCollision_;
+    numQuadPt = 2;
     if (pos_ == nullptr) {
         Emap3(pos).setZero();
     } else {
@@ -85,6 +86,7 @@ void Sylinder<N>::writePVTP(const std::string &prefix, const std::string &postfi
     std::vector<IOHelper::FieldVTU> cellDataFields;
     cellDataFields.emplace_back(1, IOHelper::IOTYPE::Int32, "gid");
     cellDataFields.emplace_back(1, IOHelper::IOTYPE::Int32, "group");
+    cellDataFields.emplace_back(1, IOHelper::IOTYPE::Int32, "numQuadPt");
     cellDataFields.emplace_back(1, IOHelper::IOTYPE::Float32, "radius");
     cellDataFields.emplace_back(1, IOHelper::IOTYPE::Float32, "radiusCollision");
     cellDataFields.emplace_back(1, IOHelper::IOTYPE::Float32, "length");

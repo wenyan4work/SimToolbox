@@ -16,6 +16,7 @@
 #include "Util/EquatnHelper.hpp"
 #include "Util/GeoCommon.h"
 #include "Util/IOHelper.hpp"
+#include "Util/QuadInt.hpp"
 
 #include <cstdio>
 #include <cstdlib>
@@ -90,6 +91,7 @@ class Sylinder {
     double omegaBrown[3]; ///< Brownian angular velocity
     
     // Hydrodynamic quadrature point data
+    int numQuadPt;             ///< number of quadrature points
     double forceHydro[3 * N];  ///< hydrodynamic force at each quadrature point
     double uinfHydro[3 * N];   ///< background flow at each quadrature point (imposed plus those due to rod-rod hydrodynamic interactions) 
 
@@ -250,6 +252,7 @@ class Sylinder {
 
         // sylinder data
         std::vector<int> gid(sylinderNumber);
+        std::vector<int> numQuadPt(sylinderNumber);
         std::vector<float> radius(sylinderNumber);
         std::vector<float> radiusCollision(sylinderNumber);
         std::vector<float> length(sylinderNumber);
@@ -308,6 +311,7 @@ class Sylinder {
             // sylinder data
             gid[i] = sy.gid;
             group[i] = sy.link.group;
+            numQuadPt[i] = sy.numQuadPt;
             radius[i] = sy.radius;
             radiusCollision[i] = sy.radiusCollision;
             length[i] = sy.length;
@@ -366,6 +370,7 @@ class Sylinder {
         file << "<CellData Scalars=\"scalars\">\n";
         IOHelper::writeDataArrayBase64(gid, "gid", 1, file);
         IOHelper::writeDataArrayBase64(group, "group", 1, file);
+        IOHelper::writeDataArrayBase64(numQuadPt, "numQuadPt", 1, file);
         IOHelper::writeDataArrayBase64(radius, "radius", 1, file);
         IOHelper::writeDataArrayBase64(radiusCollision, "radiusCollision", 1, file);
         IOHelper::writeDataArrayBase64(length, "length", 1, file);
@@ -420,64 +425,61 @@ class Sylinder {
     template <class Container>
     static void writeVTPdist(const Container &sylinder, const int sylinderNumber, const std::string &prefix,
                          const std::string &postfix, int rank) {
+        // Extract the quadrature data. TODO: Update to account for cell species
+        // NOTE: The number of quadrature points is currently inaccessable to the Sylinder class
+        // The below code is a temporary workaround to this problem and will be updated once the hydrodynamic effects are built as their own class within SimToolBox
+        const int numQuadPt = 10;
+        using Quad = QuadInt<N>;
+        Quad quad = Quad(numQuadPt, 'c');
+        const auto sQuadPt  = quad.getPoints();
+        
         // for each sylinder:
-
-        // Point data located at Gauss-Chebyshev quadrature points distributed from -0.5 to 0.5  
-        const double lowerB = -0.5;
-        const double upperB = 0.5;
-        std::vector<double> sQuadPt(N);
-        for (int iQuadPt = 0; iQuadPt < N; iQuadPt++) {
-            double k = iQuadPt + 1;
-            double xi = - std::cos((2 * k - 1) * Pi / (2 * N));
-            sQuadPt[iQuadPt] = lowerB + (upperB - lowerB) * (xi + 1) / 2;
-        }
 
         // write VTP for data distributed along the sylinder
         // use float to save some space
         // point and point data
-        std::vector<double> pos(3 * N * sylinderNumber); // position always in Float64
-        std::vector<float> label(N * sylinderNumber);
+        std::vector<double> pos(3 * numQuadPt * sylinderNumber); // position always in Float64
+        std::vector<float> label(numQuadPt * sylinderNumber);
 
         // point connectivity of line
-        std::vector<int32_t> connectivity(2 * (N - 1) * sylinderNumber);
-        std::vector<int32_t> offset((N - 1) * sylinderNumber);
+        std::vector<int32_t> connectivity(2 * (numQuadPt - 1) * sylinderNumber);
+        std::vector<int32_t> offset((numQuadPt - 1) * sylinderNumber);
 
         // force
-        std::vector<float> forceHydro(3 * N * sylinderNumber);
+        std::vector<float> forceHydro(3 * numQuadPt * sylinderNumber);
 
         // vel
-        std::vector<float> uinfHydro(3 * N * sylinderNumber);
+        std::vector<float> uinfHydro(3 * numQuadPt * sylinderNumber);
 
 #pragma omp parallel for
         for (int i = 0; i < sylinderNumber; i++) {
             const auto &sy = sylinder[i];
-
+    
             Evec3 direction = ECmapq(sy.orientation) * Evec3(0, 0, 1);
-           
             // Loop over each line segment:
-            for (int iCell = 0; iCell < N - 1; iCell++) {
+            for (int iCell = 0; iCell < sy.numQuadPt - 1; iCell++) {
                 // connectivity
-                connectivity[iCell * 2 + (N - 1) * i * 2] = iCell + N * i;            // index of beginning of each cell on line
-                connectivity[iCell * 2 + (N - 1) * i * 2 + 1] = iCell + N * i + 1;    // index of end of each cell on line
-                offset[iCell + (N - 1) * i] = iCell * 2 + (N - 1) * i * 2 + 2;        // offset is the end of each line. in fortran indexing
+                connectivity[iCell * 2 + (sy.numQuadPt - 1) * i * 2] = iCell + sy.numQuadPt * i;         // index of beginning of each cell on line
+                connectivity[iCell * 2 + (sy.numQuadPt - 1) * i * 2 + 1] = iCell + sy.numQuadPt * i + 1; // index of end of each cell on line
+                offset[iCell + (sy.numQuadPt - 1) * i] = iCell * 2 + (sy.numQuadPt - 1) * i * 2 + 2;     // offset is the end of each line. in fortran indexing
             }
 
             // Loop over each point:
-            for (int iPoint = 0; iPoint < N; iPoint++) {
+            for (int iPoint = 0; iPoint < sy.numQuadPt; iPoint++) {
                 // position data
-                Evec3 loc = ECmap3(sy.pos) + sy.length * sQuadPt[iPoint] * direction;
-                pos[iPoint * 3 + N * i * 3 + 0] = loc[0];
-                pos[iPoint * 3 + N * i * 3 + 1] = loc[1];
-                pos[iPoint * 3 + N * i * 3 + 2] = loc[2];
+                Evec3 loc = ECmap3(sy.pos) + sy.length / 2 * sQuadPt[iPoint] * direction;
+                pos[iPoint * 3 + sy.numQuadPt * i * 3 + 0] = loc[0];
+                pos[iPoint * 3 + sy.numQuadPt * i * 3 + 1] = loc[1];
+                pos[iPoint * 3 + sy.numQuadPt * i * 3 + 2] = loc[2];
 
                 // sylinder data
                 for (int j = 0; j < 3; j++) {
-                    forceHydro[iPoint * 3 + N * i * 3 + j] = sy.forceHydro[iPoint * 3 + j]; 
-                    uinfHydro[iPoint * 3 + N * i * 3 + j] = sy.uinfHydro[iPoint * 3 + j];
+                    forceHydro[iPoint * 3 + sy.numQuadPt * i * 3 + j] = sy.forceHydro[iPoint * 3 + j]; 
+                    uinfHydro[iPoint * 3 + sy.numQuadPt * i * 3 + j] = sy.uinfHydro[iPoint * 3 + j];
                 }
 
                 // point label 
-                label[iPoint + N * i] = sQuadPt[iPoint];
+                label[iPoint + sy.numQuadPt * i] = sQuadPt[iPoint];
             }
         }
 
@@ -487,7 +489,7 @@ class Sylinder {
 
         IOHelper::writeHeadVTP(file);
 
-        file << "<Piece NumberOfPoints=\"" << sylinderNumber * N << "\" NumberOfLines=\"" << sylinderNumber * (N - 1) << "\">\n";
+        file << "<Piece NumberOfPoints=\"" << sylinderNumber * numQuadPt << "\" NumberOfLines=\"" << sylinderNumber * (numQuadPt - 1) << "\">\n";
         // Points
         file << "<Points>\n";
         IOHelper::writeDataArrayBase64(pos, "position", 3, file);

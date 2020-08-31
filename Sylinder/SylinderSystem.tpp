@@ -396,6 +396,7 @@ void SylinderSystem<N>::setInitialFromVTKFile(const std::string &pvtpFileName,
         vtkSmartPointer<vtkPoints> posData = polydata1->GetPoints();
         vtkSmartPointer<vtkDataArray> gidData = polydata1->GetCellData()->GetArray("gid");
         vtkSmartPointer<vtkDataArray> groupData = polydata1->GetCellData()->GetArray("group");
+        vtkSmartPointer<vtkDataArray> numQuadPtData = polydata1->GetCellData()->GetArray("numQuadPt");
         vtkSmartPointer<vtkDataArray> lengthData = polydata1->GetCellData()->GetArray("length");
         vtkSmartPointer<vtkDataArray> lengthCollisionData = polydata1->GetCellData()->GetArray("lengthCollision");
         vtkSmartPointer<vtkDataArray> radiusData = polydata1->GetCellData()->GetArray("radius");
@@ -417,9 +418,10 @@ void SylinderSystem<N>::setInitialFromVTKFile(const std::string &pvtpFileName,
         vtkSmartPointer<vtkDataArray> forceHydroData = polydata2->GetPointData()->GetArray("forceHydro");
 
         // Store the data within a temporary vector of Sylinders
-        using EmatQuadPt = Eigen::Matrix<double, 3, N, Eigen::DontAlign>;
+        using EmatN = Eigen::Matrix<double, 3, N, Eigen::DontAlign>;
+        using EmatmapN = Eigen::Map<EmatN, Eigen::Unaligned>;
+        using EmatQuadPt = Eigen::Matrix<double, 3, Eigen::Dynamic, Eigen::DontAlign>;
         using EmatmapQuadPt = Eigen::Map<EmatQuadPt, Eigen::Unaligned>;
-        
         double leftEndpointPos[3];
         double rightEndpointPos[3];
         std::vector<Sylinder<N>> sylinderReadFromFile;
@@ -433,11 +435,12 @@ void SylinderSystem<N>::setInitialFromVTKFile(const std::string &pvtpFileName,
             newBody.pos[1] = (leftEndpointPos[1] + rightEndpointPos[1]) / 2;
             newBody.pos[2] = (leftEndpointPos[2] + rightEndpointPos[2]) / 2;        
             newBody.gid = gidData->GetComponent(i, 0);
-            newBody.link.group= groupData->GetComponent(i, 0);
-            newBody.length= lengthData->GetComponent(i, 0);
-            newBody.lengthCollision= lengthCollisionData->GetComponent(i, 0);
-            newBody.radius= radiusData->GetComponent(i, 0);
-            newBody.radiusCollision= radiusCollisionData->GetComponent(i, 0);
+            newBody.numQuadPt = numQuadPtData->GetComponent(i, 0);
+            newBody.link.group = groupData->GetComponent(i, 0);
+            newBody.length = lengthData->GetComponent(i, 0);
+            newBody.lengthCollision = lengthCollisionData->GetComponent(i, 0);
+            newBody.radius = radiusData->GetComponent(i, 0);
+            newBody.radiusCollision = radiusCollisionData->GetComponent(i, 0);
             const Evec3 direction(znormData->GetComponent(i, 0),
                                   znormData->GetComponent(i, 1),
                                   znormData->GetComponent(i, 2));
@@ -446,18 +449,18 @@ void SylinderSystem<N>::setInitialFromVTKFile(const std::string &pvtpFileName,
             newBody.vel[1] = velData->GetComponent(i, 1);
             newBody.vel[2] = velData->GetComponent(i, 2);
 
-            EmatQuadPt uinfHydro(3, N);
-            EmatQuadPt forceHydro(3, N);
-            for (int iQuadPt = 0; iQuadPt < N; iQuadPt++) {
-                uinfHydro.col(iQuadPt) = Evec3(uinfHydroData->GetComponent(i * N + iQuadPt, 0),
-                                               uinfHydroData->GetComponent(i * N + iQuadPt, 1),
-                                               uinfHydroData->GetComponent(i * N + iQuadPt, 2));
-                forceHydro.col(iQuadPt) = Evec3(forceHydroData->GetComponent(i * N + iQuadPt, 0),
-                                                forceHydroData->GetComponent(i * N + iQuadPt, 1),
-                                                forceHydroData->GetComponent(i * N + iQuadPt, 2));
+            EmatQuadPt uinfHydro(3, newBody.numQuadPt);
+            EmatQuadPt forceHydro(3, newBody.numQuadPt);
+            for (int iQuadPt = 0; iQuadPt < newBody.numQuadPt; iQuadPt++) {
+                uinfHydro.col(iQuadPt) = Evec3(uinfHydroData->GetComponent(i * newBody.numQuadPt + iQuadPt, 0),
+                                               uinfHydroData->GetComponent(i * newBody.numQuadPt + iQuadPt, 1),
+                                               uinfHydroData->GetComponent(i * newBody.numQuadPt + iQuadPt, 2));
+                forceHydro.col(iQuadPt) = Evec3(forceHydroData->GetComponent(i * newBody.numQuadPt + iQuadPt, 0),
+                                                forceHydroData->GetComponent(i * newBody.numQuadPt + iQuadPt, 1),
+                                                forceHydroData->GetComponent(i * newBody.numQuadPt + iQuadPt, 2));
             }
-            EmatmapQuadPt(newBody.uinfHydro) = uinfHydro;
-            EmatmapQuadPt(newBody.forceHydro) = forceHydro;
+            EmatmapN(newBody.uinfHydro).block(0,0,3,newBody.numQuadPt) = uinfHydro;
+            EmatmapN(newBody.forceHydro).block(0,0,3,newBody.numQuadPt) = forceHydro;
 
             sylinderReadFromFile.push_back(newBody);
         }

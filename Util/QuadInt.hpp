@@ -117,8 +117,8 @@ class QuadInt {
 
     int getSize() const { return npts; }
     int getMaxSize() const { return N; }
-    double *getPoints() const { return points; }
-    double *getWeights() const { return weights; }
+    const double *getPoints() const { return points; }
+    const double *getWeights() const { return weights; }
 
     void print() const {
         if (choice == 'g') {
