@@ -132,7 +132,7 @@ class QuadInt {
     }
 
     template <class Func>
-    double integrate(Func f) {
+    double integrate(Func f) const {
         double fval[N];
         for (int i = 0; i < npts; i++) {
             fval[i] = f(points[i]);
@@ -141,7 +141,7 @@ class QuadInt {
     }
 
     template <class Func>
-    double integrateS(Func f) {
+    double integrateS(Func f) const {
         double fval[N];
         for (int i = 0; i < npts; i++) {
             fval[i] = f(points[i]);
@@ -149,7 +149,7 @@ class QuadInt {
         return intSSamples(fval);
     }
 
-    double intSamples(const double *f) {
+    double intSamples(const double *f) const {
         double sum = 0;
         for (int i = 0; i < npts; i++) {
             sum += f[i] * weights[i];
@@ -157,7 +157,7 @@ class QuadInt {
         return sum;
     }
 
-    double intSSamples(const double *f) {
+    double intSSamples(const double *f) const {
         double sum = 0;
         for (int i = 0; i < npts; i++) {
             sum += f[i] * points[i] * weights[i];
