@@ -4,9 +4,9 @@
 /*****************************************************
  *  Sphero-cylinder
  ******************************************************/
-template<int N>
+template <int N>
 Sylinder<N>::Sylinder(const int &gid_, const double &radius_, const double &radiusCollision_, const double &length_,
-                   const double &lengthCollision_, const double pos_[3], const double orientation_[4]) {
+                      const double &lengthCollision_, const double pos_[3], const double orientation_[4]) {
     gid = gid_;
     radius = radius_;
     radiusCollision = radiusCollision_;
@@ -38,7 +38,7 @@ Sylinder<N>::Sylinder(const int &gid_, const double &radius_, const double &radi
     return;
 }
 
-template<int N>
+template <int N>
 void Sylinder<N>::clear() {
     Emap3(vel).setZero();
     Emap3(omega).setZero();
@@ -68,7 +68,7 @@ void Sylinder<N>::clear() {
     rank = -1;
 }
 
-template<int N>
+template <int N>
 void Sylinder<N>::dumpSylinder() const {
     printf("gid %d, R %g, RCol %g, L %g, LCol %g, pos %g, %g, %g\n", gid, radius, radiusCollision, length,
            lengthCollision, pos[0], pos[1], pos[2]);
@@ -76,7 +76,7 @@ void Sylinder<N>::dumpSylinder() const {
     printf("orient %g, %g, %g, %g\n", orientation[0], orientation[1], orientation[2], orientation[3]);
 }
 
-template<int N>
+template <int N>
 void Sylinder<N>::writePVTP(const std::string &prefix, const std::string &postfix, const int nProcs) {
     std::vector<std::string> pieceNames;
 
@@ -123,7 +123,7 @@ void Sylinder<N>::writePVTP(const std::string &prefix, const std::string &postfi
     IOHelper::writePVTPFile(prefix + "Sylinder_" + postfix + ".pvtp", pointDataFields, cellDataFields, pieceNames);
 }
 
-template<int N>
+template <int N>
 void Sylinder<N>::writePVTPdist(const std::string &prefix, const std::string &postfix, const int nProcs) {
     std::vector<std::string> pieceNames;
 
@@ -142,7 +142,7 @@ void Sylinder<N>::writePVTPdist(const std::string &prefix, const std::string &po
     IOHelper::writePVTPFile(prefix + "SylinderDist_" + postfix + ".pvtp", pointDataFields, cellDataFields, pieceNames);
 }
 
-template<int N>
+template <int N>
 void Sylinder<N>::stepEuler(double dt) {
     Emap3(pos) += Emap3(vel) * dt;
     Equatn currOrient = Emapq(orientation);
@@ -153,7 +153,7 @@ void Sylinder<N>::stepEuler(double dt) {
     Emapq(orientation).w() = currOrient.w();
 }
 
-template<int N>
+template <int N>
 void Sylinder<N>::writeAscii(FILE *fptr) const {
     Evec3 direction = ECmapq(orientation) * Evec3(0, 0, 1);
     Evec3 minus = ECmap3(pos) - 0.5 * length * direction;

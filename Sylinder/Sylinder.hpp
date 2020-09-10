@@ -37,7 +37,7 @@ struct Link {
  * @brief Sphero-cylinder class
  *
  */
-template<int N>
+template <int N>
 class Sylinder {
   public:
     int gid = GEO_INVALID_INDEX;         ///< unique global id
@@ -65,15 +65,15 @@ class Sylinder {
     // there is no Brownian force
 
     // velocity
-    double vel[3];       ///< velocity
-    double omega[3];     ///< angular velocity
-    double velCol[3];    ///< collision velocity
-    double omegaCol[3];  ///< collision angular velocity
-    double velBi[3];     ///< bilateral constraint velocity
-    double omegaBi[3];   ///< bilateral constraint angular velocity
-    double velNonB[3];   ///< all non-Brownian deterministic velocity before constraint resolution
-    double omegaNonB[3]; ///< all non-Brownian deterministic angular velocity before constraint resolution
-    double velHydro[3];   ///< hydrodynamic velocity 
+    double vel[3];        ///< velocity
+    double omega[3];      ///< angular velocity
+    double velCol[3];     ///< collision velocity
+    double omegaCol[3];   ///< collision angular velocity
+    double velBi[3];      ///< bilateral constraint velocity
+    double omegaBi[3];    ///< bilateral constraint angular velocity
+    double velNonB[3];    ///< all non-Brownian deterministic velocity before constraint resolution
+    double omegaNonB[3];  ///< all non-Brownian deterministic angular velocity before constraint resolution
+    double velHydro[3];   ///< hydrodynamic velocity
     double omegaHydro[3]; ///< hydrodynamic angular velocity
 
     // force
@@ -89,11 +89,13 @@ class Sylinder {
     // Brownian displacement
     double velBrown[3];   ///< Brownian velocity
     double omegaBrown[3]; ///< Brownian angular velocity
-    
+
     // Hydrodynamic quadrature point data
-    int numQuadPt;             ///< number of quadrature points
-    double forceHydro[3 * N];  ///< hydrodynamic force at each quadrature point
-    double uinfHydro[3 * N];   ///< background flow at each quadrature point (imposed plus those due to rod-rod hydrodynamic interactions) 
+    int numQuadPt;            ///< number of quadrature points
+    QuadInt<N> *quadPtr;      ///< pointer to QuadInt object
+    double forceHydro[3 * N]; ///< hydrodynamic force at each quadrature point
+    double uinfHydro[3 * N];  ///< background flow at each quadrature point (imposed plus those due to rod-rod
+                              ///< hydrodynamic interactions)
 
     /**
      * @brief Construct a new Sylinder object
@@ -424,15 +426,16 @@ class Sylinder {
      */
     template <class Container>
     static void writeVTPdist(const Container &sylinder, const int sylinderNumber, const std::string &prefix,
-                         const std::string &postfix, int rank) {
+                             const std::string &postfix, int rank) {
         // Extract the quadrature data. TODO: Update to account for cell species
         // NOTE: The number of quadrature points is currently inaccessable to the Sylinder class
-        // The below code is a temporary workaround to this problem and will be updated once the hydrodynamic effects are built as their own class within SimToolBox
+        // The below code is a temporary workaround to this problem and will be updated once the hydrodynamic effects
+        // are built as their own class within SimToolBox
         const int numQuadPt = 10;
         using Quad = QuadInt<N>;
         Quad quad = Quad(numQuadPt, 'c');
-        const auto sQuadPt  = quad.getPoints();
-        
+        const auto sQuadPt = quad.getPoints();
+
         // for each sylinder:
 
         // write VTP for data distributed along the sylinder
@@ -454,14 +457,17 @@ class Sylinder {
 #pragma omp parallel for
         for (int i = 0; i < sylinderNumber; i++) {
             const auto &sy = sylinder[i];
-    
+
             Evec3 direction = ECmapq(sy.orientation) * Evec3(0, 0, 1);
             // Loop over each line segment:
             for (int iCell = 0; iCell < sy.numQuadPt - 1; iCell++) {
                 // connectivity
-                connectivity[iCell * 2 + (sy.numQuadPt - 1) * i * 2] = iCell + sy.numQuadPt * i;         // index of beginning of each cell on line
-                connectivity[iCell * 2 + (sy.numQuadPt - 1) * i * 2 + 1] = iCell + sy.numQuadPt * i + 1; // index of end of each cell on line
-                offset[iCell + (sy.numQuadPt - 1) * i] = iCell * 2 + (sy.numQuadPt - 1) * i * 2 + 2;     // offset is the end of each line. in fortran indexing
+                connectivity[iCell * 2 + (sy.numQuadPt - 1) * i * 2] =
+                    iCell + sy.numQuadPt * i; // index of beginning of each cell on line
+                connectivity[iCell * 2 + (sy.numQuadPt - 1) * i * 2 + 1] =
+                    iCell + sy.numQuadPt * i + 1; // index of end of each cell on line
+                offset[iCell + (sy.numQuadPt - 1) * i] =
+                    iCell * 2 + (sy.numQuadPt - 1) * i * 2 + 2; // offset is the end of each line. in fortran indexing
             }
 
             // Loop over each point:
@@ -474,22 +480,23 @@ class Sylinder {
 
                 // sylinder data
                 for (int j = 0; j < 3; j++) {
-                    forceHydro[iPoint * 3 + sy.numQuadPt * i * 3 + j] = sy.forceHydro[iPoint * 3 + j]; 
+                    forceHydro[iPoint * 3 + sy.numQuadPt * i * 3 + j] = sy.forceHydro[iPoint * 3 + j];
                     uinfHydro[iPoint * 3 + sy.numQuadPt * i * 3 + j] = sy.uinfHydro[iPoint * 3 + j];
                 }
 
-                // point label 
+                // point label
                 label[iPoint + sy.numQuadPt * i] = sQuadPt[iPoint];
             }
         }
 
-        std::ofstream file(prefix + std::string("SylinderDist_") + "r" + std::to_string(rank) + std::string("_") + postfix +
-                               std::string(".vtp"),
+        std::ofstream file(prefix + std::string("SylinderDist_") + "r" + std::to_string(rank) + std::string("_") +
+                               postfix + std::string(".vtp"),
                            std::ios::out);
 
         IOHelper::writeHeadVTP(file);
 
-        file << "<Piece NumberOfPoints=\"" << sylinderNumber * numQuadPt << "\" NumberOfLines=\"" << sylinderNumber * (numQuadPt - 1) << "\">\n";
+        file << "<Piece NumberOfPoints=\"" << sylinderNumber * numQuadPt << "\" NumberOfLines=\""
+             << sylinderNumber * (numQuadPt - 1) << "\">\n";
         // Points
         file << "<Points>\n";
         IOHelper::writeDataArrayBase64(pos, "position", 3, file);
@@ -528,6 +535,6 @@ class SylinderAsciiHeader {
 static_assert(std::is_trivially_copyable<Sylinder<10>>::value, "");
 static_assert(std::is_default_constructible<Sylinder<10>>::value, "");
 
-//Include the Sylinder implimentation
+// Include the Sylinder implimentation
 #include "Sylinder.tpp"
 #endif
