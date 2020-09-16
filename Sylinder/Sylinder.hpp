@@ -461,7 +461,6 @@ class Sylinder {
             if (!sy.quadPtr) {
                 std::cout << "writeVTPdist failed sy.quadPtr undefined" << std::endl;
             }
-            const auto sQuadPt = sy.quadPtr->getPoints();
             Evec3 direction = ECmapq(sy.orientation) * Evec3(0, 0, 1);
             auto quadPtr = sy.quadPtr;
             const auto &sQuadPt = quadPtr->getPoints();

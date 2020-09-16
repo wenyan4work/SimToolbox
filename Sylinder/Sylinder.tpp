@@ -128,7 +128,8 @@ void Sylinder<N>::writePVTPdist(const std::string &prefix, const std::string &po
     std::vector<std::string> pieceNames;
 
     std::vector<IOHelper::FieldVTU> pointDataFields;
-    pointDataFields.emplace_back(1, IOHelper::IOTYPE::Float32, "endLabel");
+    pointDataFields.emplace_back(1, IOHelper::IOTYPE::Float32, "sQuad");
+    pointDataFields.emplace_back(1, IOHelper::IOTYPE::Float32, "weightQuad");
     pointDataFields.emplace_back(3, IOHelper::IOTYPE::Float32, "forceHydro");
     pointDataFields.emplace_back(3, IOHelper::IOTYPE::Float32, "uinfHydro");
 
