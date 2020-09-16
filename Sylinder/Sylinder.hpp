@@ -20,6 +20,7 @@
 
 #include <cstdio>
 #include <cstdlib>
+#include <numeric>
 #include <type_traits>
 #include <vector>
 
@@ -457,7 +458,10 @@ class Sylinder {
 #pragma omp parallel for
         for (int i = 0; i < sylinderNumber; i++) {
             const auto &sy = sylinder[i];
-
+            if (!sy.quadPtr) {
+                std::cout << "writeVTPdist failed sy.quadPtr undefined" << std::endl;
+            }
+            const auto sQuadPt = sy.quadPtr->getPoints();
             Evec3 direction = ECmapq(sy.orientation) * Evec3(0, 0, 1);
             auto quadPtr = sy.quadPtr;
             const auto &sQuadPt = quadPtr->getPoints();
