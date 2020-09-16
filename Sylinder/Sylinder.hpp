@@ -20,6 +20,7 @@
 
 #include <cstdio>
 #include <cstdlib>
+#include <numeric>
 #include <type_traits>
 #include <vector>
 
@@ -427,37 +428,38 @@ class Sylinder {
     template <class Container>
     static void writeVTPdist(const Container &sylinder, const int sylinderNumber, const std::string &prefix,
                              const std::string &postfix, int rank) {
-        // Extract the quadrature data. TODO: Update to account for cell species
-        // NOTE: The number of quadrature points is currently inaccessable to the Sylinder class
-        // The below code is a temporary workaround to this problem and will be updated once the hydrodynamic effects
-        // are built as their own class within SimToolBox
-        const int numQuadPt = 10;
-        using Quad = QuadInt<N>;
-        Quad quad = Quad(numQuadPt, 'c');
-        const auto sQuadPt = quad.getPoints();
-
-        // for each sylinder:
+        // Extract the quadrature number from each sylinder and calculate the total quad points in the entire system
+        int totalQuadPt[sylinderNumber];
+#pragma omp parallel for
+        for (int i = 0; i < sylinderNumber; i++) {
+            const auto &sy = sylinder[i];
+            totalQuadPt[i] = sy.numQuadPt;
+        }
+        const int numQuadPtSum = std::accumulate(totalQuadPt, totalQuadPt + sylinderNumber, 0);
 
         // write VTP for data distributed along the sylinder
         // use float to save some space
         // point and point data
-        std::vector<double> pos(3 * numQuadPt * sylinderNumber); // position always in Float64
-        std::vector<float> label(numQuadPt * sylinderNumber);
+        std::vector<double> pos(3 * numQuadPtSum); // position always in Float64
+        std::vector<float> label(numQuadPtSum);
 
         // point connectivity of line
-        std::vector<int32_t> connectivity(2 * (numQuadPt - 1) * sylinderNumber);
-        std::vector<int32_t> offset((numQuadPt - 1) * sylinderNumber);
+        std::vector<int32_t> connectivity(2 * numQuadPtSum - 2 * sylinderNumber);
+        std::vector<int32_t> offset(numQuadPtSum - sylinderNumber);
 
         // force
-        std::vector<float> forceHydro(3 * numQuadPt * sylinderNumber);
+        std::vector<float> forceHydro(3 * numQuadPtSum);
 
         // vel
-        std::vector<float> uinfHydro(3 * numQuadPt * sylinderNumber);
+        std::vector<float> uinfHydro(3 * numQuadPtSum);
 
 #pragma omp parallel for
         for (int i = 0; i < sylinderNumber; i++) {
             const auto &sy = sylinder[i];
-
+            if (!sy.quadPtr) {
+                std::cout << "writeVTPdist failed sy.quadPtr undefined" << std::endl;
+            }
+            const auto sQuadPt = sy.quadPtr->getPoints();
             Evec3 direction = ECmapq(sy.orientation) * Evec3(0, 0, 1);
             // Loop over each line segment:
             for (int iCell = 0; iCell < sy.numQuadPt - 1; iCell++) {
@@ -495,8 +497,8 @@ class Sylinder {
 
         IOHelper::writeHeadVTP(file);
 
-        file << "<Piece NumberOfPoints=\"" << sylinderNumber * numQuadPt << "\" NumberOfLines=\""
-             << sylinderNumber * (numQuadPt - 1) << "\">\n";
+        file << "<Piece NumberOfPoints=\"" << numQuadPtSum << "\" NumberOfLines=\"" << numQuadPtSum - sylinderNumber
+             << "\">\n";
         // Points
         file << "<Points>\n";
         IOHelper::writeDataArrayBase64(pos, "position", 3, file);
