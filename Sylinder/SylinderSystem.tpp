@@ -11,18 +11,19 @@
 #include <mpi.h>
 #include <omp.h>
 
-template<int N>
+template <int N>
 SylinderSystem<N>::SylinderSystem(const std::string &configFile, const std::string &posFile, int argc, char **argv) {
     initialize(SylinderConfig(configFile), posFile, argc, argv);
 }
 
-template<int N>
+template <int N>
 SylinderSystem<N>::SylinderSystem(const SylinderConfig &runConfig_, const std::string &posFile, int argc, char **argv) {
     initialize(runConfig_, posFile, argc, argv);
 }
 
-template<int N>
-void SylinderSystem<N>::initialize(const SylinderConfig &runConfig_, const std::string &posFile, int argc, char **argv) {
+template <int N>
+void SylinderSystem<N>::initialize(const SylinderConfig &runConfig_, const std::string &posFile, int argc,
+                                   char **argv) {
     runConfig = runConfig_;
     stepCount = 0;
     snapID = 0; // the first snapshot starts from 0 in writeResult
@@ -94,11 +95,11 @@ void SylinderSystem<N>::initialize(const SylinderConfig &runConfig_, const std::
            commRcp->getRank());
 }
 
-template<int N>
-void SylinderSystem<N>::reinitialize(const SylinderConfig &runConfig_, const std::string &restartFile, 
-                                     int argc, char **argv) {
+template <int N>
+void SylinderSystem<N>::reinitialize(const SylinderConfig &runConfig_, const std::string &restartFile, int argc,
+                                     char **argv) {
     runConfig = runConfig_;
-    
+
     std::string pvtpFileName;
     std::string pvtpDistFileName;
     // Read the timestep information and pvtp filenames from restartFile
@@ -127,7 +128,7 @@ void SylinderSystem<N>::reinitialize(const SylinderConfig &runConfig_, const std
     sylinderContainer.setAverageTargetNumberOfSampleParticlePerProcess(200); // more samples for better balance
 
     setInitialFromVTKFile(pvtpFileName, pvtpDistFileName);
-    
+
     // VTK data is wrote before the Euler step, thus we need to run one Euler step below
     stepEuler();
     stepCount++;
@@ -171,14 +172,14 @@ void SylinderSystem<N>::reinitialize(const SylinderConfig &runConfig_, const std
         forcePartNonBrownRcp.reset();
         velocityPartNonBrownRcp.reset();
         velocityNonBrownRcp.reset();
-        velocityBrownRcp.reset();    
+        velocityBrownRcp.reset();
     }
 
     printf("SylinderSystem Reinitialized. %d sylinders on process %d\n", sylinderContainer.getNumberOfParticleLocal(),
            commRcp->getRank());
 }
 
-template<int N>
+template <int N>
 void SylinderSystem<N>::setTreeSylinder() {
     // initialize tree
     // always keep tree max_glb_num_ptcl to be twice the global actual particle number.
@@ -192,8 +193,9 @@ void SylinderSystem<N>::setTreeSylinder() {
     }
 }
 
-template<int N>
-void SylinderSystem<N>::getOrient(Equatn &orient, const double px, const double py, const double pz, const int threadId) {
+template <int N>
+void SylinderSystem<N>::getOrient(Equatn &orient, const double px, const double py, const double pz,
+                                  const int threadId) {
     Evec3 pvec;
     if (px < -1 || px > 1) {
         pvec[0] = 2 * rngPoolPtr->getU01(threadId) - 1;
@@ -221,7 +223,7 @@ void SylinderSystem<N>::getOrient(Equatn &orient, const double px, const double 
     }
 }
 
-template<int N>
+template <int N>
 void SylinderSystem<N>::setInitialFromConfig() {
     // this function init all sylinders on rank 0
     if (runConfig.sylinderLengthSigma > 0) {
@@ -272,7 +274,7 @@ void SylinderSystem<N>::setInitialFromConfig() {
     }
 }
 
-template<int N>
+template <int N>
 void SylinderSystem<N>::setInitialCircularCrossSection() {
     const int nLocal = sylinderContainer.getNumberOfParticleLocal();
     double radiusCrossSec = 0;            // x, y, z, axis radius
@@ -297,7 +299,7 @@ void SylinderSystem<N>::setInitialCircularCrossSection() {
     }
 }
 
-template<int N>
+template <int N>
 void SylinderSystem<N>::calcVolFrac() {
     // calc volume fraction of sphero cylinders
     // step 1, calc local total volume
@@ -322,7 +324,7 @@ void SylinderSystem<N>::calcVolFrac() {
     }
 }
 
-template<int N>
+template <int N>
 void SylinderSystem<N>::setInitialFromFile(const std::string &filename) {
     if (commRcp->getRank() != 0) {
         sylinderContainer.setNumberOfParticleLocal(0);
@@ -375,14 +377,13 @@ void SylinderSystem<N>::setInitialFromFile(const std::string &filename) {
     }
 }
 
-template<int N>
-void SylinderSystem<N>::setInitialFromVTKFile(const std::string &pvtpFileName, 
-                                              const std::string &pvtpDistFileName) {
+template <int N>
+void SylinderSystem<N>::setInitialFromVTKFile(const std::string &pvtpFileName, const std::string &pvtpDistFileName) {
     if (commRcp->getRank() != 0) {
         sylinderContainer.setNumberOfParticleLocal(0);
     } else {
         std::string baseFolder = getCurrentResultFolder();
-       
+
         // Read the pvtp file and automatically merge the vtks files into a single polydata
         vtkSmartPointer<vtkXMLPPolyDataReader> reader1 = vtkSmartPointer<vtkXMLPPolyDataReader>::New();
         std::cout << "Reading " << baseFolder + pvtpFileName << std::endl;
@@ -391,7 +392,7 @@ void SylinderSystem<N>::setInitialFromVTKFile(const std::string &pvtpFileName,
 
         // Extract the polydata (At this point, the polydaya is unsorted)
         vtkSmartPointer<vtkPolyData> polydata1 = reader1->GetOutput();
-        
+
         // Extract the point/cell data
         vtkSmartPointer<vtkPoints> posData = polydata1->GetPoints();
         vtkSmartPointer<vtkDataArray> gidData = polydata1->GetCellData()->GetArray("gid");
@@ -426,14 +427,14 @@ void SylinderSystem<N>::setInitialFromVTKFile(const std::string &pvtpFileName,
         double rightEndpointPos[3];
         std::vector<Sylinder<N>> sylinderReadFromFile;
 
-// #pragma omp parallel for (cannot be ran in parrelel due to competition between threads)
+        // #pragma omp parallel for (cannot be ran in parrelel due to competition between threads)
         for (int i = 0; i < runConfig.sylinderNumber; i++) {
             Sylinder<N> newBody;
             posData->GetPoint(i * 2, leftEndpointPos);
             posData->GetPoint(i * 2 + 1, rightEndpointPos);
             newBody.pos[0] = (leftEndpointPos[0] + rightEndpointPos[0]) / 2;
             newBody.pos[1] = (leftEndpointPos[1] + rightEndpointPos[1]) / 2;
-            newBody.pos[2] = (leftEndpointPos[2] + rightEndpointPos[2]) / 2;        
+            newBody.pos[2] = (leftEndpointPos[2] + rightEndpointPos[2]) / 2;
             newBody.gid = gidData->GetComponent(i, 0);
             newBody.numQuadPt = numQuadPtData->GetComponent(i, 0);
             newBody.link.group = groupData->GetComponent(i, 0);
@@ -441,8 +442,7 @@ void SylinderSystem<N>::setInitialFromVTKFile(const std::string &pvtpFileName,
             newBody.lengthCollision = lengthCollisionData->GetComponent(i, 0);
             newBody.radius = radiusData->GetComponent(i, 0);
             newBody.radiusCollision = radiusCollisionData->GetComponent(i, 0);
-            const Evec3 direction(znormData->GetComponent(i, 0),
-                                  znormData->GetComponent(i, 1),
+            const Evec3 direction(znormData->GetComponent(i, 0), znormData->GetComponent(i, 1),
                                   znormData->GetComponent(i, 2));
             Emapq(newBody.orientation) = Equatn::FromTwoVectors(Evec3(0, 0, 1), direction);
             newBody.vel[0] = velData->GetComponent(i, 0);
@@ -459,8 +459,8 @@ void SylinderSystem<N>::setInitialFromVTKFile(const std::string &pvtpFileName,
                                                 forceHydroData->GetComponent(i * newBody.numQuadPt + iQuadPt, 1),
                                                 forceHydroData->GetComponent(i * newBody.numQuadPt + iQuadPt, 2));
             }
-            EmatmapN(newBody.uinfHydro).block(0,0,3,newBody.numQuadPt) = uinfHydro;
-            EmatmapN(newBody.forceHydro).block(0,0,3,newBody.numQuadPt) = forceHydro;
+            EmatmapN(newBody.uinfHydro).block(0, 0, 3, newBody.numQuadPt) = uinfHydro;
+            EmatmapN(newBody.forceHydro).block(0, 0, 3, newBody.numQuadPt) = forceHydro;
 
             sylinderReadFromFile.push_back(newBody);
         }
@@ -476,12 +476,13 @@ void SylinderSystem<N>::setInitialFromVTKFile(const std::string &pvtpFileName,
 #pragma omp parallel for
         for (int i = 0; i < nRead; i++) {
             sylinderContainer[i] = sylinderReadFromFile[i];
-            // sylinderContainer[i].clear(); (Do not clear the sylinderContainer as the velocity data is needed to take a EulerStep)
+            // sylinderContainer[i].clear(); (Do not clear the sylinderContainer as the velocity data is needed to take
+            // a EulerStep)
         }
     }
 }
 
-template<int N>
+template <int N>
 std::string SylinderSystem<N>::getCurrentResultFolder() {
     const int num = std::max(400 / commRcp->getSize(), 1); // limit max number of files per folder
     int k = snapID / num;
@@ -491,7 +492,7 @@ std::string SylinderSystem<N>::getCurrentResultFolder() {
     return baseFolder;
 }
 
-template<int N>
+template <int N>
 void SylinderSystem<N>::writeAscii(const std::string &baseFolder) {
     // write a single ascii .dat file
     const int nGlobal = sylinderContainer.getNumberOfParticleGlobal();
@@ -503,7 +504,7 @@ void SylinderSystem<N>::writeAscii(const std::string &baseFolder) {
     sylinderContainer.writeParticleAscii(name.c_str(), header);
 }
 
-template<int N>
+template <int N>
 void SylinderSystem<N>::writeTimeStepInfo(const std::string &baseFolder) {
     // write a single txt file containing timestep and most recent pvtp file names
     std::string name = baseFolder + std::string("../../TimeStepInfo.txt");
@@ -518,12 +519,12 @@ void SylinderSystem<N>::writeTimeStepInfo(const std::string &baseFolder) {
     fclose(restartFile);
 }
 
-template<int N>
+template <int N>
 void SylinderSystem<N>::writeVTK(const std::string &baseFolder) {
     const int rank = commRcp->getRank();
     const int size = commRcp->getSize();
-    Sylinder<N>::template writeVTP<PS::ParticleSystem<Sylinder<N>>>(sylinderContainer, sylinderContainer.getNumberOfParticleLocal(),
-                                                     baseFolder, std::to_string(snapID), rank);
+    Sylinder<N>::template writeVTP<PS::ParticleSystem<Sylinder<N>>>(
+        sylinderContainer, sylinderContainer.getNumberOfParticleLocal(), baseFolder, std::to_string(snapID), rank);
     conCollectorPtr->writeVTP(baseFolder, "", std::to_string(snapID), rank);
     if (rank == 0) {
         Sylinder<N>::writePVTP(baseFolder, std::to_string(snapID), size); // write parallel head
@@ -531,18 +532,18 @@ void SylinderSystem<N>::writeVTK(const std::string &baseFolder) {
     }
 }
 
-template<int N>
+template <int N>
 void SylinderSystem<N>::writeVTKdist(const std::string &baseFolder) {
     const int rank = commRcp->getRank();
     const int size = commRcp->getSize();
-    Sylinder<N>::template writeVTPdist<PS::ParticleSystem<Sylinder<N>>>(sylinderContainer, sylinderContainer.getNumberOfParticleLocal(),
-                                                     baseFolder, std::to_string(snapID), rank);
+    Sylinder<N>::template writeVTPdist<PS::ParticleSystem<Sylinder<N>>>(
+        sylinderContainer, sylinderContainer.getNumberOfParticleLocal(), baseFolder, std::to_string(snapID), rank);
     if (rank == 0) {
         Sylinder<N>::writePVTPdist(baseFolder, std::to_string(snapID), size); // write parallel head
     }
 }
 
-template<int N>
+template <int N>
 void SylinderSystem<N>::writeBox() {
     FILE *boxFile = fopen("./result/simBox.vtk", "w");
     fprintf(boxFile, "# vtk DataFile Version 3.0\n");
@@ -561,7 +562,7 @@ void SylinderSystem<N>::writeBox() {
     fclose(boxFile);
 }
 
-template<int N>
+template <int N>
 void SylinderSystem<N>::writeResult() {
     std::string baseFolder = getCurrentResultFolder();
     IOHelper::makeSubFolder(baseFolder);
@@ -572,7 +573,7 @@ void SylinderSystem<N>::writeResult() {
     snapID++;
 }
 
-template<int N>
+template <int N>
 void SylinderSystem<N>::showOnScreenRank0() {
     if (commRcp->getRank() == 0) {
         printf("-----------SylinderSystem Settings-----------\n");
@@ -586,7 +587,7 @@ void SylinderSystem<N>::showOnScreenRank0() {
     // commRcp->barrier();
 }
 
-template<int N>
+template <int N>
 void SylinderSystem<N>::setDomainInfo() {
     const int pbcX = (runConfig.simBoxPBC[0] ? 1 : 0);
     const int pbcY = (runConfig.simBoxPBC[1] ? 1 : 0);
@@ -630,19 +631,19 @@ void SylinderSystem<N>::setDomainInfo() {
     dinfo.setPosRootDomain(rootDomainLow, rootDomainHigh); // rootdomain must be specified after PBC
 }
 
-template<int N>
+template <int N>
 void SylinderSystem<N>::decomposeDomain() {
     applyBoxBC();
     dinfo.decomposeDomainAll(sylinderContainer);
 }
 
-template<int N>
+template <int N>
 void SylinderSystem<N>::exchangeSylinder() {
     sylinderContainer.exchangeParticle(dinfo);
     updateSylinderRank();
 }
 
-template<int N>
+template <int N>
 void SylinderSystem<N>::calcMobMatrix() {
     // diagonal hydro mobility operator
     // 3*3 block for translational + 3*3 block for rotational.
@@ -748,13 +749,13 @@ void SylinderSystem<N>::calcMobMatrix() {
 #endif
 }
 
-template<int N>
+template <int N>
 void SylinderSystem<N>::calcMobOperator() {
     calcMobMatrix();
     mobilityOperatorRcp = mobilityMatrixRcp;
 }
 
-template<int N>
+template <int N>
 void SylinderSystem<N>::calcVelocityNonCon() {
     // velocityNonCon = velocityBrown + velocityPartNonBrown + mobility * forcePartNonBrown
     // if monolayer, set velBrownZ =0, velPartNonBrownZ =0, frocePartNonBrownZ =0
@@ -830,7 +831,7 @@ void SylinderSystem<N>::calcVelocityNonCon() {
     }
 }
 
-template<int N>
+template <int N>
 void SylinderSystem<N>::sumForceVelocity() {
     const int nLocal = sylinderContainer.getNumberOfParticleLocal();
 #pragma omp parallel for
@@ -845,7 +846,7 @@ void SylinderSystem<N>::sumForceVelocity() {
     }
 }
 
-template<int N>
+template <int N>
 void SylinderSystem<N>::stepEuler() {
     const int nLocal = sylinderContainer.getNumberOfParticleLocal();
     const double dt = runConfig.dt;
@@ -859,7 +860,7 @@ void SylinderSystem<N>::stepEuler() {
     }
 }
 
-template<int N>
+template <int N>
 void SylinderSystem<N>::resolveConstraints() {
 
     Teuchos::RCP<Teuchos::Time> collectColTimer =
@@ -902,7 +903,7 @@ void SylinderSystem<N>::resolveConstraints() {
     saveForceVelocityConstraints();
 }
 
-template<int N>
+template <int N>
 void SylinderSystem<N>::updateSylinderMap() {
     const int nLocal = sylinderContainer.getNumberOfParticleLocal();
     // setup the new sylinderMap
@@ -917,12 +918,12 @@ void SylinderSystem<N>::updateSylinderMap() {
     }
 }
 
-template<int N>
+template <int N>
 bool SylinderSystem<N>::getIfWriteResultCurrentStep() {
     return (stepCount % static_cast<int>(runConfig.timeSnap / runConfig.dt) == 0);
 }
 
-template<int N>
+template <int N>
 void SylinderSystem<N>::prepareStep() {
     applyBoxBC();
 
@@ -966,7 +967,7 @@ void SylinderSystem<N>::prepareStep() {
     velocityBrownRcp.reset();
 }
 
-template<int N>
+template <int N>
 void SylinderSystem<N>::setForceNonBrown(const std::vector<double> &forceNonBrown) {
     const int nLocal = sylinderContainer.getNumberOfParticleLocal();
     TEUCHOS_ASSERT(forceNonBrown.size() == 6 * nLocal);
@@ -974,7 +975,7 @@ void SylinderSystem<N>::setForceNonBrown(const std::vector<double> &forceNonBrow
     forcePartNonBrownRcp = getTVFromVector(forceNonBrown, commRcp);
 }
 
-template<int N>
+template <int N>
 void SylinderSystem<N>::setVelocityNonBrown(const std::vector<double> &velNonBrown) {
     const int nLocal = sylinderContainer.getNumberOfParticleLocal();
     TEUCHOS_ASSERT(velNonBrown.size() == 6 * nLocal);
@@ -982,7 +983,7 @@ void SylinderSystem<N>::setVelocityNonBrown(const std::vector<double> &velNonBro
     velocityPartNonBrownRcp = getTVFromVector(velNonBrown, commRcp);
 }
 
-template<int N>
+template <int N>
 void SylinderSystem<N>::runStep() {
 
     if (runConfig.KBT > 0) {
@@ -1005,7 +1006,7 @@ void SylinderSystem<N>::runStep() {
     stepCount++;
 }
 
-template<int N>
+template <int N>
 void SylinderSystem<N>::saveForceVelocityConstraints() {
     // save results
     forceUniRcp = conSolverPtr->getForceUni();
@@ -1055,7 +1056,7 @@ void SylinderSystem<N>::saveForceVelocityConstraints() {
     }
 }
 
-template<int N>
+template <int N>
 void SylinderSystem<N>::calcVelocityBrown() {
     const int nLocal = sylinderContainer.getNumberOfParticleLocal();
     const double Pi = 3.1415926535897932384626433;
@@ -1128,7 +1129,7 @@ void SylinderSystem<N>::calcVelocityBrown() {
     }
 }
 
-template<int N>
+template <int N>
 void SylinderSystem<N>::collectBoundaryCollision() {
     auto collisionPoolPtr = conCollectorPtr->constraintPoolPtr; // shared_ptr
     const int nThreads = collisionPoolPtr->size();
@@ -1182,7 +1183,7 @@ void SylinderSystem<N>::collectBoundaryCollision() {
     return;
 }
 
-template<int N>
+template <int N>
 void SylinderSystem<N>::collectPairCollision() {
 
     CalcSylinderNearForce calcColFtr(conCollectorPtr->constraintPoolPtr, runConfig.sylinderColBuf);
@@ -1210,7 +1211,7 @@ void SylinderSystem<N>::collectPairCollision() {
     }
 }
 
-template<int N>
+template <int N>
 std::pair<int, int> SylinderSystem<N>::getMaxGid() {
     int maxGidLocal = 0;
     const int nLocal = sylinderContainer.getNumberOfParticleLocal();
@@ -1226,9 +1227,9 @@ std::pair<int, int> SylinderSystem<N>::getMaxGid() {
     return std::pair<int, int>(maxGidLocal, maxGidGlobal);
 }
 
-template<int N>
+template <int N>
 void SylinderSystem<N>::calcBoundingBox(double localLow[3], double localHigh[3], double globalLow[3],
-                                     double globalHigh[3]) {
+                                        double globalHigh[3]) {
     const int nLocal = sylinderContainer.getNumberOfParticleLocal();
     double lx, ly, lz;
     lx = ly = lz = std::numeric_limits<double>::max();
@@ -1266,7 +1267,7 @@ void SylinderSystem<N>::calcBoundingBox(double localLow[3], double localHigh[3],
     return;
 }
 
-template<int N>
+template <int N>
 void SylinderSystem<N>::updateSylinderRank() {
     const int nLocal = sylinderContainer.getNumberOfParticleLocal();
     const int rank = commRcp->getRank();
@@ -1276,10 +1277,12 @@ void SylinderSystem<N>::updateSylinderRank() {
     }
 }
 
-template<int N>
-void SylinderSystem<N>::applyBoxBC() { sylinderContainer.adjustPositionIntoRootDomain(dinfo); }
+template <int N>
+void SylinderSystem<N>::applyBoxBC() {
+    sylinderContainer.adjustPositionIntoRootDomain(dinfo);
+}
 
-template<int N>
+template <int N>
 void SylinderSystem<N>::calcConStress() {
     Emat3 sumBiStress = Emat3::Zero();
     Emat3 sumUniStress = Emat3::Zero();
@@ -1318,7 +1321,7 @@ void SylinderSystem<N>::calcConStress() {
     }
 }
 
-template<int N>
+template <int N>
 void SylinderSystem<N>::calcOrderParameter() {
     double px = 0, py = 0, pz = 0;    // pvec
     double Qxx = 0, Qxy = 0, Qxz = 0; // Qtensor
@@ -1371,7 +1374,7 @@ void SylinderSystem<N>::calcOrderParameter() {
 //     const double buffer = 1e-4;
 // }
 
-template<int N>
+template <int N>
 void SylinderSystem<N>::addNewSylinder(std::vector<Sylinder<N>> &newSylinder, std::vector<Link> &linkage) {
     // assign unique new gid for sylinders on all ranks
     std::pair<int, int> maxGid = getMaxGid();
@@ -1429,14 +1432,14 @@ void SylinderSystem<N>::addNewSylinder(std::vector<Sylinder<N>> &newSylinder, st
     }
 }
 
-template<int N>
+template <int N>
 void SylinderSystem<N>::printRank0(const std::string &message) {
     if (commRcp->getRank() == 0) {
         std::cout << message << std::endl;
     }
 }
 
-template<int N>
+template <int N>
 void SylinderSystem<N>::buildSylinderNearDataDirectory() {
     const size_t nLocal = sylinderContainer.getNumberOfParticleLocal();
     auto &sylinderNearDataDirectory = *sylinderNearDataDirectoryPtr;

@@ -427,65 +427,61 @@ class Sylinder {
     template <class Container>
     static void writeVTPdist(const Container &sylinder, const int sylinderNumber, const std::string &prefix,
                              const std::string &postfix, int rank) {
-        // Extract the quadrature data. TODO: Update to account for cell species
-        // NOTE: The number of quadrature points is currently inaccessable to the Sylinder class
-        // The below code is a temporary workaround to this problem and will be updated once the hydrodynamic effects
-        // are built as their own class within SimToolBox
-        const int numQuadPt = 10;
-        using Quad = QuadInt<N>;
-        Quad quad = Quad(numQuadPt, 'c');
-        const auto sQuadPt = quad.getPoints();
+
+        // build index
+        std::vector<int> rodPts(sylinderNumber, 0);
+        std::vector<int> rodPtsIndex(sylinderNumber + 1, 0);
+        for (int i = 0; i < sylinderNumber; i++) {
+            const auto &sy = sylinder[i];
+            rodPts[i] = sy.numQuadPt;
+            rodPtsIndex[i + 1] = rodPts[i] + rodPtsIndex[i];
+            assert(sy.numQuadPt == sy.quadPtr->getSize());
+        }
+        const int nPtsLocal = rodPtsIndex.back();
 
         // for each sylinder:
 
         // write VTP for data distributed along the sylinder
         // use float to save some space
         // point and point data
-        std::vector<double> pos(3 * numQuadPt * sylinderNumber); // position always in Float64
-        std::vector<float> label(numQuadPt * sylinderNumber);
+        std::vector<double> pos(3 * nPtsLocal); // position always in Float64
+        std::vector<float> forceHydro(3 * nPtsLocal);
+        std::vector<float> uinfHydro(3 * nPtsLocal);
+        std::vector<float> sQuad(nPtsLocal);
+        std::vector<float> weightQuad(nPtsLocal);
 
         // point connectivity of line
-        std::vector<int32_t> connectivity(2 * (numQuadPt - 1) * sylinderNumber);
-        std::vector<int32_t> offset((numQuadPt - 1) * sylinderNumber);
-
-        // force
-        std::vector<float> forceHydro(3 * numQuadPt * sylinderNumber);
-
-        // vel
-        std::vector<float> uinfHydro(3 * numQuadPt * sylinderNumber);
+        std::vector<int32_t> connectivity(nPtsLocal, 0);
+        std::vector<int32_t> offset(sylinderNumber);
 
 #pragma omp parallel for
         for (int i = 0; i < sylinderNumber; i++) {
             const auto &sy = sylinder[i];
 
             Evec3 direction = ECmapq(sy.orientation) * Evec3(0, 0, 1);
-            // Loop over each line segment:
-            for (int iCell = 0; iCell < sy.numQuadPt - 1; iCell++) {
-                // connectivity
-                connectivity[iCell * 2 + (sy.numQuadPt - 1) * i * 2] =
-                    iCell + sy.numQuadPt * i; // index of beginning of each cell on line
-                connectivity[iCell * 2 + (sy.numQuadPt - 1) * i * 2 + 1] =
-                    iCell + sy.numQuadPt * i + 1; // index of end of each cell on line
-                offset[iCell + (sy.numQuadPt - 1) * i] =
-                    iCell * 2 + (sy.numQuadPt - 1) * i * 2 + 2; // offset is the end of each line. in fortran indexing
-            }
-
+            auto quadPtr = sy.quadPtr;
+            const auto &sQuadPt = quadPtr->getPoints();
+            const auto &wQuadPt = quadPtr->getWeights();
+            const int idx = rodPtsIndex[i];
+            offset[i] = rodPtsIndex[i + 1];
             // Loop over each point:
             for (int iPoint = 0; iPoint < sy.numQuadPt; iPoint++) {
+                connectivity[idx + iPoint] = idx + iPoint;
+
                 // position data
-                Evec3 loc = ECmap3(sy.pos) + sy.length / 2 * sQuadPt[iPoint] * direction;
-                pos[iPoint * 3 + sy.numQuadPt * i * 3 + 0] = loc[0];
-                pos[iPoint * 3 + sy.numQuadPt * i * 3 + 1] = loc[1];
-                pos[iPoint * 3 + sy.numQuadPt * i * 3 + 2] = loc[2];
+                Evec3 loc = ECmap3(sy.pos) + (sy.length * 0.5 * sQuadPt[iPoint]) * direction;
+                pos[(iPoint + idx) * 3 + 0] = loc[0];
+                pos[(iPoint + idx) * 3 + 1] = loc[1];
+                pos[(iPoint + idx) * 3 + 2] = loc[2];
+                // quadrature data
+                weightQuad[idx + iPoint] = wQuadPt[iPoint];
+                sQuad[idx + iPoint] = sQuadPt[iPoint];
 
                 // sylinder data
                 for (int j = 0; j < 3; j++) {
-                    forceHydro[iPoint * 3 + sy.numQuadPt * i * 3 + j] = sy.forceHydro[iPoint * 3 + j];
-                    uinfHydro[iPoint * 3 + sy.numQuadPt * i * 3 + j] = sy.uinfHydro[iPoint * 3 + j];
+                    forceHydro[3 * (idx + iPoint) + j] = sy.forceHydro[iPoint * 3 + j];
+                    uinfHydro[3 * (idx + iPoint) + j] = sy.uinfHydro[iPoint * 3 + j];
                 }
-
-                // point label
-                label[iPoint + sy.numQuadPt * i] = sQuadPt[iPoint];
             }
         }
 
@@ -495,8 +491,7 @@ class Sylinder {
 
         IOHelper::writeHeadVTP(file);
 
-        file << "<Piece NumberOfPoints=\"" << sylinderNumber * numQuadPt << "\" NumberOfLines=\""
-             << sylinderNumber * (numQuadPt - 1) << "\">\n";
+        file << "<Piece NumberOfPoints=\"" << nPtsLocal << "\" NumberOfLines=\"" << sylinderNumber << "\">\n";
         // Points
         file << "<Points>\n";
         IOHelper::writeDataArrayBase64(pos, "position", 3, file);
@@ -508,7 +503,8 @@ class Sylinder {
         file << "</Lines>\n";
         // point data
         file << "<PointData Scalars=\"scalars\">\n";
-        IOHelper::writeDataArrayBase64(label, "endLabel", 1, file);
+        IOHelper::writeDataArrayBase64(sQuad, "sQuad", 1, file);
+        IOHelper::writeDataArrayBase64(weightQuad, "weightQuad", 1, file);
         IOHelper::writeDataArrayBase64(forceHydro, "forceHydro", 3, file);
         IOHelper::writeDataArrayBase64(uinfHydro, "uinfHydro", 3, file);
         file << "</PointData>\n";
