@@ -404,6 +404,7 @@ void SylinderSystem<N>::setInitialFromVTKFile(const std::string &pvtpFileName, c
         vtkSmartPointer<vtkDataArray> radiusCollisionData = polydata1->GetCellData()->GetArray("radiusCollision");
         vtkSmartPointer<vtkDataArray> znormData = polydata1->GetCellData()->GetArray("znorm");
         vtkSmartPointer<vtkDataArray> velData = polydata1->GetCellData()->GetArray("vel");
+        vtkSmartPointer<vtkDataArray> omegaData = polydata1->GetCellData()->GetArray("omega");
 
         // Read read and combine the distributed vtk files
         vtkSmartPointer<vtkXMLPPolyDataReader> reader2 = vtkSmartPointer<vtkXMLPPolyDataReader>::New();
@@ -448,6 +449,9 @@ void SylinderSystem<N>::setInitialFromVTKFile(const std::string &pvtpFileName, c
             newBody.vel[0] = velData->GetComponent(i, 0);
             newBody.vel[1] = velData->GetComponent(i, 1);
             newBody.vel[2] = velData->GetComponent(i, 2);
+            newBody.omega[0] = omegaData->GetComponent(i, 0);
+            newBody.omega[1] = omegaData->GetComponent(i, 1);
+            newBody.omega[2] = omegaData->GetComponent(i, 2);
 
             EmatQuadPt uinfHydro(3, newBody.numQuadPt);
             EmatQuadPt forceHydro(3, newBody.numQuadPt);
