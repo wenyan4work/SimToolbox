@@ -93,6 +93,63 @@ void SylinderSystem::initialize(const SylinderConfig &runConfig_, const std::str
            commRcp->getRank());
 }
 
+void SylinderSystem::reinitialize(const SylinderConfig &runConfig_, const std::string &restartFile, int argc, char **argv) {
+    runConfig = runConfig_;
+
+    // Read the timestep information and pvtp filenames from restartFile
+    std::string pvtpFileName;   
+    std::ifstream myfile(restartFile);
+
+    myfile >> restartRngSeed;
+    myfile >> stepCount;
+    myfile >> snapID;
+    myfile >> pvtpFileName;
+
+    // increment the rngStep forward by one to ensure randomness compared to previous run
+    restartRngStep++;
+
+    // set MPI
+    int mpiflag;
+    MPI_Initialized(&mpiflag);
+    TEUCHOS_ASSERT(mpiflag);
+    commRcp = getMPIWORLDTCOMM();
+    showOnScreenRank0();
+
+    // TRNG pool must be initialized after mpi is initialized
+    rngPoolPtr = std::make_shared<TRngPool>(restartRngSeed);
+    conSolverPtr = std::make_shared<ConstraintSolver>();
+    conCollectorPtr = std::make_shared<ConstraintCollector>();
+
+    dinfo.initialize(); // init DomainInfo
+    setDomainInfo();
+
+    sylinderContainer.initialize();
+    sylinderContainer.setAverageTargetNumberOfSampleParticlePerProcess(200); // more samples for better balance
+
+    setInitialFromVTKFile(pvtpFileName);
+
+    // VTK data is wrote before the Euler step, thus we need to run one Euler step below
+    stepEuler();
+    stepCount++;
+    snapID++;
+
+    // at this point all sylinders located on rank 0
+    commRcp->barrier();
+    decomposeDomain();
+    exchangeSylinder(); // distribute to ranks, initial domain decomposition
+
+    sylinderNearDataDirectoryPtr = std::make_shared<ZDD<SylinderNearEP>>(sylinderContainer.getNumberOfParticleLocal());
+
+    treeSylinderNumber = 0;
+    setTreeSylinder();
+    calcVolFrac();
+
+    prepareStep();
+
+    printf("SylinderSystem Reinitialized. %d sylinders on process %d\n", sylinderContainer.getNumberOfParticleLocal(),
+           commRcp->getRank());
+}
+
 void SylinderSystem::setTreeSylinder() {
     // initialize tree
     // always keep tree max_glb_num_ptcl to be twice the global actual particle number.
@@ -284,6 +341,83 @@ void SylinderSystem::setInitialFromFile(const std::string &filename) {
     }
 }
 
+
+void SylinderSystem::setInitialFromVTKFile(const std::string &pvtpFileName) {
+    if (commRcp->getRank() != 0) {
+        sylinderContainer.setNumberOfParticleLocal(0);
+    } else {
+        std::string baseFolder = getCurrentResultFolder();
+
+        // Read the pvtp file and automatically merge the vtks files into a single polydata
+        vtkSmartPointer<vtkXMLPPolyDataReader> reader1 = vtkSmartPointer<vtkXMLPPolyDataReader>::New();
+        std::cout << "Reading " << baseFolder + pvtpFileName << std::endl;
+        reader1->SetFileName((baseFolder + pvtpFileName).c_str());
+        reader1->Update();
+
+        // Extract the polydata (At this point, the polydaya is unsorted)
+        vtkSmartPointer<vtkPolyData> polydata1 = reader1->GetOutput();
+
+        // Extract the point/cell data
+        vtkSmartPointer<vtkPoints> posData = polydata1->GetPoints();
+        vtkSmartPointer<vtkDataArray> gidData = polydata1->GetCellData()->GetArray("gid");
+        vtkSmartPointer<vtkDataArray> groupData = polydata1->GetCellData()->GetArray("group");
+        vtkSmartPointer<vtkDataArray> lengthData = polydata1->GetCellData()->GetArray("length");
+        vtkSmartPointer<vtkDataArray> lengthCollisionData = polydata1->GetCellData()->GetArray("lengthCollision");
+        vtkSmartPointer<vtkDataArray> radiusData = polydata1->GetCellData()->GetArray("radius");
+        vtkSmartPointer<vtkDataArray> radiusCollisionData = polydata1->GetCellData()->GetArray("radiusCollision");
+        vtkSmartPointer<vtkDataArray> znormData = polydata1->GetCellData()->GetArray("znorm");
+        vtkSmartPointer<vtkDataArray> velData = polydata1->GetCellData()->GetArray("vel");
+        vtkSmartPointer<vtkDataArray> omegaData = polydata1->GetCellData()->GetArray("omega");
+
+        // Store the data within a temporary vector of Sylinders
+        double leftEndpointPos[3];
+        double rightEndpointPos[3];
+        std::vector<Sylinder> sylinderReadFromFile;
+
+        // #pragma omp parallel for (cannot be ran in parrelel due to competition between threads)
+        for (int i = 0; i < runConfig.sylinderNumber; i++) {
+            Sylinder newBody;
+            posData->GetPoint(i * 2, leftEndpointPos);
+            posData->GetPoint(i * 2 + 1, rightEndpointPos);
+            newBody.pos[0] = (leftEndpointPos[0] + rightEndpointPos[0]) / 2;
+            newBody.pos[1] = (leftEndpointPos[1] + rightEndpointPos[1]) / 2;
+            newBody.pos[2] = (leftEndpointPos[2] + rightEndpointPos[2]) / 2;
+            newBody.gid = gidData->GetComponent(i, 0);
+            newBody.link.group = groupData->GetComponent(i, 0);
+            newBody.length = lengthData->GetComponent(i, 0);
+            newBody.lengthCollision = lengthCollisionData->GetComponent(i, 0);
+            newBody.radius = radiusData->GetComponent(i, 0);
+            newBody.radiusCollision = radiusCollisionData->GetComponent(i, 0);
+            const Evec3 direction(znormData->GetComponent(i, 0), znormData->GetComponent(i, 1),
+                                  znormData->GetComponent(i, 2));
+            Emapq(newBody.orientation) = Equatn::FromTwoVectors(Evec3(0, 0, 1), direction);
+            newBody.vel[0] = velData->GetComponent(i, 0);
+            newBody.vel[1] = velData->GetComponent(i, 1);
+            newBody.vel[2] = velData->GetComponent(i, 2);
+            newBody.omega[0] = omegaData->GetComponent(i, 0);
+            newBody.omega[1] = omegaData->GetComponent(i, 1);
+            newBody.omega[2] = omegaData->GetComponent(i, 2);
+
+            sylinderReadFromFile.push_back(newBody);
+        }
+
+        // sort the vector of Sylinders by gid ascending;
+        std::cout << "Sylinder number in file: " << sylinderReadFromFile.size() << std::endl;
+        std::sort(sylinderReadFromFile.begin(), sylinderReadFromFile.end(),
+                  [](const Sylinder &t1, const Sylinder &t2) { return t1.gid < t2.gid; });
+
+        // set local
+        const int nRead = sylinderReadFromFile.size();
+        sylinderContainer.setNumberOfParticleLocal(nRead);
+#pragma omp parallel for
+        for (int i = 0; i < nRead; i++) {
+            sylinderContainer[i] = sylinderReadFromFile[i];
+            // sylinderContainer[i].clear(); (Do not clear the sylinderContainer as the velocity data is needed to take
+            // a EulerStep)
+        }
+    }
+}
+
 std::string SylinderSystem::getCurrentResultFolder() {
     const int num = std::max(400 / commRcp->getSize(), 1); // limit max number of files per folder
     int k = snapID / num;
@@ -302,6 +436,20 @@ void SylinderSystem::writeAscii(const std::string &baseFolder) {
     header.nparticle = nGlobal;
     header.time = stepCount * runConfig.dt;
     sylinderContainer.writeParticleAscii(name.c_str(), header);
+}
+
+template <int N>
+void SylinderSystem<N>::writeTimeStepInfo(const std::string &baseFolder) {
+    // write a single txt file containing timestep and most recent pvtp file names
+    std::string name = baseFolder + std::string("../../TimeStepInfo.txt");
+    std::string pvtpFileName = std::string("Sylinder_") + std::to_string(snapID) + std::string(".pvtp");
+
+    FILE *restartFile = fopen(name.c_str(), "w");
+    fprintf(restartFile, "%u\n", restartRngSeed);
+    fprintf(restartFile, "%u\n", stepCount);
+    fprintf(restartFile, "%u\n", snapID);
+    fprintf(restartFile, "%s\n", pvtpFileName.c_str());
+    fclose(restartFile);
 }
 
 void SylinderSystem::writeVTK(const std::string &baseFolder) {
