@@ -15,9 +15,9 @@ find_package(MPI REQUIRED)
 # target_link_libraries(exe PRIVATE MPI::MPI_CXX)
 
 # Get VTK
-find_package(VTK REQUIRED)
-if (VTK_FOUND)
-  add_definitions("-D USE_VTK")
+find_package(VTK REQUIRED PATHS ${SFTPATH} NO_DEFAULT_PATH)
+if(VTK_FOUND)
+  # add_definitions("-D USE_VTK")
   message("Found VTK at ${VTK_DIR}")
 endif()
 

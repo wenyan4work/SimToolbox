@@ -25,6 +25,9 @@ void SylinderSystem::initialize(const SylinderConfig &runConfig_, const std::str
     runConfig = runConfig_;
     stepCount = 0;
     snapID = 0; // the first snapshot starts from 0 in writeResult
+    
+    // store the random seed
+    restartRngSeed = runConfig.rngSeed; 
 
     // set MPI
     int mpiflag;
@@ -105,8 +108,8 @@ void SylinderSystem::reinitialize(const SylinderConfig &runConfig_, const std::s
     myfile >> snapID;
     myfile >> pvtpFileName;
 
-    // increment the rngStep forward by one to ensure randomness compared to previous run
-    restartRngStep++;
+    // increment the rngSeed forward by one to ensure randomness compared to previous run
+    restartRngSeed++;
 
     // set MPI
     int mpiflag;
@@ -438,7 +441,6 @@ void SylinderSystem::writeAscii(const std::string &baseFolder) {
     sylinderContainer.writeParticleAscii(name.c_str(), header);
 }
 
-template <int N>
 void SylinderSystem::writeTimeStepInfo(const std::string &baseFolder) {
     // write a single txt file containing timestep and most recent pvtp file names
     std::string name = baseFolder + std::string("../../TimeStepInfo.txt");
@@ -487,6 +489,7 @@ void SylinderSystem::writeResult() {
     IOHelper::makeSubFolder(baseFolder);
     writeAscii(baseFolder);
     writeVTK(baseFolder);
+    writeTimeStepInfo(baseFolder);
     snapID++;
 }
 

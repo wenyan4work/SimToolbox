@@ -33,6 +33,7 @@ target_link_libraries(
           ${Trilinos_TPL_LIBRARIES}
           ${YAML_CPP_LIBRARIES}
           ${TRNG_LIBRARY}
+          VTK::IOXML
           Eigen3::Eigen
           OpenMP::OpenMP_CXX
           MPI::MPI_CXX)
