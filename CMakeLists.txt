@@ -14,6 +14,13 @@ find_package(MPI REQUIRED)
 # target_link_libraries(exe PRIVATE OpenMP::OpenMP_CXX)
 # target_link_libraries(exe PRIVATE MPI::MPI_CXX)
 
+# Get VTK
+find_package(VTK REQUIRED)
+if (VTK_FOUND)
+  add_definitions("-D USE_VTK")
+  message("Found VTK at ${VTK_DIR}")
+endif()
+
 find_package(TRNG REQUIRED)
 find_package(Eigen3 REQUIRED)
 find_package(yaml-cpp REQUIRED)

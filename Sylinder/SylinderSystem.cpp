@@ -439,7 +439,7 @@ void SylinderSystem::writeAscii(const std::string &baseFolder) {
 }
 
 template <int N>
-void SylinderSystem<N>::writeTimeStepInfo(const std::string &baseFolder) {
+void SylinderSystem::writeTimeStepInfo(const std::string &baseFolder) {
     // write a single txt file containing timestep and most recent pvtp file names
     std::string name = baseFolder + std::string("../../TimeStepInfo.txt");
     std::string pvtpFileName = std::string("Sylinder_") + std::to_string(snapID) + std::string(".pvtp");
