@@ -442,16 +442,18 @@ void SylinderSystem::writeAscii(const std::string &baseFolder) {
 }
 
 void SylinderSystem::writeTimeStepInfo(const std::string &baseFolder) {
-    // write a single txt file containing timestep and most recent pvtp file names
-    std::string name = baseFolder + std::string("../../TimeStepInfo.txt");
-    std::string pvtpFileName = std::string("Sylinder_") + std::to_string(snapID) + std::string(".pvtp");
+    if (commRcp->getRank() == 0) {
+        // write a single txt file containing timestep and most recent pvtp file names
+        std::string name = baseFolder + std::string("../../TimeStepInfo.txt");
+        std::string pvtpFileName = std::string("Sylinder_") + std::to_string(snapID) + std::string(".pvtp");
 
-    FILE *restartFile = fopen(name.c_str(), "w");
-    fprintf(restartFile, "%u\n", restartRngSeed);
-    fprintf(restartFile, "%u\n", stepCount);
-    fprintf(restartFile, "%u\n", snapID);
-    fprintf(restartFile, "%s\n", pvtpFileName.c_str());
-    fclose(restartFile);
+        FILE *restartFile = fopen(name.c_str(), "w");
+        fprintf(restartFile, "%u\n", restartRngSeed);
+        fprintf(restartFile, "%u\n", stepCount);
+        fprintf(restartFile, "%u\n", snapID);
+        fprintf(restartFile, "%s\n", pvtpFileName.c_str());
+        fclose(restartFile);
+    }
 }
 
 void SylinderSystem::writeVTK(const std::string &baseFolder) {
