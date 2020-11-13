@@ -357,7 +357,7 @@ void SylinderSystem::setInitialFromVTKFile(const std::string &pvtpFileName) {
         reader1->SetFileName((baseFolder + pvtpFileName).c_str());
         reader1->Update();
 
-        // Extract the polydata (At this point, the polydaya is unsorted)
+        // Extract the polydata (At this point, the polydata is unsorted)
         vtkSmartPointer<vtkPolyData> polydata1 = reader1->GetOutput();
 
         // Extract the point/cell data
@@ -373,13 +373,14 @@ void SylinderSystem::setInitialFromVTKFile(const std::string &pvtpFileName) {
         vtkSmartPointer<vtkDataArray> omegaData = polydata1->GetCellData()->GetArray("omega");
 
         // Store the data within a temporary vector of Sylinders
-        double leftEndpointPos[3];
-        double rightEndpointPos[3];
-        std::vector<Sylinder> sylinderReadFromFile;
+        const int sylinderNumberInFile = posData->GetNumberOfPoints() / 2; // two points per sylinder
+        std::vector<Sylinder> sylinderReadFromFile(sylinderNumberInFile);
 
-        // #pragma omp parallel for (cannot be ran in parrelel due to competition between threads)
-        for (int i = 0; i < runConfig.sylinderNumber; i++) {
-            Sylinder newBody;
+#pragma omp parallel for
+        for (int i = 0; i < sylinderNumberInFile; i++) {
+            auto &newBody = sylinderReadFromFile[i];
+            double leftEndpointPos[3] = {0, 0, 0};
+            double rightEndpointPos[3] = {0, 0, 0};
             posData->GetPoint(i * 2, leftEndpointPos);
             posData->GetPoint(i * 2 + 1, rightEndpointPos);
             newBody.pos[0] = (leftEndpointPos[0] + rightEndpointPos[0]) / 2;
@@ -400,8 +401,6 @@ void SylinderSystem::setInitialFromVTKFile(const std::string &pvtpFileName) {
             newBody.omega[0] = omegaData->GetComponent(i, 0);
             newBody.omega[1] = omegaData->GetComponent(i, 1);
             newBody.omega[2] = omegaData->GetComponent(i, 2);
-
-            sylinderReadFromFile.push_back(newBody);
         }
 
         // sort the vector of Sylinders by gid ascending;
@@ -421,9 +420,11 @@ void SylinderSystem::setInitialFromVTKFile(const std::string &pvtpFileName) {
     }
 }
 
-std::string SylinderSystem::getCurrentResultFolder() {
+std::string SylinderSystem::getCurrentResultFolder() { return getResultFolderWithID(this->snapID); }
+
+std::string SylinderSystem::getResultFolderWithID(int snapID_) {
     const int num = std::max(400 / commRcp->getSize(), 1); // limit max number of files per folder
-    int k = snapID / num;
+    int k = snapID_ / num;
     int low = k * num, high = k * num + num - 1;
     std::string baseFolder =
         "./result/result" + std::to_string(low) + std::string("-") + std::to_string(high) + std::string("/");

@@ -2,7 +2,7 @@
 
 Each sylinder's total force, torque, velocity, and angular velocity are defined in the `Sylinder` class as these members:
 
-```
+```cpp
 double force[3]
 double torque[3]
 double vel[3]
@@ -11,14 +11,14 @@ double omega[3]
 
 The velocity and omega contain the following components:
 
-```
+```cpp
 vel = velCol+velBi+velNonB+velBrown
 omega = omegaCol+omegaBi+omegaNonB+omegaBrown
 ```
 
 The force and torque contain the same components except the Brownian ones, because Brownian motion is calculated directly as displacements without computing forces.
 
-```
+```cpp
 force = forceCol+forceBi+forceNonB
 torque = torqueCol+torqueBi+torqueNonB
 ```
