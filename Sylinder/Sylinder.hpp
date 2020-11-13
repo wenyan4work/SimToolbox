@@ -63,8 +63,8 @@ class Sylinder {
     // there is no Brownian force
 
     // velocity
-    double vel[3];       ///< velocity
-    double omega[3];     ///< angular velocity
+    double vel[3];       ///< velocity = velCol+velBi+velNonB+velBrown
+    double omega[3];     ///< angular velocity = omegaCol+omegaBi+omegaNonB+velBrown
     double velCol[3];    ///< collision velocity
     double omegaCol[3];  ///< collision angular velocity
     double velBi[3];     ///< bilateral constraint velocity
@@ -73,8 +73,8 @@ class Sylinder {
     double omegaNonB[3]; ///< all non-Brownian deterministic angular velocity before constraint resolution
 
     // force
-    double force[3];      ///< force
-    double torque[3];     ///< torque
+    double force[3];      ///< force = forceCol+forceBi+forceNonB
+    double torque[3];     ///< torque = torqueCol+torqueBi+torqueNonB
     double forceCol[3];   ///< collision force
     double torqueCol[3];  ///< collision torque
     double forceBi[3];    ///< bilateral constraint force

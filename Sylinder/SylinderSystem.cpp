@@ -25,9 +25,9 @@ void SylinderSystem::initialize(const SylinderConfig &runConfig_, const std::str
     runConfig = runConfig_;
     stepCount = 0;
     snapID = 0; // the first snapshot starts from 0 in writeResult
-    
+
     // store the random seed
-    restartRngSeed = runConfig.rngSeed; 
+    restartRngSeed = runConfig.rngSeed;
 
     // set MPI
     int mpiflag;
@@ -96,11 +96,12 @@ void SylinderSystem::initialize(const SylinderConfig &runConfig_, const std::str
            commRcp->getRank());
 }
 
-void SylinderSystem::reinitialize(const SylinderConfig &runConfig_, const std::string &restartFile, int argc, char **argv) {
+void SylinderSystem::reinitialize(const SylinderConfig &runConfig_, const std::string &restartFile, int argc,
+                                  char **argv) {
     runConfig = runConfig_;
 
     // Read the timestep information and pvtp filenames from restartFile
-    std::string pvtpFileName;   
+    std::string pvtpFileName;
     std::ifstream myfile(restartFile);
 
     myfile >> restartRngSeed;
@@ -343,7 +344,6 @@ void SylinderSystem::setInitialFromFile(const std::string &filename) {
         }
     }
 }
-
 
 void SylinderSystem::setInitialFromVTKFile(const std::string &pvtpFileName) {
     if (commRcp->getRank() != 0) {
@@ -673,7 +673,7 @@ void SylinderSystem::calcMobOperator() {
 
 void SylinderSystem::calcVelocityNonCon() {
     // velocityNonCon = velocityBrown + velocityPartNonBrown + mobility * forcePartNonBrown
-    // if monolayer, set velBrownZ =0, velPartNonBrownZ =0, frocePartNonBrownZ =0
+    // if monolayer, set velBrownZ =0, velPartNonBrownZ =0, forcePartNonBrownZ =0
     velocityNonConRcp = Teuchos::rcp<TV>(new TV(sylinderMobilityMapRcp, true)); // allocate and zero out
     auto velNCPtr = velocityNonConRcp->getLocalView<Kokkos::HostSpace>();
 
@@ -681,6 +681,7 @@ void SylinderSystem::calcVelocityNonCon() {
     TEUCHOS_ASSERT(nLocal * 6 == velocityNonConRcp->getLocalLength());
 
     if (!forcePartNonBrownRcp.is_null()) {
+        // apply mobility
         TEUCHOS_ASSERT(!mobilityOperatorRcp.is_null());
         mobilityOperatorRcp->apply(*forcePartNonBrownRcp, *velocityNonConRcp);
         if (runConfig.monolayer) {
@@ -691,6 +692,7 @@ void SylinderSystem::calcVelocityNonCon() {
                 velNCPtr(6 * i + 4, 0) = 0; // omegay
             }
         }
+        // write back to Sylinder members
         auto forcePtr = forcePartNonBrownRcp->getLocalView<Kokkos::HostSpace>();
 #pragma omp parallel for
         for (int i = 0; i < nLocal; i++) {
@@ -719,7 +721,7 @@ void SylinderSystem::calcVelocityNonCon() {
     }
 
     // write back total non Brownian velocity
-    // combine and sync the velNonB set in two places
+    // combine and sync the velNonB set in by setForceNonBrown() and setVelocityNonBrown()
 #pragma omp parallel for
     for (int i = 0; i < nLocal; i++) {
         auto &sy = sylinderContainer[i];
@@ -732,6 +734,7 @@ void SylinderSystem::calcVelocityNonCon() {
         sy.omegaNonB[2] = velNCPtr(6 * i + 5, 0);
     }
 
+    // add Brownian motion
     if (!velocityBrownRcp.is_null()) {
         if (runConfig.monolayer) {
             auto velBPtr = velocityBrownRcp->getLocalView<Kokkos::HostSpace>();

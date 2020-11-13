@@ -23,12 +23,12 @@
 #include "Util/TRngPool.hpp"
 
 #include <vtkCellData.h>
+#include <vtkDataArray.h>
+#include <vtkPointData.h>
 #include <vtkPoints.h>
 #include <vtkPolyData.h>
-#include <vtkPointData.h>
 #include <vtkSmartPointer.h>
 #include <vtkXMLPPolyDataReader.h>
-#include <vtkDataArray.h>
 
 /**
  * @brief A collection of sylinders distributed to multiple MPI ranks.
@@ -39,7 +39,7 @@ class SylinderSystem {
     int snapID;                  ///< the current id of the snapshot file to be saved. sequentially numbered from 0
     int stepCount;               ///< timestep Count. sequentially numbered from 0
     unsigned int restartRngSeed; ///< parallel seed used by restarted simulations
-    
+
     // FDPS stuff
     PS::DomainInfo dinfo; ///< domain size, boundary condition, and decomposition info
     void setDomainInfo();
@@ -94,7 +94,7 @@ class SylinderSystem {
      * @brief set initial configuration as given in the (.dat) file
      *
      * The simBox and BC settings in runConfig are still used
-     * @param pvtpFileName 
+     * @param pvtpFileName
      */
     void setInitialFromVTKFile(const std::string &pvtpFileName);
 
@@ -321,7 +321,8 @@ class SylinderSystem {
      * @brief Set the (optional) forceNonBrownRcp
      *
      * This is optional.
-     * The computed mobility matrix will be applied to this force and the result is added to velKnown
+     * this force is added to forceNonB
+     * The computed mobility matrix will be applied to this force and the result is added to velNonB
      * @param forceNonBrown
      */
     void setForceNonBrown(const std::vector<double> &forceNonBrown);
@@ -329,7 +330,7 @@ class SylinderSystem {
     /**
      * @brief Set the (optional) velocityNonBrownRcp
      *
-     * This is optional. The result is added to velKnown
+     * This is optional. The result is added to velNonB
      * @param velNonBrown
      */
     void setVelocityNonBrown(const std::vector<double> &velNonBrown);
