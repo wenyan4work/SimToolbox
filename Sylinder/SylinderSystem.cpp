@@ -97,7 +97,7 @@ void SylinderSystem::initialize(const SylinderConfig &runConfig_, const std::str
 }
 
 void SylinderSystem::reinitialize(const SylinderConfig &runConfig_, const std::string &restartFile, int argc,
-                                  char **argv) {
+                                  char **argv, bool eulerStep) {
     runConfig = runConfig_;
 
     // Read the timestep information and pvtp filenames from restartFile
@@ -133,7 +133,9 @@ void SylinderSystem::reinitialize(const SylinderConfig &runConfig_, const std::s
     setInitialFromVTKFile(pvtpFileName);
 
     // VTK data is wrote before the Euler step, thus we need to run one Euler step below
-    stepEuler();
+    if (eulerStep)
+        stepEuler();
+
     stepCount++;
     snapID++;
 

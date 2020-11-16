@@ -233,7 +233,8 @@ class SylinderSystem {
      * @param argc command line argument
      * @param argv command line argument
      */
-    void reinitialize(const SylinderConfig &config, const std::string &restartFile, int argc, char **argv);
+    void reinitialize(const SylinderConfig &config, const std::string &restartFile, int argc, char **argv,
+                      bool eulerStep = true);
 
     /**
      * @brief enable the timer in step()
