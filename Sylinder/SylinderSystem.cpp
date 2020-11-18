@@ -141,16 +141,16 @@ void SylinderSystem::reinitialize(const SylinderConfig &runConfig_, const std::s
 
     // at this point all sylinders located on rank 0
     commRcp->barrier();
+    applyBoxBC();
     decomposeDomain();
     exchangeSylinder(); // distribute to ranks, initial domain decomposition
+    updateSylinderMap();
 
     sylinderNearDataDirectoryPtr = std::make_shared<ZDD<SylinderNearEP>>(sylinderContainer.getNumberOfParticleLocal());
 
     treeSylinderNumber = 0;
     setTreeSylinder();
     calcVolFrac();
-
-    prepareStep();
 
     printf("SylinderSystem Reinitialized. %d sylinders on process %d\n", sylinderContainer.getNumberOfParticleLocal(),
            commRcp->getRank());
