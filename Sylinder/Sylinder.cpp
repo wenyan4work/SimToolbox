@@ -124,5 +124,6 @@ void Sylinder::writeAscii(FILE *fptr) const {
     Evec3 direction = ECmapq(orientation) * Evec3(0, 0, 1);
     Evec3 minus = ECmap3(pos) - 0.5 * length * direction;
     Evec3 plus = ECmap3(pos) + 0.5 * length * direction;
-    fprintf(fptr, "C %d %g %g %g %g %g %g %g\n", gid, radius, minus[0], minus[1], minus[2], plus[0], plus[1], plus[2]);
+    fprintf(fptr, "C %d %g %g %g %g %g %g %g %d %d %d\n", gid, radius, minus[0], minus[1], minus[2], plus[0], plus[1],
+            plus[2], link.group, link.prev, link.next);
 }
