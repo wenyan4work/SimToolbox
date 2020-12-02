@@ -3,7 +3,8 @@
 
 bool test(const int numQuadPt, const double lineHalfLength, const double *lineCenterCoord, const double *targetCoord, const double *lineDirection) {
 
-    SpecialQuadWeights<16> sqw(numQuadPt, lineHalfLength, lineCenterCoord, targetCoord, lineDirection);
+    SpecialQuadWeights<16> sqw(numQuadPt);
+    sqw.calcWeights(lineHalfLength, lineCenterCoord, targetCoord, lineDirection);
     const double *w1 = sqw.getWeights1();
     const double *w3 = sqw.getWeights3();
     const double *w5 = sqw.getWeights5();
@@ -36,4 +37,4 @@ int main(int argc, char **argv) {
     return 0;
 }
 
-// g++ -g  -I/home/palmer/local/include/eigen3 -I/home/palmer/software/CellSimulator/SimToolbox/Util SpecialQuadWeights_test.cpp
+// g++ -g  -I<path_to_eigen> -I<path_to_utility_folder> SpecialQuadWeights_test.cpp

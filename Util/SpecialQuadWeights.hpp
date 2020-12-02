@@ -14,12 +14,12 @@
 #include "EigenDef.hpp"
 #include "Gauss_Legendre_Nodes_and_Weights.hpp"
 
-#include <algorithm> // std::sort, std::stable_sort
+#include <algorithm>
 #include <cmath>
 #include <complex>
 #include <cstdio>
 #include <cstdlib>
-#include <numeric> // std::iota
+#include <numeric>
 
 /**
  * @brief class to compute special quadrature between a line source and point target
@@ -59,11 +59,8 @@ class SpecialQuadWeights {
             vandermond5[i] = tmp5[i];
 
             tdist[i] = std::abs(glPoints[i] - troot);
-
-            std::cout << "p3[i] " << p3[i] << std::endl;
-
         }
-        
+
         // modified quadrature weights
         Evec w1_ = vandermond1.array() * tdist.array();
         Evec w3_ = vandermond3.array() * tdist.array().pow(3);
@@ -76,7 +73,8 @@ class SpecialQuadWeights {
         }
     }
 
-    void rsqrt_pow_integrals(const std::complex<double> z, std::vector<double> &I1, std::vector<double> &I3, std::vector<double> &I5) {
+    void rsqrt_pow_integrals(const std::complex<double> z, std::vector<double> &I1, std::vector<double> &I3,
+                             std::vector<double> &I5) {
         // rsqrt_pow_integrals(z,N)
         // Recursively compute values of integrals
         // Ip(k) = \int_{-1}^{1} t^{k-1}/|t-z|^p dt
@@ -286,7 +284,7 @@ class SpecialQuadWeights {
         for (int n = 1; n < nQuads - 1; n++) {
             I3[n + 1] = I1[n - 1] - b * I3[n] - c * I3[n - 1];
         }
-     
+
         // Compute I5
         // Here too use power series for first integral, in cone around real axis
         in_cone = (zi < 0.7 * w);
@@ -381,17 +379,17 @@ class SpecialQuadWeights {
 
         std::vector<double> x = b;
 
-        for (int k=1; k<=nQuads; k++) {
-            for (int j=nQuads; j>=k+1; j--) {
-                x[j-1] = x[j-1] - alpha[k-1] * x[j-2];
+        for (int k = 1; k <= nQuads; k++) {
+            for (int j = nQuads; j >= k + 1; j--) {
+                x[j - 1] = x[j - 1] - alpha[k - 1] * x[j - 2];
             }
         }
-        for (int k=nQuads-1; k>=1; k--) {
-            for (int j=k+1; j<=nQuads; j++) {
-                x[j-1] = x[j-1] / (alpha[j-1] - alpha[j-k-1]);
+        for (int k = nQuads - 1; k >= 1; k--) {
+            for (int j = k + 1; j <= nQuads; j++) {
+                x[j - 1] = x[j - 1] / (alpha[j - 1] - alpha[j - k - 1]);
             }
-            for (int j=k; j<=nQuads-1; j++) {
-                x[j-1] = x[j-1] - x[j];
+            for (int j = k; j <= nQuads - 1; j++) {
+                x[j - 1] = x[j - 1] - x[j];
             }
         }
         return x;
@@ -415,9 +413,7 @@ class SpecialQuadWeights {
     }
 
   public:
-    SpecialQuadWeights(const int numQuadPt, const double lineHalfLength, const double *lineCenterCoord,
-                       const double *targetCoord, const double *lineDirection)
-        : nQuads(numQuadPt) {
+    SpecialQuadWeights(const int numQuadPt) : nQuads(numQuadPt) {
         // fill the Gauss Legendre weights and points
         std::vector<double> s, w;
         Gauss_Legendre_Nodes_and_Weights<double>(nQuads, s, w);
@@ -425,7 +421,10 @@ class SpecialQuadWeights {
             glWeights[i] = w[i];
             glPoints[i] = s[i];
         }
+    }
 
+    void calcWeights(const double lineHalfLength, const double *lineCenterCoord, const double *targetCoord,
+                     const double *lineDirection) {
         // construct Eigen vectors
         const Evec3 p = ECmap3(lineDirection);
         const Evec3 center = ECmap3(lineCenterCoord);
@@ -435,7 +434,7 @@ class SpecialQuadWeights {
         const Evec3 Rvec = (1.0 / lineHalfLength) * (target.array() - center.array());
         const double Rlen = Rvec.norm();
         const Evec3 Rdir = (1.0 / Rlen) * Rvec;
-        bool mirrorValues = (Rdir.dot(p) < 0); //TODO: mirror values accordingly
+        bool mirrorValues = (Rdir.dot(p) < 0);
 
         // parallel and perpendicular coordinates (x0,y0)
         double x0 = std::abs(Rvec.dot(p));
