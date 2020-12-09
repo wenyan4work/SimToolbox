@@ -70,6 +70,7 @@ using ECmapq = Eigen::Map<const Eigen::Quaternion<double>, Eigen::Unaligned>;
 // dynamic size types
 using Evec = Eigen::VectorXd;
 using Emat = Eigen::Matrix<double, Eigen::Dynamic, Eigen::Dynamic>; // default to column major
+using ECmap = Eigen::Map<const Evec, Eigen::Unaligned>;
 using Espmat = Eigen::SparseMatrix<double>;
 
 /**
