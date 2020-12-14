@@ -86,6 +86,7 @@ void Sylinder<N>::writePVTP(const std::string &prefix, const std::string &postfi
     std::vector<IOHelper::FieldVTU> cellDataFields;
     cellDataFields.emplace_back(1, IOHelper::IOTYPE::Int32, "gid");
     cellDataFields.emplace_back(1, IOHelper::IOTYPE::Int32, "group");
+    cellDataFields.emplace_back(1, IOHelper::IOTYPE::Int32, "speciesID");    
     cellDataFields.emplace_back(1, IOHelper::IOTYPE::Int32, "numQuadPt");
     cellDataFields.emplace_back(1, IOHelper::IOTYPE::Float32, "radius");
     cellDataFields.emplace_back(1, IOHelper::IOTYPE::Float32, "radiusCollision");

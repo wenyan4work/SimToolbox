@@ -98,6 +98,9 @@ class Sylinder {
     double uinfHydro[3 * N];  ///< background flow at each quadrature point (imposed plus those due to rod-rod
                               ///< hydrodynamic interactions)
 
+    // Sylinder Species
+    int speciesID = 0;  ///< species id (defaults to uniform species type)
+
     /**
      * @brief Construct a new Sylinder object
      *
@@ -261,6 +264,7 @@ class Sylinder {
         std::vector<float> length(sylinderNumber);
         std::vector<float> lengthCollision(sylinderNumber);
         std::vector<int> group(sylinderNumber);
+        std::vector<int> speciesID(sylinderNumber);
 
         // vel
         std::vector<float> vel(3 * sylinderNumber);
@@ -314,6 +318,7 @@ class Sylinder {
             // sylinder data
             gid[i] = sy.gid;
             group[i] = sy.link.group;
+            speciesID[i] = sy.speciesID;
             numQuadPt[i] = sy.numQuadPt;
             radius[i] = sy.radius;
             radiusCollision[i] = sy.radiusCollision;
@@ -373,6 +378,7 @@ class Sylinder {
         file << "<CellData Scalars=\"scalars\">\n";
         IOHelper::writeDataArrayBase64(gid, "gid", 1, file);
         IOHelper::writeDataArrayBase64(group, "group", 1, file);
+        IOHelper::writeDataArrayBase64(speciesID, "speciesID", 1, file);        
         IOHelper::writeDataArrayBase64(numQuadPt, "numQuadPt", 1, file);
         IOHelper::writeDataArrayBase64(radius, "radius", 1, file);
         IOHelper::writeDataArrayBase64(radiusCollision, "radiusCollision", 1, file);
