@@ -342,16 +342,18 @@ void SylinderSystem<N>::setInitialFromFile(const std::string &filename) {
             if (typeChar == 'C') {
                 Sylinder<N> newBody;
                 int gid;
+                int SpeciesID;
                 double mx, my, mz;
                 double px, py, pz;
                 double radius;
-                liness >> gid >> radius >> mx >> my >> mz >> px >> py >> pz;
+                liness >> gid >> SpeciesID >> radius >> mx >> my >> mz >> px >> py >> pz;
                 Emap3(newBody.pos) = Evec3((mx + px) / 2, (my + py) / 2, (mz + pz) / 2);
                 newBody.gid = gid;
                 newBody.length = sqrt((px - mx) * (px - mx) + (py - my) * (py - my) + (pz - mz) * (pz - mz));
                 Evec3 direction(px - mx, py - my, pz - mz);
                 Emapq(newBody.orientation) = Equatn::FromTwoVectors(Evec3(0, 0, 1), direction);
 
+                newBody.SpeciesID;
                 newBody.radius = radius;
                 newBody.radiusCollision = radius;
                 newBody.lengthCollision = newBody.length;
