@@ -149,6 +149,12 @@ class Sylinder {
     void clear();
 
     /**
+     * @brief set the hydro data fields to zero
+     *
+     */
+    void clearHydro();
+
+    /**
      * @brief update the position and orientation with internal velocity data fields and given dt
      *
      * @param dt

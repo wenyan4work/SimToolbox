@@ -375,6 +375,7 @@ void SylinderSystem<N>::setInitialFromFile(const std::string &filename) {
         for (int i = 0; i < nRead; i++) {
             sylinderContainer[i] = sylinderReadFromFile[i];
             sylinderContainer[i].clear();
+            sylinderContainer[i].clearHydro();                
         }
     }
 }

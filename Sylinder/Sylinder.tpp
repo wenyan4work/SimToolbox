@@ -29,6 +29,13 @@ Sylinder<N>::Sylinder(const int &gid_, const double &radius_, const double &radi
     }
 
     // Clear forceHydro only upon initilization
+    clearHydro();
+    clear();
+    return;
+}
+
+template <int N>
+void Sylinder<N>::clearHydro() {
     using EmatN = Eigen::Array<double, 3, N, Eigen::DontAlign>;
     using EmatmapN = Eigen::Map<EmatN, Eigen::Unaligned>;
     EmatmapN(forceHydro).setZero();
