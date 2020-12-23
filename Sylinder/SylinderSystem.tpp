@@ -400,6 +400,7 @@ void SylinderSystem<N>::setInitialFromVTKFile(const std::string &pvtpFileName, c
         vtkSmartPointer<vtkPoints> posData = polydata1->GetPoints();
         vtkSmartPointer<vtkDataArray> gidData = polydata1->GetCellData()->GetArray("gid");
         vtkSmartPointer<vtkDataArray> groupData = polydata1->GetCellData()->GetArray("group");
+        vtkSmartPointer<vtkDataArray> speciesIDData = polydata1->GetCellData()->GetArray("speciesID");
         vtkSmartPointer<vtkDataArray> numQuadPtData = polydata1->GetCellData()->GetArray("numQuadPt");
         vtkSmartPointer<vtkDataArray> lengthData = polydata1->GetCellData()->GetArray("length");
         vtkSmartPointer<vtkDataArray> lengthCollisionData = polydata1->GetCellData()->GetArray("lengthCollision");
@@ -440,6 +441,7 @@ void SylinderSystem<N>::setInitialFromVTKFile(const std::string &pvtpFileName, c
             newBody.pos[1] = (leftEndpointPos[1] + rightEndpointPos[1]) / 2;
             newBody.pos[2] = (leftEndpointPos[2] + rightEndpointPos[2]) / 2;
             newBody.gid = gidData->GetComponent(i, 0);
+            newBody.speciesID = speciesIDData->GetComponent(i, 0);
             newBody.numQuadPt = numQuadPtData->GetComponent(i, 0);
             newBody.link.group = groupData->GetComponent(i, 0);
             newBody.length = lengthData->GetComponent(i, 0);
