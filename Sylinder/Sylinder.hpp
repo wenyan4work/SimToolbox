@@ -239,6 +239,8 @@ class Sylinder {
         std::vector<float> length(sylinderNumber);
         std::vector<float> lengthCollision(sylinderNumber);
         std::vector<int> group(sylinderNumber);
+        std::vector<int> prevLink(sylinderNumber);
+        std::vector<int> nextLink(sylinderNumber);
 
         // vel
         std::vector<float> vel(3 * sylinderNumber);
@@ -292,6 +294,8 @@ class Sylinder {
             // sylinder data
             gid[i] = sy.gid;
             group[i] = sy.link.group;
+            prevLink[i] = sy.link.prev;
+            nextLink[i] = sy.link.next;
             radius[i] = sy.radius;
             radiusCollision[i] = sy.radiusCollision;
             length[i] = sy.length;
@@ -350,6 +354,8 @@ class Sylinder {
         file << "<CellData Scalars=\"scalars\">\n";
         IOHelper::writeDataArrayBase64(gid, "gid", 1, file);
         IOHelper::writeDataArrayBase64(group, "group", 1, file);
+        IOHelper::writeDataArrayBase64(prevLink, "prevLink", 1, file);
+        IOHelper::writeDataArrayBase64(nextLink, "nextLink", 1, file);
         IOHelper::writeDataArrayBase64(radius, "radius", 1, file);
         IOHelper::writeDataArrayBase64(radiusCollision, "radiusCollision", 1, file);
         IOHelper::writeDataArrayBase64(length, "length", 1, file);

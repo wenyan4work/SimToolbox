@@ -309,25 +309,32 @@ void SylinderSystem::setInitialFromFile(const std::string &filename) {
             char typeChar;
             std::istringstream liness(line);
             liness >> typeChar;
-            if (typeChar == 'C') {
+            if (typeChar == 'C' || typeChar == 'F' /* flexible */) {
                 Sylinder newBody;
                 int gid;
                 double mx, my, mz;
                 double px, py, pz;
-                int link_grp, prev_link, next_link;
                 double radius;
-                liness >> gid >> radius >> mx >> my >> mz >> px >> py >> pz >> link_grp >> prev_link >> next_link;
-                Emap3(newBody.pos) = Evec3((mx + px) / 2, (my + py) / 2, (mz + pz) / 2);
+                liness >> gid >> radius >> mx >> my >> mz >> px >> py >> pz;
+                                    Emap3(newBody.pos) = Evec3((mx + px) / 2, (my + py) / 2, (mz + pz) / 2);
                 newBody.gid = gid;
                 newBody.length = sqrt((px - mx) * (px - mx) + (py - my) * (py - my) + (pz - mz) * (pz - mz));
                 Evec3 direction(px - mx, py - my, pz - mz);
                 Emapq(newBody.orientation) = Equatn::FromTwoVectors(Evec3(0, 0, 1), direction);
-                Link link{link_grp, prev_link, next_link};
+                newBody.radius = radius;
+                newBody.radiusCollision = radius; 
+                newBody.lengthCollision = newBody.length;
+
+                Link link;
+                if(typeChar == 'F'){ //Make sylinder a link in a flexible filament
+                    int link_grp, prev_link, next_link;
+                    liness >> link_grp >> prev_link >> next_link;
+                    link.group = link_grp;
+                    link.prev = prev_link; 
+                    link.next = next_link;
+                }
                 newBody.link = link;
 
-                newBody.radius = radius;
-                newBody.radiusCollision = radius;
-                newBody.lengthCollision = newBody.length;
                 sylinderReadFromFile.push_back(newBody);
                 typeChar = 'N';
             }
@@ -369,6 +376,9 @@ void SylinderSystem::setInitialFromVTKFile(const std::string &pvtpFileName) {
         vtkSmartPointer<vtkPoints> posData = polydata1->GetPoints();
         vtkSmartPointer<vtkDataArray> gidData = polydata1->GetCellData()->GetArray("gid");
         vtkSmartPointer<vtkDataArray> groupData = polydata1->GetCellData()->GetArray("group");
+        vtkSmartPointer<vtkDataArray> prevLinkData = polydata1->GetCellData()->GetArray("prevLink");
+        vtkSmartPointer<vtkDataArray> nextLinkData= polydata1->GetCellData()->GetArray("nextLink");
+
         vtkSmartPointer<vtkDataArray> lengthData = polydata1->GetCellData()->GetArray("length");
         vtkSmartPointer<vtkDataArray> lengthCollisionData = polydata1->GetCellData()->GetArray("lengthCollision");
         vtkSmartPointer<vtkDataArray> radiusData = polydata1->GetCellData()->GetArray("radius");
@@ -393,6 +403,8 @@ void SylinderSystem::setInitialFromVTKFile(const std::string &pvtpFileName) {
             newBody.pos[2] = (leftEndpointPos[2] + rightEndpointPos[2]) / 2;
             newBody.gid = gidData->GetComponent(i, 0);
             newBody.link.group = groupData->GetComponent(i, 0);
+            newBody.link.prev = prevLinkData->GetComponent(i, 0);
+            newBody.link.next = nextLinkData->GetComponent(i, 0);
             newBody.length = lengthData->GetComponent(i, 0);
             newBody.lengthCollision = lengthCollisionData->GetComponent(i, 0);
             newBody.radius = radiusData->GetComponent(i, 0);
