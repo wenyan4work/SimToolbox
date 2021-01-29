@@ -316,21 +316,21 @@ void SylinderSystem::setInitialFromFile(const std::string &filename) {
                 double px, py, pz;
                 double radius;
                 liness >> gid >> radius >> mx >> my >> mz >> px >> py >> pz;
-                                    Emap3(newBody.pos) = Evec3((mx + px) / 2, (my + py) / 2, (mz + pz) / 2);
+                Emap3(newBody.pos) = Evec3((mx + px) / 2, (my + py) / 2, (mz + pz) / 2);
                 newBody.gid = gid;
                 newBody.length = sqrt((px - mx) * (px - mx) + (py - my) * (py - my) + (pz - mz) * (pz - mz));
                 Evec3 direction(px - mx, py - my, pz - mz);
                 Emapq(newBody.orientation) = Equatn::FromTwoVectors(Evec3(0, 0, 1), direction);
                 newBody.radius = radius;
-                newBody.radiusCollision = radius; 
+                newBody.radiusCollision = radius;
                 newBody.lengthCollision = newBody.length;
 
                 Link link;
-                if(typeChar == 'F'){ //Make sylinder a link in a flexible filament
+                if (typeChar == 'F') { // Make sylinder a link in a flexible filament
                     int link_grp, prev_link, next_link;
                     liness >> link_grp >> prev_link >> next_link;
                     link.group = link_grp;
-                    link.prev = prev_link; 
+                    link.prev = prev_link;
                     link.next = next_link;
                 }
                 newBody.link = link;
@@ -377,7 +377,7 @@ void SylinderSystem::setInitialFromVTKFile(const std::string &pvtpFileName) {
         vtkSmartPointer<vtkDataArray> gidData = polydata1->GetCellData()->GetArray("gid");
         vtkSmartPointer<vtkDataArray> groupData = polydata1->GetCellData()->GetArray("group");
         vtkSmartPointer<vtkDataArray> prevLinkData = polydata1->GetCellData()->GetArray("prevLink");
-        vtkSmartPointer<vtkDataArray> nextLinkData= polydata1->GetCellData()->GetArray("nextLink");
+        vtkSmartPointer<vtkDataArray> nextLinkData = polydata1->GetCellData()->GetArray("nextLink");
 
         vtkSmartPointer<vtkDataArray> lengthData = polydata1->GetCellData()->GetArray("length");
         vtkSmartPointer<vtkDataArray> lengthCollisionData = polydata1->GetCellData()->GetArray("lengthCollision");
@@ -871,6 +871,7 @@ void SylinderSystem::prepareStep() {
         sy.radiusCollision = sylinderContainer[i].radius * runConfig.sylinderDiameterColRatio;
         sy.lengthCollision = sylinderContainer[i].length * runConfig.sylinderLengthColRatio;
         sy.rank = commRcp->getRank();
+        sy.colbuf = runConfig.sylinderColBuf;
     }
     if (runConfig.monolayer) {
         const double monoZ = (runConfig.simBoxHigh[2] + runConfig.simBoxLow[2]) / 2;
