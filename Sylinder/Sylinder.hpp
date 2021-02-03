@@ -134,6 +134,16 @@ class Sylinder {
     void clear();
 
     /**
+     * @brief calculate the three drag coefficient
+     * 
+     * @param viscosity 
+     * @param dragPara 
+     * @param dragPerp 
+     * @param dragRot 
+     */
+    void calcDragCoeff(const double viscosity, double &dragPara, double &dragPerp, double &dragRot) const;
+
+    /**
      * @brief update the position and orientation with internal velocity data fields and given dt
      *
      * @param dt

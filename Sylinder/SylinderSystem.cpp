@@ -596,16 +596,11 @@ void SylinderSystem::calcMobMatrix() {
         Evec3 q = ECmapq(sy.orientation) * Evec3(0, 0, 1);
         qq = q * q.transpose();
         Imqq = Emat3::Identity() - qq;
-        // std::cout << cell.orientation.w() << std::endl;
-        // std::cout << qq << std::endl;
-        // std::cout << Imqq << std::endl;
 
-        const double length = sy.length;
-        const double diameter = sy.radius * 2;
-        const double b = -(1 + 2 * log(diameter * 0.5 / (length)));
-        const double dragPara = 8 * Pi * length * mu / (2 * b);
-        const double dragPerp = 8 * Pi * length * mu / (b + 2);
-        const double dragRot = 2 * Pi * mu * length * length * length / (3 * (b + 2));
+        double dragPara = 0;
+        double dragPerp = 0;
+        double dragRot = 0;
+        sy.calcDragCoeff(mu, dragPara, dragPerp, dragRot);
         const double dragParaInv = 1 / dragPara;
         const double dragPerpInv = 1 / dragPerp;
         const double dragRotInv = 1 / dragRot;
@@ -983,12 +978,13 @@ void SylinderSystem::calcVelocityBrown() {
         for (int i = 0; i < nLocal; i++) {
             auto &sy = sylinderContainer[i];
             // constants
-            const double length = sy.length;
-            const double diameter = sy.radius * 2;
-            const double b = -(1 + 2 * log(diameter * 0.5 / (length)));
-            const double invDragPara = 1 / (8 * Pi * length * mu / (2 * b));
-            const double invDragPerp = 1 / (8 * Pi * length * mu / (b + 2));
-            const double invDragRot = 1 / (2 * Pi * mu * length * length * length / (3 * (b + 2)));
+            double dragPara = 0;
+            double dragPerp = 0;
+            double dragRot = 0;
+            sy.calcDragCoeff(mu, dragPara, dragPerp, dragRot);
+            const double invDragPara = 1 / dragPara;
+            const double invDragPerp = 1 / dragPerp;
+            const double invDragRot = 1 / dragRot;
 
             // convert FDPS vec3 to Evec3
             Evec3 direction = Emapq(sy.orientation) * Evec3(0, 0, 1);
@@ -1100,11 +1096,6 @@ void SylinderSystem::collectPairCollision() {
     const int nLocal = sylinderContainer.getNumberOfParticleLocal();
     setTreeSylinder();
     treeSylinderNearPtr->calcForceAll(calcColFtr, sylinderContainer, dinfo);
-
-// #pragma omp parallel for
-//     for (int i = 0; i < nLocal; i++) {
-//         sylinderContainer[i].sepmin = (treeSylinderNearPtr->getForce(i)).sepmin;
-//     }
 
     const int nQue = conCollectorPtr->constraintPoolPtr->size();
 #pragma omp parallel for

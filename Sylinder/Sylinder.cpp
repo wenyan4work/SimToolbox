@@ -58,6 +58,21 @@ void Sylinder::clear() {
     rank = -1;
 }
 
+void Sylinder::calcDragCoeff(const double viscosity, double &dragPara, double &dragPerp, double &dragRot) const {
+    if (length < 2 * radius) { // use drag for sphere
+        const double rad = 0.5 * length + radius;
+        dragPara = 6 * Pi * rad * viscosity;
+        dragPerp = dragPara;
+        dragRot = 8 * Pi * rad * rad * rad * viscosity;
+    } else { // use spherocylinder drag and slender body theory
+        const double b = -(1 + 2 * log(radius / (length)));
+        dragPara = 8 * Pi * length * viscosity / (2 * b);
+        dragPerp = 8 * Pi * length * viscosity / (b + 2);
+        dragRot = 2 * Pi * viscosity * length * length * length / (3 * (b + 2));
+    }
+    return;
+}
+
 void Sylinder::dumpSylinder() const {
     printf("gid %d, R %g, RCol %g, L %g, LCol %g, pos %g, %g, %g\n", gid, radius, radiusCollision, length,
            lengthCollision, pos[0], pos[1], pos[2]);
