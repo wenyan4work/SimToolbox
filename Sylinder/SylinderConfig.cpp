@@ -77,6 +77,11 @@ void SylinderConfig::dump() const {
         printf("-------------------------------------------\n");
     }
     {
+        printf("-------------------------------------------\n");
+        printf("For drag and collision: Sylinders with length < diameter are treated as spheres\n");
+        printf("-------------------------------------------\n");
+    }
+    {
         printf("Physical setting: \n");
         printf("viscosity: %g\n", viscosity);
         printf("kBT: %g\n", KBT);

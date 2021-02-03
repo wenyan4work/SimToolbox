@@ -1101,10 +1101,10 @@ void SylinderSystem::collectPairCollision() {
     setTreeSylinder();
     treeSylinderNearPtr->calcForceAll(calcColFtr, sylinderContainer, dinfo);
 
-#pragma omp parallel for
-    for (int i = 0; i < nLocal; i++) {
-        sylinderContainer[i].sepmin = (treeSylinderNearPtr->getForce(i)).sepmin;
-    }
+// #pragma omp parallel for
+//     for (int i = 0; i < nLocal; i++) {
+//         sylinderContainer[i].sepmin = (treeSylinderNearPtr->getForce(i)).sepmin;
+//     }
 
     const int nQue = conCollectorPtr->constraintPoolPtr->size();
 #pragma omp parallel for

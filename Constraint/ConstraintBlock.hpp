@@ -113,6 +113,16 @@ struct ConstraintBlock {
             }
         }
     }
+
+    void reverseIJ() {
+        std::swap(gidI, gidJ);
+        std::swap(globalIndexI, globalIndexJ);
+        for (int k = 0; k < 3; k++) {
+            std::swap(normI[k], normJ[k]);
+            std::swap(posI[k], posJ[k]);
+            std::swap(labI[k], labJ[k]);
+        }
+    }
 };
 
 static_assert(std::is_trivially_copyable<ConstraintBlock>::value, "");
