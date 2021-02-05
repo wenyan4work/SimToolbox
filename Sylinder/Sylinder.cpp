@@ -58,8 +58,16 @@ void Sylinder::clear() {
     rank = -1;
 }
 
+bool Sylinder::isSphere(bool collision) const {
+    if (collision) {
+        return lengthCollision < radiusCollision * 2;
+    } else {
+        return length < radius * 2;
+    }
+}
+
 void Sylinder::calcDragCoeff(const double viscosity, double &dragPara, double &dragPerp, double &dragRot) const {
-    if (length < 2 * radius) { // use drag for sphere
+    if (isSphere()) { // use drag for sphere
         const double rad = 0.5 * length + radius;
         dragPara = 6 * Pi * rad * viscosity;
         dragPerp = dragPara;

@@ -19,7 +19,7 @@
 
 /**
  * @brief read configuration parameters from a yaml file
- *   
+ *
  */
 class SylinderConfig {
   public:
@@ -30,7 +30,7 @@ class SylinderConfig {
     double simBoxHigh[3]; ///< simulation box size
     double simBoxLow[3];  ///< simulation box size
     bool simBoxPBC[3];    ///< flag of true/false of periodic in that direction
-    bool monolayer; ///< flag for simulating monolayer on x-y plane
+    bool monolayer;       ///< flag for simulating monolayer on x-y plane
 
     double initBoxHigh[3]; ///< initialize sylinders within this box
     double initBoxLow[3];  ///< initialize sylinders within this box
@@ -41,6 +41,7 @@ class SylinderConfig {
     double viscosity; ///< unit pN/(um^2 s), water ~ 0.0009
     double KBT;       ///< pN.um, 0.00411 at 300K
     double linkKappa; ///< pN/um stiffness of sylinder links
+    double linkGap;   ///< um length of gap between sylinder links
 
     // sylinder settings
     bool sylinderFixed;         ///< sylinders do not move

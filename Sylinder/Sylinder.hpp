@@ -134,12 +134,21 @@ class Sylinder {
     void clear();
 
     /**
+     * @brief return if this sylinder is treated as a sphere
+     *
+     * @param collision
+     * @return true
+     * @return false
+     */
+    bool isSphere(bool collision = false) const;
+
+    /**
      * @brief calculate the three drag coefficient
-     * 
-     * @param viscosity 
-     * @param dragPara 
-     * @param dragPerp 
-     * @param dragRot 
+     *
+     * @param viscosity
+     * @param dragPara
+     * @param dragPerp
+     * @param dragRot
      */
     void calcDragCoeff(const double viscosity, double &dragPara, double &dragPerp, double &dragRot) const;
 
@@ -243,12 +252,14 @@ class Sylinder {
         std::vector<int32_t> offset(sylinderNumber);
 
         // sylinder data
-        std::vector<int> gid(sylinderNumber);
+        std::vector<int32_t> gid(sylinderNumber);
+        std::vector<int32_t> group(sylinderNumber);
+        std::vector<int32_t> prev(sylinderNumber);
+        std::vector<int32_t> next(sylinderNumber);
         std::vector<float> radius(sylinderNumber);
         std::vector<float> radiusCollision(sylinderNumber);
         std::vector<float> length(sylinderNumber);
         std::vector<float> lengthCollision(sylinderNumber);
-        std::vector<int> group(sylinderNumber);
 
         // vel
         std::vector<float> vel(3 * sylinderNumber);
@@ -302,6 +313,8 @@ class Sylinder {
             // sylinder data
             gid[i] = sy.gid;
             group[i] = sy.link.group;
+            prev[i] = sy.link.prev;
+            next[i] = sy.link.next;
             radius[i] = sy.radius;
             radiusCollision[i] = sy.radiusCollision;
             length[i] = sy.length;
@@ -360,6 +373,8 @@ class Sylinder {
         file << "<CellData Scalars=\"scalars\">\n";
         IOHelper::writeDataArrayBase64(gid, "gid", 1, file);
         IOHelper::writeDataArrayBase64(group, "group", 1, file);
+        IOHelper::writeDataArrayBase64(prev, "prev", 1, file);
+        IOHelper::writeDataArrayBase64(next, "next", 1, file);
         IOHelper::writeDataArrayBase64(radius, "radius", 1, file);
         IOHelper::writeDataArrayBase64(radiusCollision, "radiusCollision", 1, file);
         IOHelper::writeDataArrayBase64(length, "length", 1, file);

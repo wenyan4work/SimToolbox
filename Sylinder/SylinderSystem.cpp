@@ -354,25 +354,33 @@ void SylinderSystem::setInitialFromVTKFile(const std::string &pvtpFileName) {
         std::string baseFolder = getCurrentResultFolder();
 
         // Read the pvtp file and automatically merge the vtks files into a single polydata
-        vtkSmartPointer<vtkXMLPPolyDataReader> reader1 = vtkSmartPointer<vtkXMLPPolyDataReader>::New();
+        vtkSmartPointer<vtkXMLPPolyDataReader> reader = vtkSmartPointer<vtkXMLPPolyDataReader>::New();
         std::cout << "Reading " << baseFolder + pvtpFileName << std::endl;
-        reader1->SetFileName((baseFolder + pvtpFileName).c_str());
-        reader1->Update();
+        reader->SetFileName((baseFolder + pvtpFileName).c_str());
+        reader->Update();
 
         // Extract the polydata (At this point, the polydata is unsorted)
-        vtkSmartPointer<vtkPolyData> polydata1 = reader1->GetOutput();
-
+        vtkSmartPointer<vtkPolyData> polydata = reader->GetOutput();
+        // geometry data
+        vtkSmartPointer<vtkPoints> posData = polydata->GetPoints();
         // Extract the point/cell data
-        vtkSmartPointer<vtkPoints> posData = polydata1->GetPoints();
-        vtkSmartPointer<vtkDataArray> gidData = polydata1->GetCellData()->GetArray("gid");
-        vtkSmartPointer<vtkDataArray> groupData = polydata1->GetCellData()->GetArray("group");
-        vtkSmartPointer<vtkDataArray> lengthData = polydata1->GetCellData()->GetArray("length");
-        vtkSmartPointer<vtkDataArray> lengthCollisionData = polydata1->GetCellData()->GetArray("lengthCollision");
-        vtkSmartPointer<vtkDataArray> radiusData = polydata1->GetCellData()->GetArray("radius");
-        vtkSmartPointer<vtkDataArray> radiusCollisionData = polydata1->GetCellData()->GetArray("radiusCollision");
-        vtkSmartPointer<vtkDataArray> znormData = polydata1->GetCellData()->GetArray("znorm");
-        vtkSmartPointer<vtkDataArray> velData = polydata1->GetCellData()->GetArray("vel");
-        vtkSmartPointer<vtkDataArray> omegaData = polydata1->GetCellData()->GetArray("omega");
+        // int32 types
+        vtkSmartPointer<vtkTypeInt32Array> gidData =
+            vtkArrayDownCast<vtkTypeInt32Array>(polydata->GetCellData()->GetAbstractArray("gid"));
+        vtkSmartPointer<vtkTypeInt32Array> groupData =
+            vtkArrayDownCast<vtkTypeInt32Array>(polydata->GetCellData()->GetAbstractArray("group"));
+        vtkSmartPointer<vtkTypeInt32Array> prevData =
+            vtkArrayDownCast<vtkTypeInt32Array>(polydata->GetCellData()->GetAbstractArray("prev"));
+        vtkSmartPointer<vtkTypeInt32Array> nextData =
+            vtkArrayDownCast<vtkTypeInt32Array>(polydata->GetCellData()->GetAbstractArray("next"));
+        // float types
+        vtkSmartPointer<vtkDataArray> lengthData = polydata->GetCellData()->GetArray("length");
+        vtkSmartPointer<vtkDataArray> lengthCollisionData = polydata->GetCellData()->GetArray("lengthCollision");
+        vtkSmartPointer<vtkDataArray> radiusData = polydata->GetCellData()->GetArray("radius");
+        vtkSmartPointer<vtkDataArray> radiusCollisionData = polydata->GetCellData()->GetArray("radiusCollision");
+        vtkSmartPointer<vtkDataArray> znormData = polydata->GetCellData()->GetArray("znorm");
+        vtkSmartPointer<vtkDataArray> velData = polydata->GetCellData()->GetArray("vel");
+        vtkSmartPointer<vtkDataArray> omegaData = polydata->GetCellData()->GetArray("omega");
 
         // Store the data within a temporary vector of Sylinders
         const int sylinderNumberInFile = posData->GetNumberOfPoints() / 2; // two points per sylinder
@@ -389,7 +397,9 @@ void SylinderSystem::setInitialFromVTKFile(const std::string &pvtpFileName) {
             newBody.pos[1] = (leftEndpointPos[1] + rightEndpointPos[1]) / 2;
             newBody.pos[2] = (leftEndpointPos[2] + rightEndpointPos[2]) / 2;
             newBody.gid = gidData->GetComponent(i, 0);
-            newBody.link.group = groupData->GetComponent(i, 0);
+            newBody.link.group = groupData->GetTypedComponent(i, 0);
+            newBody.link.prev = prevData->GetTypedComponent(i, 0);
+            newBody.link.next = nextData->GetTypedComponent(i, 0);
             newBody.length = lengthData->GetComponent(i, 0);
             newBody.lengthCollision = lengthCollisionData->GetComponent(i, 0);
             newBody.radius = radiusData->GetComponent(i, 0);
@@ -606,7 +616,7 @@ void SylinderSystem::calcMobMatrix() {
         const double dragRotInv = 1 / dragRot;
 
         MobTrans = dragParaInv * qq + dragPerpInv * Imqq;
-        MobRot = dragRotInv * qq + dragRotInv * Imqq;
+        MobRot = dragRotInv * qq + dragRotInv * Imqq; // = dragRotInv * Identity
         // MobRot regularized to remove null space.
         // here it becomes identity matrix,
         // no effect on geometric constraints
@@ -852,6 +862,7 @@ void SylinderSystem::prepareStep() {
         sy.lengthCollision = sylinderContainer[i].length * runConfig.sylinderLengthColRatio;
         sy.rank = commRcp->getRank();
     }
+
     if (runConfig.monolayer) {
         const double monoZ = (runConfig.simBoxHigh[2] + runConfig.simBoxLow[2]) / 2;
 #pragma omp parallel for
@@ -866,6 +877,8 @@ void SylinderSystem::prepareStep() {
     }
 
     updateSylinderMap();
+
+    buildSylinderNearDataDirectory();
 
     calcMobOperator();
 
@@ -1096,18 +1109,6 @@ void SylinderSystem::collectPairCollision() {
     const int nLocal = sylinderContainer.getNumberOfParticleLocal();
     setTreeSylinder();
     treeSylinderNearPtr->calcForceAll(calcColFtr, sylinderContainer, dinfo);
-
-    const int nQue = conCollectorPtr->constraintPoolPtr->size();
-#pragma omp parallel for
-    for (int q = 0; q < nQue; q++) {
-        auto &queue = conCollectorPtr->constraintPoolPtr->at(q);
-        for (auto &block : queue) {
-            if (block.bilateral && block.kappa < 0) {
-                block.kappa = runConfig.linkKappa;
-                block.gamma = block.kappa * block.delta0;
-            }
-        }
-    }
 }
 
 std::pair<int, int> SylinderSystem::getMaxGid() {
@@ -1259,11 +1260,6 @@ void SylinderSystem::calcOrderParameter() {
     }
 }
 
-// void SylinderSystem::setPosWithBoundary() {
-//     const int nLocal = sylinderContainer.getNumberOfParticleLocal();
-//     const double buffer = 1e-4;
-// }
-
 void SylinderSystem::addNewSylinder(std::vector<Sylinder> &newSylinder, std::vector<Link> &linkage) {
     // assign unique new gid for sylinders on all ranks
     std::pair<int, int> maxGid = getMaxGid();
@@ -1328,7 +1324,7 @@ void SylinderSystem::printRank0(const std::string &message) {
 }
 
 void SylinderSystem::buildSylinderNearDataDirectory() {
-    const size_t nLocal = sylinderContainer.getNumberOfParticleLocal();
+    const int nLocal = sylinderContainer.getNumberOfParticleLocal();
     auto &sylinderNearDataDirectory = *sylinderNearDataDirectoryPtr;
     sylinderNearDataDirectory.gidOnLocal.resize(nLocal);
     sylinderNearDataDirectory.dataOnLocal.resize(nLocal);
@@ -1340,4 +1336,92 @@ void SylinderSystem::buildSylinderNearDataDirectory() {
 
     // build index
     sylinderNearDataDirectory.buildIndex();
+}
+
+void SylinderSystem::collectLinkBilateral() {
+    // setup bilateral link constraints
+    // need special treatment of periodic boundary conditions
+    // if a sylinder is treated as a sphere, bilateral links start from its center
+    // for a sylinder, bilateral links start from the ends of its cylindrical section
+    const int nLocal = sylinderContainer.getNumberOfParticleLocal();
+    auto &conPool = *(this->conCollectorPtr->constraintPoolPtr);
+    if (conPool.size() != omp_get_max_threads()) {
+        printf("conPool multithread mismatch error\n");
+        std::exit(1);
+    }
+
+    // fill the data to find
+    auto &gidToFind = sylinderNearDataDirectoryPtr->gidToFind;
+    const auto &dataToFind = sylinderNearDataDirectoryPtr->dataToFind;
+
+    gidToFind.clear();
+    gidToFind.resize(nLocal);
+#pragma omp parallel for
+    for (int i = 0; i < nLocal; i++) {
+        const auto &sy = sylinderContainer[i];
+        if (sy.link.next >= 0) {
+            gidToFind[i] = sy.link.next;
+        } else {
+            gidToFind[i] = sy.gid;
+        }
+    }
+
+    sylinderNearDataDirectoryPtr->find();
+
+#pragma omp parallel
+    {
+        const int threadId = omp_get_thread_num();
+        auto &conQue = conPool[threadId];
+#pragma omp for
+        for (int i = 0; i < nLocal; i++) {
+            const auto &syI = sylinderContainer[i];                        // sylinder
+            const auto &syJ = sylinderNearDataDirectoryPtr->dataToFind[i]; // sylinderNear
+            const Evec3 &centerI = ECmap3(syI.pos);
+            Evec3 centerJ = ECmap3(syJ.pos);
+            // apply PBC on centerJ
+            for (int k = 0; k < 3; k++) {
+                if (!runConfig.simBoxPBC[k])
+                    continue;
+                double trg = centerI[k];
+                double xk = centerJ[k];
+                findPBCImage(runConfig.simBoxLow[k], runConfig.simBoxHigh[k], xk, trg);
+                centerJ[k] = xk;
+                // error check
+                if (fabs(trg - xk) > 0.5 * (runConfig.simBoxHigh[k] - runConfig.simBoxLow[k])) {
+                    printf("pbc image error in bilateral links\n");
+                    std::exit(1);
+                }
+            }
+            // sylinders are not treated as spheres for bilateral constraints
+            // constraint is added between Pp and Qm
+            // constraint target length is radiusI + radiusJ + runConfig.linkGap
+            const Evec3 directionI = ECmapq(syI.orientation) * Evec3(0, 0, 1);
+            const Evec3 Pp = centerI + directionI * (0.5 * syI.length); // plus end
+            const Evec3 directionJ = ECmap3(syJ.direction);
+            const Evec3 Qm = centerJ - directionJ * (0.5 * syJ.length);
+            const Evec3 Ploc = Pp;
+            const Evec3 Qloc = Qm;
+            const Evec3 rvec = Qloc - Ploc;
+            const double rnorm = rvec.norm();
+            const double delta0 = rnorm - syI.radius - syJ.radius - runConfig.linkGap;
+            const double gamma = delta0 < 0 ? -delta0 : 0;
+            const Evec3 normI = (Ploc - Qloc).normalized();
+            const Evec3 normJ = -normI;
+            const Evec3 posI = Ploc - centerI;
+            const Evec3 posJ = Qloc - centerJ;
+            ConstraintBlock conBlock(delta0, gamma,              // current separation, initial guess of gamma
+                                     syI.gid, syJ.gid,           //
+                                     syI.globalIndex,            //
+                                     syJ.globalIndex,            //
+                                     normI.data(), normJ.data(), // direction of collision force
+                                     posI.data(), posJ.data(),   // location of collision relative to particle center
+                                     Ploc.data(), Qloc.data(),   // location of collision in lab frame
+                                     false, true, runConfig.linkKappa, 0.0);
+            Emat3 stressIJ;
+            CalcSylinderNearForce::collideStress(directionI, directionJ, centerI, centerJ, syI.length, syJ.length,
+                                                 syI.radius, syJ.radius, 1.0, Ploc, Qloc, stressIJ);
+            conBlock.setStress(stressIJ);
+            conQue.push_back(conBlock);
+        }
+    }
 }

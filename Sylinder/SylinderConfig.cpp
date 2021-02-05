@@ -30,6 +30,9 @@ SylinderConfig::SylinderConfig(std::string filename) {
     readConfig(config, VARNAME(sylinderLengthColRatio), sylinderLengthColRatio, "");
     readConfig(config, VARNAME(sylinderColBuf), sylinderColBuf, "");
 
+    readConfig(config, VARNAME(linkKappa), linkKappa, "");
+    readConfig(config, VARNAME(linkGap), linkGap, "");
+
     readConfig(config, VARNAME(dt), dt, "");
     readConfig(config, VARNAME(timeTotal), timeTotal, "");
     readConfig(config, VARNAME(timeSnap), timeSnap, "");
@@ -37,7 +40,6 @@ SylinderConfig::SylinderConfig(std::string filename) {
     readConfig(config, VARNAME(conResTol), conResTol, "");
     readConfig(config, VARNAME(conMaxIte), conMaxIte, "");
     readConfig(config, VARNAME(conSolverChoice), conSolverChoice, "");
-    readConfig(config, VARNAME(linkKappa), linkKappa, "");
 
     boundaryPtr.clear();
     printf("b\n");
@@ -86,6 +88,7 @@ void SylinderConfig::dump() const {
         printf("viscosity: %g\n", viscosity);
         printf("kBT: %g\n", KBT);
         printf("Link Kappa: %g\n", linkKappa);
+        printf("Link Gap: %g\n", linkGap);
         printf("Sylinder Number: %d\n", sylinderNumber);
         printf("Sylinder Length: %g\n", sylinderLength);
         printf("Sylinder Length Sigma: %g\n", sylinderLengthSigma);

@@ -17,6 +17,7 @@
 
 #include <algorithm>
 #include <cmath>
+#include <deque>
 #include <type_traits>
 #include <vector>
 
@@ -128,7 +129,7 @@ struct ConstraintBlock {
 static_assert(std::is_trivially_copyable<ConstraintBlock>::value, "");
 static_assert(std::is_default_constructible<ConstraintBlock>::value, "");
 
-using ConstraintBlockQue = std::vector<ConstraintBlock>;     ///< a queue contains blocks collected by one thread
+using ConstraintBlockQue = std::deque<ConstraintBlock>;      ///< a queue contains blocks collected by one thread
 using ConstraintBlockPool = std::vector<ConstraintBlockQue>; ///< a pool contains queues on different threads
 
 #endif

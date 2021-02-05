@@ -7,8 +7,7 @@ ConstraintCollector::ConstraintCollector() {
     constraintPoolPtr = std::make_shared<ConstraintBlockPool>();
     constraintPoolPtr->resize(totalThreads);
     for (auto &queue : *constraintPoolPtr) {
-        queue.resize(0);
-        queue.reserve(50);
+        queue.clear();
     }
     std::cout << "ConstraintCollector constructed for:" << constraintPoolPtr->size() << " threads" << std::endl;
 }

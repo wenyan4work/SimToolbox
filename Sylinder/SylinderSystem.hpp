@@ -145,13 +145,6 @@ class SylinderSystem {
      */
     void writeBox();
 
-    // /**
-    //  * @brief directly set the position of sylinders to non-overlap with boundaries
-    //  *
-    //  * used only for randomly generated initial configuration
-    //  */
-    // void setPosWithBoundary();
-
     /**
      * @brief Get orientation quaternion with givne px,py,pz
      *
@@ -279,8 +272,6 @@ class SylinderSystem {
     const PS::ParticleSystem<Sylinder> &getContainer() { return sylinderContainer; }
     PS::ParticleSystem<Sylinder> &getContainerNonConst() { return sylinderContainer; }
 
-    // PS::ParticleSystem<Sylinder> *getContainerPtr() { return &sylinderContainer; }
-
     /**
      * @brief Get the DomainInfo object
      *
@@ -288,8 +279,6 @@ class SylinderSystem {
      */
     const PS::DomainInfo &getDomainInfo() { return dinfo; }
     PS::DomainInfo &getDomainInfoNonConst() { return dinfo; }
-
-    // PS::DomainInfo *getDomainInfoPtr() { return &dinfo; }
 
     /**
      * @brief Get the RngPoolPtr object
@@ -363,19 +352,6 @@ class SylinderSystem {
      *
      */
     void addNewSylinder(std::vector<Sylinder> &newSylinder, std::vector<Link> &linkage);
-
-    // /**
-    //  * @brief calculate collision stress with constraint solution
-    //  *
-    //  * The result is shown on screen
-    //  */
-    // void calcColStress();
-
-    // /**
-    //  * @brief calculate bilateral stress with constraint solution
-    //  *
-    //  */
-    // void calcBiStress();
 
     /**
      * @brief calculate both Col and Bi stress
@@ -456,12 +432,12 @@ class SylinderSystem {
     std::shared_ptr<ZDD<SylinderNearEP>> &getSylinderNearDataDirectory() { return sylinderNearDataDirectoryPtr; }
 
     // resolve constraints
-    void collectBoundaryCollision();     ///< collect boundary collision constraints
-    void collectPairCollision();         ///< collect pair collision constraints
+    void collectPairCollision();     ///< collect pair collision constraints
+    void collectBoundaryCollision(); ///< collect boundary collision constraints
+    void collectLinkBilateral();     ///< setup link constraints
+
     void resolveConstraints();           ///< resolve constraints
     void saveForceVelocityConstraints(); ///< write back to sylinder.velCol and velBi
-
-    void collectLinkBilateral(); ///< WARNING: periodic boundary condition is missing in this function. do not use.
 
     void stepEuler(); ///< Euler step update position and orientation, with both collision and non-collision velocity
 
