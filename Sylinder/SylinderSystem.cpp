@@ -309,7 +309,7 @@ void SylinderSystem::setInitialFromFile(const std::string &filename) {
             char typeChar;
             std::istringstream liness(line);
             liness >> typeChar;
-            if (typeChar == 'C') {
+            if (typeChar == 'C' || typeChar == 'F' /* flexible */) {
                 Sylinder newBody;
                 int gid;
                 double mx, my, mz;
@@ -321,10 +321,20 @@ void SylinderSystem::setInitialFromFile(const std::string &filename) {
                 newBody.length = sqrt((px - mx) * (px - mx) + (py - my) * (py - my) + (pz - mz) * (pz - mz));
                 Evec3 direction(px - mx, py - my, pz - mz);
                 Emapq(newBody.orientation) = Equatn::FromTwoVectors(Evec3(0, 0, 1), direction);
-
                 newBody.radius = radius;
                 newBody.radiusCollision = radius;
                 newBody.lengthCollision = newBody.length;
+
+                Link link;
+                if (typeChar == 'F') { // Make sylinder a link in a flexible filament
+                    int link_grp, prev_link, next_link;
+                    liness >> link_grp >> prev_link >> next_link;
+                    link.group = link_grp;
+                    link.prev = prev_link;
+                    link.next = next_link;
+                }
+                newBody.link = link;
+
                 sylinderReadFromFile.push_back(newBody);
                 typeChar = 'N';
             }
