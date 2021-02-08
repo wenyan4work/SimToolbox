@@ -1073,14 +1073,9 @@ void SylinderSystem::collectBoundaryCollision() {
             for (int i = 0; i < nLocal; i++) {
                 const auto &sy = sylinderContainer[i];
                 const Evec3 center = ECmap3(sy.pos);
-                const Equatn orientation = ECmapq(sy.orientation);
-                const Evec3 direction = orientation * Evec3(0, 0, 1);
-                const double length = sy.lengthCollision;
-                const Evec3 Qm = center - direction * (length * 0.5);
-                const Evec3 Qp = center + direction * (length * 0.5);
 
-                auto checkEnd = [&](const Evec3 &Query) {
-                    // check one end
+                // check one point
+                auto checkEnd = [&](const Evec3 &Query, const double radius) {
                     double Proj[3], delta[3];
                     bPtr->project(Query.data(), Proj, delta);
                     // if (!bPtr->check(Query.data(), Proj, delta)) {
@@ -1093,18 +1088,29 @@ void SylinderSystem::collectBoundaryCollision() {
                     Evec3 posI = Query - center;
 
                     if ((Query - ECmap3(Proj)).dot(ECmap3(delta)) < 0) { // outside boundary
-                        que.emplace_back(-deltanorm - sy.radiusCollision, 0, sy.gid, sy.gid, sy.globalIndex,
-                                         sy.globalIndex, norm.data(), norm.data(), posI.data(), posI.data(),
-                                         Query.data(), Proj, true, false, 0.0, 0.0);
+                        que.emplace_back(-deltanorm - radius, 0, sy.gid, sy.gid, sy.globalIndex, sy.globalIndex,
+                                         norm.data(), norm.data(), posI.data(), posI.data(), Query.data(), Proj, true,
+                                         false, 0.0, 0.0);
                     } else if (deltanorm <
                                (1 + runConfig.sylinderColBuf * 2) * sy.radiusCollision) { // inside boundary but close
-                        que.emplace_back(deltanorm - sy.radiusCollision, 0, sy.gid, sy.gid, sy.globalIndex,
-                                         sy.globalIndex, norm.data(), norm.data(), posI.data(), posI.data(),
-                                         Query.data(), Proj, true, false, 0.0, 0.0);
+                        que.emplace_back(deltanorm - radius, 0, sy.gid, sy.gid, sy.globalIndex, sy.globalIndex,
+                                         norm.data(), norm.data(), posI.data(), posI.data(), Query.data(), Proj, true,
+                                         false, 0.0, 0.0);
                     }
                 };
-                checkEnd(Qm);
-                checkEnd(Qp);
+
+                if (sy.isSphere()) {
+                    double radius = sy.lengthCollision * 0.5 + sy.radiusCollision;
+                    checkEnd(center, radius);
+                } else {
+                    const Equatn orientation = ECmapq(sy.orientation);
+                    const Evec3 direction = orientation * Evec3(0, 0, 1);
+                    const double length = sy.lengthCollision;
+                    const Evec3 Qm = center - direction * (length * 0.5);
+                    const Evec3 Qp = center + direction * (length * 0.5);
+                    checkEnd(Qm, sy.radiusCollision);
+                    checkEnd(Qp, sy.radiusCollision);
+                }
             }
         }
     }
