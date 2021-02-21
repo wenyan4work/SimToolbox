@@ -97,6 +97,8 @@ void Sylinder::writePVTP(const std::string &prefix, const std::string &postfix, 
     std::vector<IOHelper::FieldVTU> cellDataFields;
     cellDataFields.emplace_back(1, IOHelper::IOTYPE::Int32, "gid");
     cellDataFields.emplace_back(1, IOHelper::IOTYPE::Int32, "group");
+    cellDataFields.emplace_back(1, IOHelper::IOTYPE::Int32, "prevLink");
+    cellDataFields.emplace_back(1, IOHelper::IOTYPE::Int32, "nextLink");
     cellDataFields.emplace_back(1, IOHelper::IOTYPE::Float32, "radius");
     cellDataFields.emplace_back(1, IOHelper::IOTYPE::Float32, "radiusCollision");
     cellDataFields.emplace_back(1, IOHelper::IOTYPE::Float32, "length");
