@@ -1,13 +1,15 @@
 # program settings
+# Brownian spheres at vol%=30.3% for C-S EOS verification
+# theoretical P_collision = 3.037
 rngSeed: 1234
 # simulation box
 simBoxLow: [0, 0, 0]
-simBoxHigh: [15, 15, 15]
+simBoxHigh: [12, 12, 12]
 simBoxPBC: [true, true, true]
 monolayer: false
 # initialization box
 initBoxLow: [0, 0, 0]
-initBoxHigh: [15, 15, 15]
+initBoxHigh: [12, 12, 12]
 initCircularX: false
 # components outside [-1,1] will be randomly set
 initOrient: [2, 2, 2]
@@ -18,7 +20,7 @@ linkKappa: 1000.0 # pN/um spring constant for sylinder links.
 linkGap: 0.05 # um separation for sylinder links.
 # Sylinder
 sylinderFixed: false
-sylinderNumber: 2000
+sylinderNumber: 1000
 sylinderLength: 0.0
 sylinderLengthColRatio: 1.0
 sylinderLengthSigma: -1.0 # <0 means no randomness
@@ -27,7 +29,7 @@ sylinderDiameterColRatio: 1.0
 sylinderColBuf: 1.0
 # time-stepping
 dt: 0.0001 # s
-timeTotal: 5.0 # s
+timeTotal: 4.0 # s
 timeSnap: 0.1 # s
 # ConstraintSolver
 conResTol: 1e-5 # residual

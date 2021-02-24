@@ -59,6 +59,7 @@ endforeach()
 add_test(
   NAME StressSphere
   COMMAND
-    sh -c
-    "cd TestCases/Test5_StressSphere/ && export OMP_NUM_THREADS=2 && mpirun -n 4 ../../SylinderSystem_main > StressSphere.log"
-)
+    sh -c "cd TestCases/Test5_StressSphere/ \
+    && export OMP_NUM_THREADS=2 \
+    && mpirun -n 4 ../../SylinderSystem_main > StressSphere.log \
+    && python StressVerify.py")
