@@ -19,9 +19,9 @@ linkGap: 0.05 # um separation for sylinder links.
 # Sylinder
 sylinderFixed: false
 sylinderNumber: 400
-sylinderLength: 3.0
+sylinderLength: 2.0
 sylinderLengthColRatio: 1.0
-sylinderLengthSigma: -1.0 # <0 means no randomness
+sylinderLengthSigma: 0.5 # <0 means no randomness
 sylinderDiameter: 1.0
 sylinderDiameterColRatio: 1.0
 sylinderColBuf: 1.0
