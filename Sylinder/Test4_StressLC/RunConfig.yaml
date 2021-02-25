@@ -1,13 +1,15 @@
 # program settings
+# Brownian spheres at vol%=32.9673% for EOS verification
+# theoretical P_collision = 8.2
 rngSeed: 1234
 # simulation box
 simBoxLow: [0, 0, 0]
-simBoxHigh: [20, 20, 20]
+simBoxHigh: [30, 30, 30]
 simBoxPBC: [true, true, true]
 monolayer: false
 # initialization box
 initBoxLow: [0, 0, 0]
-initBoxHigh: [20, 20, 20]
+initBoxHigh: [30, 30, 30]
 initCircularX: false
 # components outside [-1,1] will be randomly set
 initOrient: [2, 2, 2]
@@ -27,7 +29,7 @@ sylinderDiameterColRatio: 1.0
 sylinderColBuf: 1.0
 # time-stepping
 dt: 0.0001 # s
-timeTotal: 5.0 # s
+timeTotal: 0.5 # s
 timeSnap: 0.1 # s
 # ConstraintSolver
 conResTol: 1e-5 # residual

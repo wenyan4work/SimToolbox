@@ -218,7 +218,52 @@ class Sylinder {
      * @param postfix
      * @param nProcs
      */
-    static void writePVTP(const std::string &prefix, const std::string &postfix, const int nProcs);
+    static void writePVTP(const std::string &prefix, const std::string &postfix, const int nProcs) {
+        std::vector<std::string> pieceNames;
+
+        std::vector<IOHelper::FieldVTU> pointDataFields;
+        pointDataFields.emplace_back(1, IOHelper::IOTYPE::Float32, "endLabel");
+
+        std::vector<IOHelper::FieldVTU> cellDataFields;
+        cellDataFields.emplace_back(1, IOHelper::IOTYPE::Int32, "gid");
+        cellDataFields.emplace_back(1, IOHelper::IOTYPE::Int32, "group");
+        cellDataFields.emplace_back(1, IOHelper::IOTYPE::Int32, "prev");
+        cellDataFields.emplace_back(1, IOHelper::IOTYPE::Int32, "next");
+        cellDataFields.emplace_back(1, IOHelper::IOTYPE::Float32, "radius");
+        cellDataFields.emplace_back(1, IOHelper::IOTYPE::Float32, "radiusCollision");
+        cellDataFields.emplace_back(1, IOHelper::IOTYPE::Float32, "length");
+        cellDataFields.emplace_back(1, IOHelper::IOTYPE::Float32, "lengthCollision");
+
+        cellDataFields.emplace_back(3, IOHelper::IOTYPE::Float32, "vel");
+        cellDataFields.emplace_back(3, IOHelper::IOTYPE::Float32, "omega");
+        cellDataFields.emplace_back(3, IOHelper::IOTYPE::Float32, "velCollision");
+        cellDataFields.emplace_back(3, IOHelper::IOTYPE::Float32, "omegaCollision");
+        cellDataFields.emplace_back(3, IOHelper::IOTYPE::Float32, "velBilateral");
+        cellDataFields.emplace_back(3, IOHelper::IOTYPE::Float32, "omegaBilateral");
+        cellDataFields.emplace_back(3, IOHelper::IOTYPE::Float32, "velNonBrown");
+        cellDataFields.emplace_back(3, IOHelper::IOTYPE::Float32, "omegaNonBrown");
+
+        cellDataFields.emplace_back(3, IOHelper::IOTYPE::Float32, "force");
+        cellDataFields.emplace_back(3, IOHelper::IOTYPE::Float32, "torque");
+        cellDataFields.emplace_back(3, IOHelper::IOTYPE::Float32, "forceCollision");
+        cellDataFields.emplace_back(3, IOHelper::IOTYPE::Float32, "torqueCollision");
+        cellDataFields.emplace_back(3, IOHelper::IOTYPE::Float32, "forceBilateral");
+        cellDataFields.emplace_back(3, IOHelper::IOTYPE::Float32, "torqueBilateral");
+        cellDataFields.emplace_back(3, IOHelper::IOTYPE::Float32, "forceNonBrown");
+        cellDataFields.emplace_back(3, IOHelper::IOTYPE::Float32, "torqueNonBrown");
+
+        cellDataFields.emplace_back(3, IOHelper::IOTYPE::Float32, "velBrown");
+        cellDataFields.emplace_back(3, IOHelper::IOTYPE::Float32, "omegaBrown");
+        cellDataFields.emplace_back(3, IOHelper::IOTYPE::Float32, "xnorm");
+        cellDataFields.emplace_back(3, IOHelper::IOTYPE::Float32, "znorm");
+
+        for (int i = 0; i < nProcs; i++) {
+            pieceNames.emplace_back(std::string("Sylinder_") + std::string("r") + std::to_string(i) + "_" + postfix +
+                                    ".vtp");
+        }
+
+        IOHelper::writePVTPFile(prefix + "Sylinder_" + postfix + ".pvtp", pointDataFields, cellDataFields, pieceNames);
+    }
 
     /**
      * @brief write VTK XML binary base64 VTP data file from every MPI rank
