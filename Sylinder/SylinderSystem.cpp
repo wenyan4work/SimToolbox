@@ -798,6 +798,8 @@ void SylinderSystem::resolveConstraints() {
 
     Teuchos::RCP<Teuchos::Time> collectColTimer =
         Teuchos::TimeMonitor::getNewCounter("SylinderSystem::CollectCollision");
+    Teuchos::RCP<Teuchos::Time> collectLinkTimer = Teuchos::TimeMonitor::getNewCounter("SylinderSystem::CollectLink");
+
     if (enableTimer) {
         collectColTimer->enable();
     } else {
@@ -809,6 +811,12 @@ void SylinderSystem::resolveConstraints() {
         Teuchos::TimeMonitor mon(*collectColTimer);
         collectPairCollision();
         collectBoundaryCollision();
+    }
+
+    printRank0("start collect links");
+    {
+        Teuchos::TimeMonitor mon(*collectLinkTimer);
+        collectLinkBilateral();
     }
 
     // solve collision
