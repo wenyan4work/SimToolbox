@@ -57,12 +57,20 @@ foreach(resource ${resources})
 endforeach()
 
 add_test(
-  NAME StressLC
+  NAME Confinement
   COMMAND
-    sh -c "cd TestCases/Test4_StressLC/ \
+    sh -c "cd TestCases/Test1_Confinement/ \
     && export OMP_NUM_THREADS=2 \
-    && mpirun -n 4 ../../SylinderSystem_main > StressLC.log \
-    && python StressVerify.py")
+    && mpirun -n 2 ../../SylinderSystem_main > Confinement.log \
+    && python Verify.py")
+
+# add_test(
+#   NAME StressLC
+#   COMMAND
+#     sh -c "cd TestCases/Test4_StressLC/ \
+#     && export OMP_NUM_THREADS=2 \
+#     && mpirun -n 4 ../../SylinderSystem_main > StressLC.log \
+#     && python StressVerify.py")
 
 # add_test(
 #   NAME StressSphere
