@@ -29,7 +29,7 @@ sylinderDiameterColRatio: 1.0
 sylinderColBuf: 1.0
 # time-stepping
 dt: 0.0001 # s
-timeTotal: 5.0 # s
+timeTotal: 1.0 # s
 timeSnap: 0.1 # s
 # ConstraintSolver
 conResTol: 1e-5 # residual

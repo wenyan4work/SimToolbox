@@ -80,8 +80,8 @@ add_test(
   NAME StressLC
   COMMAND
     sh -c "cd TestCases/Test4_StressLC/ \
-    && export OMP_NUM_THREADS=2 \
-    && mpirun -n 4 ../../SylinderSystem_main > StressLC.log \
+    && export OMP_NUM_THREADS=3 \
+    && mpirun -n 2 ../../SylinderSystem_main > StressLC.log \
     && python StressVerify.py")
 set_tests_properties(StressLC PROPERTIES FAIL_REGULAR_EXPRESSION
                                         "[^a-z]Error;ERROR;Failed")
