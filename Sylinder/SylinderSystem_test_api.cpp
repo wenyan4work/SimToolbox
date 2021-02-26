@@ -1,11 +1,30 @@
+/**
+ * @file SylinderSystem_test_api.cpp
+ * @author Wen Yan (wenyan4work@gmail.com)
+ * @brief This file tests a few api behaviors of SylinderSystem class
+ * @version 0.1
+ * @date 2021-02-26
+ *
+ * @copyright Copyright (c) 2021
+ *
+ */
+#include "MPI/CommMPI.hpp"
 #include "Sylinder/SylinderSystem.hpp"
 
-void testSedimentation(int argc, char **argv) {
-    auto runConfig = SylinderConfig("SylinderSystem_test_runConfig.yaml");
+void testAddLinks(SylinderSystem &sylinderSystem) {
+    /*********************************
+     * Test:
+     * (1) run 10 steps as given in RunConfig.yaml
+     * (2) add one link of 20 segments from each rank
+     * (3) run 10 more steps
+     *
+     * Check:
+     * (1) gid is correct
+     * (2) linkage is correct
+     */
 
-    SylinderSystem sylinderSystem(runConfig, "posInitial.dat", argc, argv);
-    sylinderSystem.setTimer(true);
     auto &rngPoolPtr = sylinderSystem.getRngPoolPtr();
+    auto &runConfig = sylinderSystem.runConfig;
 
     // run 10 steps for relaxation
     for (int i = 0; i < 10; i++) {
@@ -51,8 +70,8 @@ void testSedimentation(int argc, char **argv) {
 
     sylinderSystem.addNewSylinder(newSylinder, linkage);
 
-    // run as given in runConfig file
-    const int nSteps = runConfig.timeTotal / runConfig.dt;
+    // run 10 steps
+    const int nSteps = 10;
     for (int i = 0; i < nSteps; i++) {
         sylinderSystem.prepareStep();
         auto &sylinderContainer = sylinderSystem.getContainer();
@@ -61,7 +80,7 @@ void testSedimentation(int argc, char **argv) {
         for (int i = 0; i < nLocal; i++) {
             if (sylinderContainer[i].link.group != GEO_INVALID_INDEX &&
                 sylinderContainer[i].link.next == GEO_INVALID_INDEX) {
-                forceNonBrown[6 * i + 1] = 10; // y 
+                forceNonBrown[6 * i + 1] = 10; // y
                 forceNonBrown[6 * i + 2] = 10; // z
             }
         }
@@ -69,27 +88,19 @@ void testSedimentation(int argc, char **argv) {
         sylinderSystem.runStep();
     }
 
-    Teuchos::TimeMonitor::summarize();
-
-    double localLow[3];
-    double localHigh[3];
-    double globalLow[3];
-    double globalHigh[3];
-    sylinderSystem.calcBoundingBox(localLow, localHigh, globalLow, globalHigh);
-    std::cout << "local bounding box: " << std::endl;
-    std::cout << Emap3(localLow).transpose() << std::endl;
-    std::cout << Emap3(localHigh).transpose() << std::endl;
-    std::cout << "global bounding box: " << std::endl;
-    std::cout << Emap3(globalLow).transpose() << std::endl;
-    std::cout << Emap3(globalHigh).transpose() << std::endl;
+    // check added links by external python script
 }
-
-void testLink(int argc, char **argv) {}
 
 int main(int argc, char **argv) {
     MPI_Init(&argc, &argv);
 
-    testSedimentation(argc, argv);
+    {
+        auto runConfig = SylinderConfig("RunConfig.yaml");
+
+        SylinderSystem sylinderSystem(runConfig, "posInitial.dat", argc, argv);
+        sylinderSystem.setTimer(true);
+        testAddLinks(sylinderSystem);
+    }
 
     MPI_Barrier(MPI_COMM_WORLD);
     MPI_Finalize();
