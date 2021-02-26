@@ -56,13 +56,25 @@ foreach(resource ${resources})
 
 endforeach()
 
-# add_test(
-#   NAME Confinement
-#   COMMAND
-#     sh -c "cd TestCases/Test1_Confinement/ \
-#     && export OMP_NUM_THREADS=2 \
-#     && mpirun -n 2 ../../SylinderSystem_main > Confinement.log \
-#     && python Verify.py")
+add_test(
+  NAME MixLink
+  COMMAND
+    sh -c "cd TestCases/Test2_MixLink/ \
+    && export OMP_NUM_THREADS=2 \
+    && mpirun -n 2 ../../SylinderSystem_main > MixLink.log \
+    && python Verify.py")
+set_tests_properties(MixLink PROPERTIES FAIL_REGULAR_EXPRESSION
+                                        "[^a-z]Error;ERROR;Failed")
+
+add_test(
+  NAME Confinement
+  COMMAND
+    sh -c "cd TestCases/Test1_Confinement/ \
+    && export OMP_NUM_THREADS=2 \
+    && mpirun -n 2 ../../SylinderSystem_main > Confinement.log \
+    && python Verify.py")
+set_tests_properties(Confinement PROPERTIES FAIL_REGULAR_EXPRESSION
+                                            "[^a-z]Error;ERROR;Failed")
 
 # add_test(
 #   NAME StressLC
@@ -71,6 +83,8 @@ endforeach()
 #     && export OMP_NUM_THREADS=2 \
 #     && mpirun -n 4 ../../SylinderSystem_main > StressLC.log \
 #     && python StressVerify.py")
+# set_tests_properties(StressLC PROPERTIES FAIL_REGULAR_EXPRESSION
+#                                         "[^a-z]Error;ERROR;Failed")
 
 # add_test(
 #   NAME StressSphere
@@ -79,3 +93,5 @@ endforeach()
 #     && export OMP_NUM_THREADS=2 \
 #     && mpirun -n 4 ../../SylinderSystem_main > StressSphere.log \
 #     && python StressVerify.py")
+# set_tests_properties(StressSphere PROPERTIES FAIL_REGULAR_EXPRESSION
+#                                              "[^a-z]Error;ERROR;Failed")
