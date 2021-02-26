@@ -15,11 +15,11 @@ initOrient: [2, 2, 0]
 viscosity: 0.01 #pN/(um^2.s)
 KBT: 0.00411 #pN.um, 300K
 linkKappa: 1000.0 # pN/um spring constant for sylinder links.
-linkGap: 0.05 # um separation for sylinder links.
+linkGap: 0.01 # um separation for sylinder links.
 # Sylinder
 sylinderFixed: false
 sylinderNumber: 400
-sylinderLength: 2.0
+sylinderLength: 0.8
 sylinderLengthColRatio: 1.0
 sylinderLengthSigma: 0.5 # <0 means no randomness
 sylinderDiameter: 1.0
@@ -31,7 +31,7 @@ timeTotal: 1.0 # s
 timeSnap: 0.01 # s
 # ConstraintSolver
 conResTol: 1e-5 # residual
-conMaxIte: 100000 # max iteration
+conMaxIte: 1000 # max iteration
 conSolverChoice: 0 # 0 for BBPGD, 1 for APGD, etc
 # Boundaries
 boundaries:
