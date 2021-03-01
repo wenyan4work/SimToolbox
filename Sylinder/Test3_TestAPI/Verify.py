@@ -5,6 +5,7 @@ import re
 import numpy as np
 import scipy as sp
 import yaml
+import copy
 
 # member variables are dynamically added by parsing data files
 
@@ -98,13 +99,50 @@ def check_link(frame):
     for b in frame.conBlocks:
         if b.bilateral[0] > 0:
             biblocks.append(b)
-    for i in range(4):
-        for j in range(18):
-            a = biblocks[19*i+j].gid0[0]
-            b = biblocks[19*i+j+1].gid1[0]
-            print(a, b)
-            if a != b:
-                print("Fail : link error")
+
+    b = biblocks[0]
+    chains = [[(int(b.gid0[0]), int(b.gid1[0]))]]
+    biblocks.remove(biblocks[0])
+
+    # step 1, find segments
+    while biblocks:
+        found = False
+        for b in biblocks:
+            if chains[-1][-1][1] == b.gid0[0]:
+                chains[-1].append((int(b.gid0[0]), int(b.gid1[0])))
+                biblocks.remove(b)
+                found = True
+        if not found:  # beginning of a new chain
+            b = biblocks[0]
+            chains.append([(int(b.gid0[0]), int(b.gid1[0]))])
+            biblocks.remove(b)
+
+    # step 2, connect found segments
+    chains2 = [chains[0]]
+    chains.remove(chains[0])
+
+    while chains:
+        found = False
+        for c in chains:
+            if chains2[-1][-1][1] == c[0][0]:
+                chains2[-1].extend(c)
+                chains.remove(c)
+                found = True
+            elif chains2[-1][0][0] == c[-1][1]:
+                c.extend(chains2[-1])
+                chains2[-1] = c
+                chains.remove(c)
+                found = True
+        if not found:
+            chains2.append(chains[-1])
+            chains.remove(chains[-1])
+
+    # step 3, verify chains
+    assert len(chains2) == 4
+    for c in chains2:
+        assert len(c) == 19
+
+    return
 
 
 # get file list
