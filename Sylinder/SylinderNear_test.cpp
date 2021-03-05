@@ -44,8 +44,8 @@ void testFixedPair() {
     calc.conPoolPtr = std::make_shared<ConstraintBlockPool>();
     calc.conPoolPtr->resize(1);
 
-    std::vector<SylinderNearEP> sylinderP(1);
-    std::vector<SylinderNearEP> sylinderQ(1);
+    std::vector<SylinderNearEP<10>> sylinderP(1);
+    std::vector<SylinderNearEP<10>> sylinderQ(1);
 
     { // setup P
         Evec3 center = (P0 + P1) / 2;
@@ -118,8 +118,8 @@ void testParallel() {
     calc.conPoolPtr = std::make_shared<ConstraintBlockPool>();
     calc.conPoolPtr->resize(1);
 
-    std::vector<SylinderNearEP> sylinderP(1);
-    std::vector<SylinderNearEP> sylinderQ(1);
+    std::vector<SylinderNearEP<10>> sylinderP(1);
+    std::vector<SylinderNearEP<10>> sylinderQ(1);
 
     { // setup P
         Evec3 center = (P0 + P1) / 2;

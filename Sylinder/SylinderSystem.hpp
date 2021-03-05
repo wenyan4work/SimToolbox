@@ -23,19 +23,19 @@
 #include "Util/TRngPool.hpp"
 
 #include <vtkCellData.h>
+#include <vtkPointData.h>
 #include <vtkPoints.h>
 #include <vtkPolyData.h>
-#include <vtkPointData.h>
 #include <vtkSmartPointer.h>
 #include <vtkXMLPPolyDataReader.h>
-// #include <vtkAppendPolyData.h> 
+// #include <vtkAppendPolyData.h>
 #include <vtkDataArray.h>
 
 /**
  * @brief A collection of sylinders distributed to multiple MPI ranks.
  *
  */
-template<int N>
+template <int N>
 class SylinderSystem {
     bool enableTimer = false;
     int snapID;    ///< the current id of the snapshot file to be saved. sequentially numbered from 0
@@ -46,13 +46,14 @@ class SylinderSystem {
     void setDomainInfo();
 
     PS::ParticleSystem<Sylinder<N>> sylinderContainer;        ///< sylinders
-    std::unique_ptr<TreeSylinderNear> treeSylinderNearPtr; ///< short range interaction of sylinders
-    int treeSylinderNumber;                                ///< the current max_glb number of treeSylinderNear
+    std::unique_ptr<TreeSylinderNear<N>> treeSylinderNearPtr; ///< short range interaction of sylinders
+    int treeSylinderNumber;                                   ///< the current max_glb number of treeSylinderNear
     void setTreeSylinder();
 
     // Constraint stuff
     std::shared_ptr<ConstraintSolver> conSolverPtr;       ///< pointer to ConstraintSolver
     std::shared_ptr<ConstraintCollector> conCollectorPtr; ///<  pointer to ConstraintCollector
+    std::shared_ptr<SQWCollector<N>> sqwCollectorPtr;     ///<  pointer to SQWCollector
     Teuchos::RCP<const TV> forceUniRcp;                   ///< unilateral constraint force
     Teuchos::RCP<const TV> velocityUniRcp;                ///< unilateral constraint velocity
     Teuchos::RCP<const TV> forceBiRcp;                    ///< bilateral constraint force
@@ -74,7 +75,8 @@ class SylinderSystem {
     Teuchos::RCP<TOP> mobilityOperatorRcp;     ///< full mobility operator (matrix-free), to be implemented
 
     // Data directory
-    std::shared_ptr<ZDD<SylinderNearEP>> sylinderNearDataDirectoryPtr; ///< distributed data directory for sylinder data
+    std::shared_ptr<ZDD<SylinderNearEP<N>>>
+        sylinderNearDataDirectoryPtr; ///< distributed data directory for sylinder data
 
     // internal utility functions
     /**
@@ -95,11 +97,10 @@ class SylinderSystem {
      * @brief set initial configuration as given in the (.dat) file
      *
      * The simBox and BC settings in runConfig are still used
-     * @param pvtpFileName 
+     * @param pvtpFileName
      * @param pvtpDistFileName
      */
-    void setInitialFromVTKFile(const std::string &pvtpFileName, 
-                               const std::string &pvtpDistFileName);
+    void setInitialFromVTKFile(const std::string &pvtpFileName, const std::string &pvtpDistFileName);
 
     /**
      * @brief set initial configuration if runConfig.initCircularX is set
@@ -122,14 +123,14 @@ class SylinderSystem {
     void updateSylinderMap(); ///< update sylindermap and sylinderMobilityMap
 
     /**
-     * @brief write VTK parallel XML file containing single-cell polydata into baseFolder 
+     * @brief write VTK parallel XML file containing single-cell polydata into baseFolder
      *
      * @param baseFolder
      */
     void writeVTK(const std::string &baseFolder);
-  
+
     /**
-     * @brief write VTK parallel XML file containing multi-cell polydata into baseFolder 
+     * @brief write VTK parallel XML file containing multi-cell polydata into baseFolder
      *
      * @param baseFolder
      */
@@ -291,6 +292,13 @@ class SylinderSystem {
     // PS::ParticleSystem<Sylinder> *getContainerPtr() { return &sylinderContainer; }
 
     /**
+     * @brief Get the sqwCollectorPtr object
+     *
+     * @return std::shared_ptr<SQWCollector<N>>&
+     */
+    std::shared_ptr<SQWCollector<N>> &getsqwCollectorPtr() { return sqwCollectorPtr; }
+
+    /**
      * @brief Get the DomainInfo object
      *
      * @return PS::DomainInfo&
@@ -345,6 +353,8 @@ class SylinderSystem {
     void setVelocityNonBrown(const std::vector<double> &velNonBrown);
 
     ConstraintBlockPool &getConstraintPoolNonConst() { return *(conCollectorPtr->constraintPoolPtr); };
+
+    SQWBlockPool<N> &getSQWPoolNonConst() { return *(sqwCollectorPtr->sqwPoolPtr); };
 
     /**
      * @brief resolve collision with given nonBrownian motion and advance the system configuration
@@ -461,7 +471,7 @@ class SylinderSystem {
      *
      * @return std::shared_ptr<const ZDD<SylinderNearEP>>&
      */
-    std::shared_ptr<ZDD<SylinderNearEP>> &getSylinderNearDataDirectory() { return sylinderNearDataDirectoryPtr; }
+    std::shared_ptr<ZDD<SylinderNearEP<N>>> &getSylinderNearDataDirectory() { return sylinderNearDataDirectoryPtr; }
 
     // resolve constraints
     void collectBoundaryCollision();     ///< collect boundary collision constraints
@@ -507,6 +517,6 @@ class SylinderSystem {
     std::pair<int, int> getMaxGid();
 };
 
-//Include the SylinderSystem implimentation
+// Include the SylinderSystem implimentation
 #include "SylinderSystem.tpp"
 #endif

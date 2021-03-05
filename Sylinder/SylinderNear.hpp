@@ -15,6 +15,7 @@
 
 #include "Collision/DCPQuery.hpp"
 #include "Constraint/ConstraintCollector.hpp"
+#include "SQW/SQWCollector.hpp"
 #include "FDPS/particle_simulator.hpp"
 #include "Util/EigenDef.hpp"
 
@@ -36,6 +37,7 @@
  *
  * Essential Particle Class for FDPS
  */
+template <int N>
 struct SylinderNearEP {
   public:
     int gid;                ///< global unique id
@@ -47,8 +49,10 @@ struct SylinderNearEP {
     double lengthCollision; ///< collision length
     Link link;              ///< linkage of this sylinder
 
-    double pos[3];       ///< position
+    double pos[3];       ///< center position
     double direction[3]; ///< direction (unit norm vector)
+    QuadInt<N> *quadPtr; ///< pointer to QuadInt object
+    int speciesID;       ///< sylinder species id
 
     /**
      * @brief Get gid
@@ -70,7 +74,7 @@ struct SylinderNearEP {
      * interface for FDPS
      * @param fp
      */
-    template<class T>
+    template <class T>
     void copyFromFP(T &fp) {
         gid = fp.gid;
         globalIndex = fp.globalIndex;
@@ -82,12 +86,14 @@ struct SylinderNearEP {
         lengthCollision = fp.lengthCollision;
 
         link = fp.link;
-
         std::copy(fp.pos, fp.pos + 3, pos);
         Evec3 q = ECmapq(fp.orientation) * Evec3(0, 0, 1);
         direction[0] = q[0];
         direction[1] = q[1];
         direction[2] = q[2];
+
+        quadPtr = fp.quadPtr;
+        speciesID = fp.speciesID;
     }
 
     /**
@@ -121,8 +127,8 @@ struct SylinderNearEP {
     }
 };
 
-static_assert(std::is_trivially_copyable<SylinderNearEP>::value, "");
-static_assert(std::is_default_constructible<SylinderNearEP>::value, "");
+static_assert(std::is_trivially_copyable<SylinderNearEP<10>>::value, "");
+static_assert(std::is_default_constructible<SylinderNearEP<10>>::value, "");
 
 /**
  * @brief collect short range interaction forces
@@ -148,11 +154,13 @@ static_assert(std::is_default_constructible<ForceNear>::value, "");
  * @brief callable object to collect collision blocks and compute near force
  *
  */
+template <int N>
 class CalcSylinderNearForce {
     double colbuf;
 
   public:
     std::shared_ptr<ConstraintBlockPool> conPoolPtr; ///< shared object for collecting collision constraints
+    std::shared_ptr<SQWBlockPool<N>> sqwPoolPtr;     ///< shared object for collecting rod-rod swq information
 
     /**
      * @brief Construct a new CalcSylinderNearForce object
@@ -164,15 +172,19 @@ class CalcSylinderNearForce {
      * @brief Construct a new CalcSylinderNearForce object
      *
      * @param colPoolPtr_ the CollisionBlockPool object to write to
+     * @param sqwPoolPtr_ the SQWBlockPool object to write to
      */
-    CalcSylinderNearForce(std::shared_ptr<ConstraintBlockPool> &conPoolPtr_, const double colbuf_ = GEO_DEFAULT_COLBUF)
+    CalcSylinderNearForce(std::shared_ptr<ConstraintBlockPool> &conPoolPtr_,
+                          std::shared_ptr<SQWBlockPool<N>> &sqwPoolPtr_, const double colbuf_ = GEO_DEFAULT_COLBUF)
         : colbuf(colbuf_) {
 #ifdef DEBUGSYLINDERNEAR
         std::cout << "stress recoder size:" << colPoolPtr_->size() << std::endl;
 #endif
 
         conPoolPtr = conPoolPtr_;
+        sqwPoolPtr = sqwPoolPtr_;
         assert(conPoolPtr);
+        assert(sqwPoolPtr);
     }
 
     /**
@@ -184,10 +196,11 @@ class CalcSylinderNearForce {
      * @param Njp number of source
      * @param forceNear computed force
      */
-    void operator()(const SylinderNearEP *const ep_i, const PS::S32 Nip, const SylinderNearEP *const ep_j,
+    void operator()(const SylinderNearEP<N> *const ep_i, const PS::S32 Nip, const SylinderNearEP<N> *const ep_j,
                     const PS::S32 Njp, ForceNear *const forceNear) {
         const int myThreadId = omp_get_thread_num();
         auto &conQue = (*conPoolPtr)[myThreadId];
+        auto &sqwQue = (*sqwPoolPtr)[myThreadId];
         DCPQuery<3, double, Evec3> DistSegSeg3;
 
         for (PS::S32 i = 0; i < Nip; ++i) {
@@ -262,6 +275,14 @@ class CalcSylinderNearForce {
                     collideStress(directionI, directionJ, centerI, centerJ, syI.lengthCollision, syJ.lengthCollision,
                                   syI.radiusCollision, syJ.radiusCollision, 1.0, Ploc, Qloc, stressIJ);
                     conQue.back().setStress(stressIJ);
+                }
+
+                // record sqw blocks
+                // TODO: have 0.75 be user input
+                if (sep < 0.75 * syI.length && syI.gid != syJ.gid) {
+                    sqwQue.emplace_back(syI.gid, syJ.gid, syI.globalIndex, syJ.globalIndex, syI.speciesID,
+                                        syJ.speciesID, syI.length, syJ.length, syI.pos, syJ.pos, syI.direction,
+                                        syJ.direction, syI.quadPtr, syJ.quadPtr);
                 }
             }
         }
@@ -376,6 +397,7 @@ class CalcSylinderNearForce {
  * @brief tree type for computing near interaction of sylinders
  *
  */
-using TreeSylinderNear = PS::TreeForForceShort<ForceNear, SylinderNearEP, SylinderNearEP>::Symmetry;
+template <int N>
+using TreeSylinderNear = typename PS::TreeForForceShort<ForceNear, SylinderNearEP<N>, SylinderNearEP<N>>::Symmetry;
 
 #endif

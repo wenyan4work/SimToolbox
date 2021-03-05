@@ -39,6 +39,7 @@ void SylinderSystem<N>::initialize(const SylinderConfig &runConfig_, const std::
     rngPoolPtr = std::make_shared<TRngPool>(runConfig.rngSeed);
     conSolverPtr = std::make_shared<ConstraintSolver>();
     conCollectorPtr = std::make_shared<ConstraintCollector>();
+    sqwCollectorPtr = std::make_shared<SQWCollector<N>>();
 
     dinfo.initialize(); // init DomainInfo
     setDomainInfo();
@@ -57,7 +58,8 @@ void SylinderSystem<N>::initialize(const SylinderConfig &runConfig_, const std::
     decomposeDomain();
     exchangeSylinder(); // distribute to ranks, initial domain decomposition
 
-    sylinderNearDataDirectoryPtr = std::make_shared<ZDD<SylinderNearEP>>(sylinderContainer.getNumberOfParticleLocal());
+    sylinderNearDataDirectoryPtr =
+        std::make_shared<ZDD<SylinderNearEP<N>>>(sylinderContainer.getNumberOfParticleLocal());
 
     treeSylinderNumber = 0;
     setTreeSylinder();
@@ -120,6 +122,7 @@ void SylinderSystem<N>::reinitialize(const SylinderConfig &runConfig_, const std
     rngPoolPtr = std::make_shared<TRngPool>(runConfig.rngSeed);
     conSolverPtr = std::make_shared<ConstraintSolver>();
     conCollectorPtr = std::make_shared<ConstraintCollector>();
+    sqwCollectorPtr = std::make_shared<SQWCollector<N>>();
 
     dinfo.initialize(); // init DomainInfo
     setDomainInfo();
@@ -139,7 +142,8 @@ void SylinderSystem<N>::reinitialize(const SylinderConfig &runConfig_, const std
     decomposeDomain();
     exchangeSylinder(); // distribute to ranks, initial domain decomposition
 
-    sylinderNearDataDirectoryPtr = std::make_shared<ZDD<SylinderNearEP>>(sylinderContainer.getNumberOfParticleLocal());
+    sylinderNearDataDirectoryPtr =
+        std::make_shared<ZDD<SylinderNearEP<N>>>(sylinderContainer.getNumberOfParticleLocal());
 
     treeSylinderNumber = 0;
     setTreeSylinder();
@@ -187,7 +191,7 @@ void SylinderSystem<N>::setTreeSylinder() {
     if (nGlobal > 1.5 * treeSylinderNumber || !treeSylinderNearPtr) {
         // a new larger tree
         treeSylinderNearPtr.reset();
-        treeSylinderNearPtr = std::make_unique<TreeSylinderNear>();
+        treeSylinderNearPtr = std::make_unique<TreeSylinderNear<N>>();
         treeSylinderNearPtr->initialize(2 * nGlobal);
         treeSylinderNumber = nGlobal;
     }
@@ -375,7 +379,7 @@ void SylinderSystem<N>::setInitialFromFile(const std::string &filename) {
         for (int i = 0; i < nRead; i++) {
             sylinderContainer[i] = sylinderReadFromFile[i];
             sylinderContainer[i].clear();
-            sylinderContainer[i].clearHydro();                
+            sylinderContainer[i].clearHydro();
         }
     }
 }
@@ -883,7 +887,6 @@ void SylinderSystem<N>::resolveConstraints() {
     printRank0("start collect collisions");
     {
         Teuchos::TimeMonitor mon(*collectColTimer);
-        collectPairCollision();
         collectBoundaryCollision();
     }
 
@@ -994,6 +997,7 @@ void SylinderSystem<N>::setVelocityNonBrown(const std::vector<double> &velNonBro
 
 template <int N>
 void SylinderSystem<N>::runStep() {
+    collectPairCollision();
 
     if (runConfig.KBT > 0) {
         calcVelocityBrown();
@@ -1195,7 +1199,8 @@ void SylinderSystem<N>::collectBoundaryCollision() {
 template <int N>
 void SylinderSystem<N>::collectPairCollision() {
 
-    CalcSylinderNearForce calcColFtr(conCollectorPtr->constraintPoolPtr, runConfig.sylinderColBuf);
+    CalcSylinderNearForce<N> calcColFtr(conCollectorPtr->constraintPoolPtr, sqwCollectorPtr->sqwPoolPtr,
+                                        runConfig.sylinderColBuf);
 
     TEUCHOS_ASSERT(treeSylinderNearPtr);
     const int nLocal = sylinderContainer.getNumberOfParticleLocal();
