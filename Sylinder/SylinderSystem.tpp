@@ -1200,7 +1200,7 @@ template <int N>
 void SylinderSystem<N>::collectPairCollision() {
 
     CalcSylinderNearForce<N> calcColFtr(conCollectorPtr->constraintPoolPtr, sqwCollectorPtr->sqwPoolPtr,
-                                        runConfig.sylinderColBuf);
+                                        runConfig.sylinderColBuf, runConfig.sylinderSQWBuf);
 
     TEUCHOS_ASSERT(treeSylinderNearPtr);
     const int nLocal = sylinderContainer.getNumberOfParticleLocal();

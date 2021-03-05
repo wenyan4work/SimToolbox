@@ -15,8 +15,8 @@
 
 #include "Collision/DCPQuery.hpp"
 #include "Constraint/ConstraintCollector.hpp"
-#include "SQW/SQWCollector.hpp"
 #include "FDPS/particle_simulator.hpp"
+#include "SQW/SQWCollector.hpp"
 #include "Util/EigenDef.hpp"
 
 #include <cassert>
@@ -157,6 +157,7 @@ static_assert(std::is_default_constructible<ForceNear>::value, "");
 template <int N>
 class CalcSylinderNearForce {
     double colbuf;
+    double sqwbuf;
 
   public:
     std::shared_ptr<ConstraintBlockPool> conPoolPtr; ///< shared object for collecting collision constraints
@@ -166,7 +167,8 @@ class CalcSylinderNearForce {
      * @brief Construct a new CalcSylinderNearForce object
      *
      */
-    CalcSylinderNearForce(const double colbuf_ = GEO_DEFAULT_COLBUF) : colbuf(colbuf_) {}
+    CalcSylinderNearForce(const double colbuf_ = GEO_DEFAULT_COLBUF, const double sqwbuf_ = GEO_DEFAULT_COLBUF)
+        : colbuf(colbuf_), sqwbuf(sqwbuf_) {}
 
     /**
      * @brief Construct a new CalcSylinderNearForce object
@@ -175,8 +177,9 @@ class CalcSylinderNearForce {
      * @param sqwPoolPtr_ the SQWBlockPool object to write to
      */
     CalcSylinderNearForce(std::shared_ptr<ConstraintBlockPool> &conPoolPtr_,
-                          std::shared_ptr<SQWBlockPool<N>> &sqwPoolPtr_, const double colbuf_ = GEO_DEFAULT_COLBUF)
-        : colbuf(colbuf_) {
+                          std::shared_ptr<SQWBlockPool<N>> &sqwPoolPtr_, const double colbuf_ = GEO_DEFAULT_COLBUF,
+                          const double sqwbuf_ = GEO_DEFAULT_COLBUF)
+        : colbuf(colbuf_), sqwbuf(sqwbuf_) {
 #ifdef DEBUGSYLINDERNEAR
         std::cout << "stress recoder size:" << colPoolPtr_->size() << std::endl;
 #endif
@@ -278,8 +281,7 @@ class CalcSylinderNearForce {
                 }
 
                 // record sqw blocks
-                // TODO: have 0.75 be user input
-                if (sep < 0.75 * syI.length && syI.gid != syJ.gid) {
+                if (sep < sqwbuf * syI.length && syI.gid != syJ.gid) {
                     sqwQue.emplace_back(syI.gid, syJ.gid, syI.globalIndex, syJ.globalIndex, syI.speciesID,
                                         syJ.speciesID, syI.length, syJ.length, syI.pos, syJ.pos, syI.direction,
                                         syJ.direction, syI.quadPtr, syJ.quadPtr);

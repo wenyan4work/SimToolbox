@@ -86,11 +86,13 @@ class SQWCollector {
     using WeightBlockPool = std::vector<weightBlockQue>; ///< a pool containing queues on different threads
     std::shared_ptr<WeightBlockPool> weightPoolPtr;      ///< pointer to WeightBlockPool
     std::vector<size_t> nSourcePerTarget;                ///< number of source points that contribute to each target
+    double sqwbuf;                                       ///< threshold for recording possible special quadrature corrections
+                                                         ///< threshold = sylinderLength * sylinderSQWBuf
 
     ///< all copies of collector share a pointer to sqw pool
     ///< this is required by FDPS
 
-    SQWCollector();
+    SQWCollector(const double sqwbuf_ = GEO_DEFAULT_COLBUF);
 
     /**
      * @brief Default copy

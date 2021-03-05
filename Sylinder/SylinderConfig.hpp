@@ -30,7 +30,7 @@ class SylinderConfig {
     double simBoxHigh[3]; ///< simulation box size
     double simBoxLow[3];  ///< simulation box size
     bool simBoxPBC[3];    ///< flag of true/false of periodic in that direction
-    bool monolayer; ///< flag for simulating monolayer on x-y plane
+    bool monolayer;       ///< flag for simulating monolayer on x-y plane
 
     double initBoxHigh[3]; ///< initialize sylinders within this box
     double initBoxLow[3];  ///< initialize sylinders within this box
@@ -53,6 +53,8 @@ class SylinderConfig {
     double sylinderDiameterColRatio; ///< collision diameter = ratio * real diameter
     double sylinderLengthColRatio;   ///< collision length = ratio * real length
     double sylinderColBuf;           ///< threshold for recording possible collision
+    double sylinderSQWBuf;           ///< threshold for recording possible special quadrature corrections
+                                     ///< threshold = sylinderCurrentLength * sylinderSQWBuf
 
     // time stepping
     double dt;        ///< timestep size

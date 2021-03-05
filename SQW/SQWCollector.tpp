@@ -4,7 +4,7 @@
 #include <cstdlib>
 
 template <int N>
-SQWCollector<N>::SQWCollector() {
+SQWCollector<N>::SQWCollector(const double sqwbuf_) : sqwbuf(sqwbuf_) {
     const int totalThreads = omp_get_max_threads();
     sqwPoolPtr = std::make_shared<SQWBlockPool<N>>();
     weightPoolPtr = std::make_shared<WeightBlockPool>();
@@ -128,10 +128,9 @@ void SQWCollector<N>::buildWeightPool(const Teuchos::RCP<TMAP> &rodMapRcp, const
 
                 // check if special quad is unnecessary for each target quadrature point
                 double rcheck = (locQuadPtJ - posI).norm();
-                if (rcheck > 1.5 * lineHalfLengthI) { // TODO: have 1.5 be user input
+                if (rcheck > 2 * sqwbuf * lineHalfLengthI) {
                     continue;
                 }
-                std::cout << "rcheck " << rcheck << std::endl;
                 // calculate the SQW and GL weights only if necessary
                 sqw.calcWeights(lineHalfLengthI, posI.data(), locQuadPtJ.data(), dirI.data());
                 const double *w1_all = sqw.getWeights1(); // integral from [-1,1]

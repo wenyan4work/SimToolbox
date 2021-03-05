@@ -29,6 +29,7 @@ SylinderConfig::SylinderConfig(std::string filename) {
     readConfig(config, VARNAME(sylinderDiameterColRatio), sylinderDiameterColRatio, "");
     readConfig(config, VARNAME(sylinderLengthColRatio), sylinderLengthColRatio, "");
     readConfig(config, VARNAME(sylinderColBuf), sylinderColBuf, "");
+    readConfig(config, VARNAME(sylinderSQWBuf), sylinderSQWBuf, "");
 
     readConfig(config, VARNAME(dt), dt, "");
     readConfig(config, VARNAME(timeTotal), timeTotal, "");
@@ -88,6 +89,7 @@ void SylinderConfig::dump() const {
         printf("Sylinder Length Collision Ratio: %g\n", sylinderLengthColRatio);
         printf("Sylinder Diameter Collision Ratio: %g\n", sylinderDiameterColRatio);
         printf("Sylinder Collision Buffer: %g\n", sylinderColBuf);
+        printf("Sylinder SQW Buffer: %g\n", sylinderSQWBuf);
         printf("-------------------------------------------\n");
         printf("Constraint Solver Setting:\n");
         printf("Residual Tolerance: %g\n", conResTol);
