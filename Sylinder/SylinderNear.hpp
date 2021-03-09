@@ -38,9 +38,9 @@
  */
 struct SylinderNearEP {
   public:
-    int gid;         ///< global unique id
-    int globalIndex; ///< sequentially ordered unique index in sylinder map
-    int rank;        ///< mpi rank of owning rank
+    int gid;                ///< global unique id
+    int globalIndex;        ///< sequentially ordered unique index in sylinder map
+    int rank;               ///< mpi rank of owning rank
     double radius;          ///< radius
     double length;          ///< length
     double radiusCollision; ///< collision radius
@@ -117,6 +117,14 @@ struct SylinderNearEP {
         pos[0] = newPos.x;
         pos[1] = newPos.y;
         pos[2] = newPos.z;
+    }
+
+    bool isSphere(bool collision = false) const {
+        if (collision) {
+            return lengthCollision < radiusCollision * 2;
+        } else {
+            return length < radius * 2;
+        }
     }
 };
 
