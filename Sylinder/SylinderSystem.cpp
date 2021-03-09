@@ -319,8 +319,12 @@ void SylinderSystem::setInitialFromFile(const std::string &filename) {
                 Emap3(newBody.pos) = Evec3((mx + px) / 2, (my + py) / 2, (mz + pz) / 2);
                 newBody.gid = gid;
                 newBody.length = sqrt((px - mx) * (px - mx) + (py - my) * (py - my) + (pz - mz) * (pz - mz));
-                Evec3 direction(px - mx, py - my, pz - mz);
-                Emapq(newBody.orientation) = Equatn::FromTwoVectors(Evec3(0, 0, 1), direction);
+                if (newBody.length > 1e-7) {
+                    Evec3 direction(px - mx, py - my, pz - mz);
+                    Emapq(newBody.orientation) = Equatn::FromTwoVectors(Evec3(0, 0, 1), direction);
+                } else {
+                    Emapq(newBody.orientation) = Equatn::FromTwoVectors(Evec3(0, 0, 1), Evec3(0, 0, 1));
+                }
                 newBody.radius = radius;
                 newBody.radiusCollision = radius;
                 newBody.lengthCollision = newBody.length;
