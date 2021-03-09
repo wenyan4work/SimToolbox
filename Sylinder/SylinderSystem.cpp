@@ -1400,6 +1400,10 @@ void SylinderSystem::collectLinkBilateral() {
         for (int i = 0; i < nLocal; i++) {
             const auto &syI = sylinderContainer[i];                        // sylinder
             const auto &syJ = sylinderNearDataDirectoryPtr->dataToFind[i]; // sylinderNear
+
+            if (syI.link.next < 0) // no valid link for this segment
+                continue;
+
             const Evec3 &centerI = ECmap3(syI.pos);
             Evec3 centerJ = ECmap3(syJ.pos);
             // apply PBC on centerJ
