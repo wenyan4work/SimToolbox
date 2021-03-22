@@ -47,8 +47,8 @@ ax.scatter(pts[::10, 0], pts[::10, 1], pts[::10, 2])
 ax.scatter(query[::100, 0], query[::100, 1], query[::100, 2])
 plt.savefig('Distribution.png')
 
-np.savetxt('Pts.txt', pts, delimiter=',', header='x,y,z,r')
-np.savetxt('Query.txt', query, delimiter=',', header='x,y,z,r')
+np.savetxt('Pts.txt', pts, delimiter=' ', header='x,y,z,r')
+np.savetxt('Query.txt', query, delimiter=' ', header='x,y,z,r')
 
 # build trees for neighbor detection
 tree_pts = ss.cKDTree(pts[:, :3], boxsize=box_size)

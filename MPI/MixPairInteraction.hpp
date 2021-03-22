@@ -295,7 +295,11 @@ void MixPairInteraction<FPT, FPS, EPT, EPS, Force>::dumpSystem() {
 
     for (int i = 0; i < nLocalMix; i++) {
         const auto &pos = systemMix[i].getPos();
-        printf("%d,%lf,%lf,%lf\n", systemMix[i].trgFlag, pos.x, pos.y, pos.z);
+        const auto r = systemMix[i].trgFlag ? //
+                           systemMix[i].epTrg.getRSearch()
+                                            : //
+                           systemMix[i].epSrc.getRSearch();
+        printf("%d,%g,%g,%g,%g\n", systemMix[i].trgFlag, pos.x, pos.y, pos.z, r);
     }
 }
 
