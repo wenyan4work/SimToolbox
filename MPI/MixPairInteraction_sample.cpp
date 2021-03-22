@@ -105,7 +105,7 @@ void initMotor(PS::ParticleSystem<Motor> &motor) {
 
 #pragma omp parallel for
     for (int i = 0; i < nM; i++) {
-        motor[i].gid = i + nM * PS::Comm::getRank() + 50000;
+        motor[i].gid = i + nM * PS::Comm::getRank();
 
         motor[i].RSearch = rngPool.getU01() / 4;
         motor[i].pos[0] = rngPool.getU01();
