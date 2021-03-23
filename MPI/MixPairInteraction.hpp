@@ -184,14 +184,8 @@ class MixPairInteraction {
      * @brief initializer
      * must be called once after constructor
      *
-     * @param systemTrg_
-     * @param systemSrc_
-     * @param dinfo_
      */
     void initialize() {
-        // systemTrgPtr = systemTrgPtr_;
-        // systemSrcPtr = systemSrcPtr_;
-        // dinfoPtr = dinfoPtr_;
         systemMix.initialize();
         numberParticleInTree = 0;
     };
@@ -288,7 +282,6 @@ void MixPairInteraction<FPT, FPS, EPT, EPS, Force>::updateTree() {
         treeMixPtr = std::make_unique<TreeType>();
         // build tree
         // be careful if tuning the tree default parameters
-        // treeMixPtr->initialize(4 * nParGlobal, 1.0, 32, 128);
         treeMixPtr->initialize(2 * nParGlobal);
         numberParticleInTree = nParGlobal;
     }
