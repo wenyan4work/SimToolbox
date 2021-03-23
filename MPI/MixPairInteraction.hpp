@@ -27,8 +27,8 @@
  * getRSearch() necessary for EPJ type if Scatter
  * getRSearch() necessary for BOTH EPI and EPJ types if Symmetry
  * getRSearch() should not return zero in any cases
+ * EPI and EPJ created from the same FP should return the same getRSearch()
  */
-constexpr double RSEARCH_INVALID = 1e-7;
 
 /**
  * @brief Mix Full Particle type.
@@ -46,6 +46,8 @@ struct MixFP {
     bool trgFlag; ///< switch. if true, this MixFP represents a trg particle.
     EPT epTrg;    ///< data for trg type. valid if trgFlag==true
     EPS epSrc;    ///< data for src type. valid if trgFlag==false
+
+    double getRadius() const { return trgFlag ? epTrg.getRSearch() : epSrc.getRSearch(); }
 
     /**
      * @brief Get position.
@@ -72,9 +74,10 @@ struct MixFP {
 template <class EPT>
 struct MixEPI {
     bool trgFlag;
+    double radius;
     EPT epTrg;
 
-    double getRSearch() const { return trgFlag ? epTrg.getRSearch() : RSEARCH_INVALID; }
+    double getRSearch() const { return radius; }
 
     PS::F64vec3 getPos() const { return epTrg.getPos(); }
     void setPos(const PS::F64vec3 &newPos) { epTrg.setPos(newPos); }
@@ -82,6 +85,7 @@ struct MixEPI {
     template <class EPS>
     void copyFromFP(const MixFP<EPT, EPS> &fp) {
         trgFlag = fp.trgFlag;
+        radius = fp.getRadius();
         if (trgFlag) {
             epTrg = fp.epTrg;
         } else {
@@ -99,9 +103,10 @@ struct MixEPI {
 template <class EPS>
 struct MixEPJ {
     bool srcFlag;
+    double radius;
     EPS epSrc;
 
-    double getRSearch() const { return srcFlag ? epSrc.getRSearch() : RSEARCH_INVALID; }
+    double getRSearch() const { return radius; }
 
     PS::F64vec3 getPos() const { return epSrc.getPos(); }
     void setPos(const PS::F64vec3 &newPos) { epSrc.setPos(newPos); }
@@ -109,41 +114,12 @@ struct MixEPJ {
     template <class EPT>
     void copyFromFP(const MixFP<EPT, EPS> &fp) {
         srcFlag = !fp.trgFlag;
+        radius = fp.getRadius();
         if (srcFlag) {
             epSrc = fp.epSrc;
         } else {
             // pos should be always valid even if not a src particle
             setPos(fp.getPos());
-        }
-    }
-};
-
-/**
- * @brief An example interaction class to be passed to computeForce() function
- *
- * @tparam EPT
- * @tparam EPS
- * @tparam Force
- */
-template <class EPT, class EPS, class Force>
-class CalcMixPairForceExample {
-
-  public:
-    void operator()(const MixEPI<EPT> *const trgPtr, const int nTrg, //
-                    const MixEPJ<EPS> *const srcPtr, const int nSrc, Force *const mixForcePtr) {
-        for (int t = 0; t < nTrg; t++) {
-            auto &trg = trgPtr[t];
-            if (!trg.trgFlag) {
-                continue;
-            }
-            for (int s = 0; s < nSrc; s++) {
-                auto &src = srcPtr[s];
-                if (!src.srcFlag) {
-                    continue;
-                }
-                // actual interaction
-                force(trg, src, mixForcePtr[t]);
-            }
         }
     }
 };
@@ -173,13 +149,15 @@ class MixPairInteraction {
     static_assert(std::is_default_constructible<EPS>::value, "EPS is not defalut constructible\n");
     static_assert(std::is_default_constructible<Force>::value, "Force is not defalut constructible\n");
 
-    // result
-    std::vector<Force> forceResult; ///< computed force result
-
     // internal FDPS stuff
     using EPIType = MixEPI<EPT>;
     using EPJType = MixEPJ<EPS>;
     using FPType = MixFP<EPT, EPS>;
+    using SystemType = typename PS::ParticleSystem<FPType>;
+    using TreeType = typename PS::TreeForForceShort<Force, EPIType, EPJType>::Symmetry;
+    // gather mode, search radius determined by EPI
+    // scatter mode, search radius determined by EPJ
+    // symmetry mode, search radius determined by larger of EPI and EPJ
 
     static_assert(std::is_trivially_copyable<EPIType>::value, "");
     static_assert(std::is_trivially_copyable<EPJType>::value, "");
@@ -188,16 +166,12 @@ class MixPairInteraction {
     static_assert(std::is_default_constructible<EPJType>::value, "");
     static_assert(std::is_default_constructible<FPType>::value, "");
 
-    using SystemType = typename PS::ParticleSystem<FPType>;
-    using TreeType = typename PS::TreeForForceShort<Force, EPIType, EPJType>::Symmetry;
-    // gather mode, search radius determined by EPI
-    // scatter mode, search radius determined by EPJ
-    // symmetry mode, search radius determined by larger of EPI and EPJ
-
     SystemType systemMix;                 ///< mixed FDPS system
     std::unique_ptr<TreeType> treeMixPtr; ///< tree for pair interaction
     int numberParticleInTree;             ///< number of particles in tree
     int nLocalTrg, nLocalSrc;
+
+    std::vector<Force> forceResult; ///< computed force result
 
   public:
     /**
@@ -286,6 +260,7 @@ void MixPairInteraction<FPT, FPS, EPT, EPS, Force>::updateSystem(const PS::Parti
         systemMix[mixIndex].trgFlag = false;
     }
 
+    systemMix.exchangeParticle(dinfo);
     systemMix.adjustPositionIntoRootDomain(dinfo);
 }
 
@@ -306,21 +281,23 @@ void MixPairInteraction<FPT, FPS, EPT, EPS, Force>::dumpSystem() {
 template <class FPT, class FPS, class EPT, class EPS, class Force>
 void MixPairInteraction<FPT, FPS, EPT, EPS, Force>::updateTree() {
     const int nParGlobal = systemMix.getNumberOfParticleGlobal();
+    bool newTree = PS::Comm::synchronizeConditionalBranchAND(!treeMixPtr || (nParGlobal > numberParticleInTree * 1.5));
     // make a large enough tree
-    if (!treeMixPtr || (nParGlobal > numberParticleInTree * 1.5)) {
+    if (newTree) {
         treeMixPtr.reset();
         treeMixPtr = std::make_unique<TreeType>();
         // build tree
         // be careful if tuning the tree default parameters
+        // treeMixPtr->initialize(4 * nParGlobal, 1.0, 32, 128);
         treeMixPtr->initialize(2 * nParGlobal);
         numberParticleInTree = nParGlobal;
     }
+    PS::Comm::barrier();
 }
 
 template <class FPT, class FPS, class EPT, class EPS, class Force>
 template <class CalcMixForce>
 void MixPairInteraction<FPT, FPS, EPT, EPS, Force>::computeForce(CalcMixForce &calcMixForceFtr, PS::DomainInfo &dinfo) {
-    // dumpSystem();
     treeMixPtr->calcForceAll(calcMixForceFtr, systemMix, dinfo);
 
     forceResult.resize(nLocalTrg);

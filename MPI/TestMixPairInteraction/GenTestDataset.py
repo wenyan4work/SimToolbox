@@ -8,7 +8,7 @@ import matplotlib as mpl
 import matplotlib.pyplot as plt
 
 
-n_pts = 10000  # points
+n_pts = 100000  # points
 n_q = 100000  # queries
 
 box_edge = 10
@@ -35,24 +35,24 @@ pts[:, :3] = np.random.lognormal(mean=1, sigma=1, size=[n_pts, 3])
 query[:, :3] = np.random.uniform(low=0, high=box_edge, size=[n_q, 3])
 
 # generate search radius
-pts[:, 3] = np.random.uniform(low=0, high=1, size=n_pts)
-query[:, 3] = np.random.uniform(low=0, high=1, size=n_q)
+pts[:, 3] = np.random.uniform(low=0, high=0.2, size=n_pts)
+query[:, 3] = np.random.uniform(low=0, high=0.2, size=n_q)
 
 impose_pbc(pts[:, :3], box_size)
 impose_pbc(query[:, :3], box_size)
 
-fig = plt.figure()
-ax = fig.add_subplot(111, projection='3d')
-ax.scatter(pts[::10, 0], pts[::10, 1], pts[::10, 2])
-ax.scatter(query[::100, 0], query[::100, 1], query[::100, 2])
-plt.savefig('Distribution.png')
+# fig = plt.figure()
+# ax = fig.add_subplot(111, projection='3d')
+# ax.scatter(pts[::10, 0], pts[::10, 1], pts[::10, 2])
+# ax.scatter(query[::100, 0], query[::100, 1], query[::100, 2])
+# plt.savefig('Distribution.png')
 
 np.savetxt('Pts.txt', pts, delimiter=' ', header='x,y,z,r')
 np.savetxt('Query.txt', query, delimiter=' ', header='x,y,z,r')
 
 # build trees for neighbor detection
 tree_pts = ss.cKDTree(pts[:, :3], boxsize=box_size)
-tree_query = ss.cKDTree(pts[:, :3], boxsize=box_size)
+tree_query = ss.cKDTree(query[:, :3], boxsize=box_size)
 
 pairs = []
 
@@ -78,5 +78,6 @@ ii = np.array([p[0] for p in pairs])
 jj = np.array([p[1] for p in pairs])
 # convert pairs to sparse adjacency matrix
 # non zero M_[ij] -> query i, pts j pair
-nb_mat = sp.coo_matrix((data, (ii, jj)), shape=[n_q, n_pts], dtype=np.int)
-sio.mmwrite("nb_mat.mtx", nb_mat)
+nb_mat = sp.coo_matrix((data, (ii, jj)), shape=[
+                       n_q, n_pts], dtype=np.int).tocsr()
+sio.mmwrite("nb_mat.mtx", nb_mat)  # the saved file has base index=1

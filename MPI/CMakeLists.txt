@@ -14,6 +14,9 @@ add_test(NAME CommMPI COMMAND CommMPI_test)
 # executable of sample code
 add_executable(MixPairTest MixPairInteraction_test.cpp)
 target_compile_options(MixPairTest PRIVATE ${OpenMP_CXX_FLAGS})
+target_compile_definitions(
+  MixPairTest PRIVATE PARTICLE_SIMULATOR_THREAD_PARALLEL
+                      PARTICLE_SIMULATOR_MPI_PARALLEL)
 target_include_directories(MixPairTest PRIVATE ${PROJECT_SOURCE_DIR}
                                                ${Trilinos_INCLUDE_DIRS})
 target_link_libraries(
@@ -44,7 +47,7 @@ add_test(
   COMMAND
     sh -c "cd ./TestMixPairInteraction/ \
     && python GenTestDataset.py \
-    && export OMP_NUM_THREADS=2 \
+    && export OMP_NUM_THREADS=4 \
     && mpirun -n 2 ../MixPairTest > Test.log \
     && python Verify.py")
 set_tests_properties(MixPair PROPERTIES FAIL_REGULAR_EXPRESSION
