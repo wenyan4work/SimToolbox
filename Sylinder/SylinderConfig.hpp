@@ -23,8 +23,7 @@
  */
 class SylinderConfig {
   public:
-    // parallel setting
-    unsigned int rngSeed = 0;
+    unsigned int rngSeed; ///< random number seed
 
     // domain setting
     double simBoxHigh[3]; ///< simulation box size

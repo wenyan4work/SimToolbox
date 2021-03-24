@@ -6,32 +6,18 @@ SylinderConfig::SylinderConfig(std::string filename) {
 
     YAML::Node config = YAML::LoadFile(filename);
 
+    // required parameters
     readConfig(config, VARNAME(rngSeed), rngSeed, "");
     readConfig(config, VARNAME(simBoxLow), simBoxLow, 3, "");
     readConfig(config, VARNAME(simBoxHigh), simBoxHigh, 3, "");
     readConfig(config, VARNAME(simBoxPBC), simBoxPBC, 3, "");
-    readConfig(config, VARNAME(monolayer), monolayer, "");
-
-    readConfig(config, VARNAME(initBoxLow), initBoxLow, 3, "");
-    readConfig(config, VARNAME(initBoxHigh), initBoxHigh, 3, "");
-    readConfig(config, VARNAME(initOrient), initOrient, 3, "");
-
-    readConfig(config, VARNAME(initCircularX), initCircularX, "");
 
     readConfig(config, VARNAME(viscosity), viscosity, "");
     readConfig(config, VARNAME(KBT), KBT, "");
 
-    readConfig(config, VARNAME(sylinderFixed), sylinderFixed, "");
     readConfig(config, VARNAME(sylinderNumber), sylinderNumber, "");
     readConfig(config, VARNAME(sylinderLength), sylinderLength, "");
-    readConfig(config, VARNAME(sylinderLengthSigma), sylinderLengthSigma, "");
     readConfig(config, VARNAME(sylinderDiameter), sylinderDiameter, "");
-    readConfig(config, VARNAME(sylinderDiameterColRatio), sylinderDiameterColRatio, "");
-    readConfig(config, VARNAME(sylinderLengthColRatio), sylinderLengthColRatio, "");
-    readConfig(config, VARNAME(sylinderColBuf), sylinderColBuf, "");
-
-    readConfig(config, VARNAME(linkKappa), linkKappa, "");
-    readConfig(config, VARNAME(linkGap), linkGap, "");
 
     readConfig(config, VARNAME(dt), dt, "");
     readConfig(config, VARNAME(timeTotal), timeTotal, "");
@@ -41,12 +27,40 @@ SylinderConfig::SylinderConfig(std::string filename) {
     readConfig(config, VARNAME(conMaxIte), conMaxIte, "");
     readConfig(config, VARNAME(conSolverChoice), conSolverChoice, "");
 
-    boundaryPtr.clear();
-    printf("b\n");
+    // optional parameters
+    monolayer = false;
+    readConfig(config, VARNAME(monolayer), monolayer, "", true);
 
+    std::copy(simBoxLow, simBoxLow + 3, initBoxLow);
+    std::copy(simBoxHigh, simBoxHigh + 3, initBoxHigh);
+    readConfig(config, VARNAME(initBoxLow), initBoxLow, 3, "", true);
+    readConfig(config, VARNAME(initBoxHigh), initBoxHigh, 3, "", true);
+
+    initOrient[0] = initOrient[1] = initOrient[2] = 2;
+    readConfig(config, VARNAME(initOrient), initOrient, 3, "", true);
+
+    initCircularX = false;
+    readConfig(config, VARNAME(initCircularX), initCircularX, "", true);
+
+    linkKappa = 100;
+    linkGap = 0.01;
+    readConfig(config, VARNAME(linkKappa), linkKappa, "", true);
+    readConfig(config, VARNAME(linkGap), linkGap, "", true);
+
+    sylinderFixed = true;
+    readConfig(config, VARNAME(sylinderFixed), sylinderFixed, "", true);
+    sylinderLengthSigma = 0;
+    readConfig(config, VARNAME(sylinderLengthSigma), sylinderLengthSigma, "", true);
+    sylinderDiameterColRatio = 1.0;
+    readConfig(config, VARNAME(sylinderDiameterColRatio), sylinderDiameterColRatio, "", true);
+    sylinderLengthColRatio = 1.0;
+    readConfig(config, VARNAME(sylinderLengthColRatio), sylinderLengthColRatio, "", true);
+    sylinderColBuf = 1.0;
+    readConfig(config, VARNAME(sylinderColBuf), sylinderColBuf, "", true);
+
+    boundaryPtr.clear();
     if (config["boundaries"]) {
         YAML::Node boundaries = config["boundaries"];
-        printf("b2\n");
         for (const auto &b : boundaries) {
             std::string name = b["type"].as<std::string>();
             std::cout << name << std::endl;
