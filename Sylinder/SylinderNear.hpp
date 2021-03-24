@@ -38,14 +38,14 @@
  */
 struct SylinderNearEP {
   public:
-    int gid;                ///< global unique id
-    int globalIndex;        ///< sequentially ordered unique index in sylinder map
-    int rank;               ///< mpi rank of owning rank
-    double radius;          ///< radius
-    double length;          ///< length
-    double radiusCollision; ///< collision radius
-    double lengthCollision; ///< collision length
-    double colBuf;          ///< collision search buffer
+    int gid;                            ///< global unique id
+    int globalIndex;                    ///< sequentially ordered unique index in sylinder map
+    int rank;                           ///< mpi rank of owning rank
+    double radius;                      ///< radius
+    double length;                      ///< length
+    double radiusCollision;             ///< collision radius
+    double lengthCollision;             ///< collision length
+    double colBuf = GEO_DEFAULT_COLBUF; ///< collision search buffer
 
     double pos[3];       ///< position
     double direction[3]; ///< direction (unit norm vector)
