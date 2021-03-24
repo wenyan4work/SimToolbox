@@ -883,6 +883,7 @@ void SylinderSystem::prepareStep() {
         sy.radiusCollision = sylinderContainer[i].radius * runConfig.sylinderDiameterColRatio;
         sy.lengthCollision = sylinderContainer[i].length * runConfig.sylinderLengthColRatio;
         sy.rank = commRcp->getRank();
+        sy.colBuf = runConfig.sylinderColBuf;
     }
 
     if (runConfig.monolayer) {
@@ -1131,7 +1132,7 @@ void SylinderSystem::collectBoundaryCollision() {
 
 void SylinderSystem::collectPairCollision() {
 
-    CalcSylinderNearForce calcColFtr(conCollectorPtr->constraintPoolPtr, runConfig.sylinderColBuf);
+    CalcSylinderNearForce calcColFtr(conCollectorPtr->constraintPoolPtr);
 
     TEUCHOS_ASSERT(treeSylinderNearPtr);
     const int nLocal = sylinderContainer.getNumberOfParticleLocal();

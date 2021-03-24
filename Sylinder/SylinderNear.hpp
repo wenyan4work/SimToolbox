@@ -45,7 +45,7 @@ struct SylinderNearEP {
     double length;          ///< length
     double radiusCollision; ///< collision radius
     double lengthCollision; ///< collision length
-    Link link;              ///< linkage of this sylinder
+    double colBuf;          ///< collision search buffer
 
     double pos[3];       ///< position
     double direction[3]; ///< direction (unit norm vector)
@@ -74,13 +74,12 @@ struct SylinderNearEP {
         gid = fp.gid;
         globalIndex = fp.globalIndex;
         rank = fp.rank;
+        colBuf = fp.colBuf;
 
         radius = fp.radius;
         length = fp.length;
         radiusCollision = fp.radiusCollision;
         lengthCollision = fp.lengthCollision;
-
-        link = fp.link;
 
         std::copy(fp.pos, fp.pos + 3, pos);
         Evec3 q = ECmapq(fp.orientation) * Evec3(0, 0, 1);
@@ -102,10 +101,12 @@ struct SylinderNearEP {
      *
      * interface for FDPS
      * FDPS does not support search with rI+rJ.
-     * Here length*2 ensures contact is detected with Symmetry search mode
+     * Here length ensures contact is detected with Symmetry search mode
      * @return PS::F64
      */
-    PS::F64 getRSearch() const { return (lengthCollision + 2 * radiusCollision) * (1 + 0.5 * GEO_DEFAULT_COLBUF); }
+    PS::F64 getRSearch() const {
+        return std::max(length + 2 * radius, lengthCollision + 2 * lengthCollision) * (1 + colBuf);
+    }
 
     /**
      * @brief Set pos with a PS::F64vec3 object
@@ -156,7 +157,6 @@ static_assert(std::is_default_constructible<ForceNear>::value, "");
  *
  */
 class CalcSylinderNearForce {
-    double colbuf;
 
   public:
     std::shared_ptr<ConstraintBlockPool> conPoolPtr; ///< shared object for collecting collision constraints
@@ -165,15 +165,14 @@ class CalcSylinderNearForce {
      * @brief Construct a new CalcSylinderNearForce object
      *
      */
-    CalcSylinderNearForce(const double colbuf_ = GEO_DEFAULT_COLBUF) : colbuf(colbuf_) {}
+    CalcSylinderNearForce() = default;
 
     /**
      * @brief Construct a new CalcSylinderNearForce object
      *
      * @param colPoolPtr_ the CollisionBlockPool object to write to
      */
-    CalcSylinderNearForce(std::shared_ptr<ConstraintBlockPool> &conPoolPtr_, const double colbuf_ = GEO_DEFAULT_COLBUF)
-        : colbuf(colbuf_) {
+    CalcSylinderNearForce(std::shared_ptr<ConstraintBlockPool> &conPoolPtr_) {
 #ifdef DEBUGSYLINDERNEAR
         std::cout << "stress recoder size:" << colPoolPtr_->size() << std::endl;
 #endif
@@ -265,7 +264,7 @@ class CalcSylinderNearForce {
 
         const double sep = rnorm - (radI + radJ); // goal of constraint is sep >=0
 
-        if (sep < colbuf * (radI + radJ)) {
+        if (sep < (radI * spI.colBuf + radJ * spJ.colBuf)) {
             const Evec3 &Ploc = centerI;
             const Evec3 &Qloc = centerJ;
             collision = true;
@@ -324,7 +323,7 @@ class CalcSylinderNearForce {
 
         const double sep = distMin - (radI + syJ.radiusCollision); // goal of constraint is sep >=0
 
-        if (sep < colbuf * (spI.radiusCollision + syJ.radiusCollision)) {
+        if (sep < (radI * spI.colBuf + syJ.radiusCollision * syJ.colBuf)) {
             collision = true;
             const double delta0 = sep;
             const double gamma = sep < 0 ? -sep : 0;
@@ -385,7 +384,7 @@ class CalcSylinderNearForce {
 
         const double sep = distMin - (syI.radiusCollision + syJ.radiusCollision); // goal of constraint is sep >=0
 
-        if (sep < colbuf * (syI.radiusCollision + syJ.radiusCollision)) {
+        if (sep < (syI.radiusCollision * syI.colBuf + syJ.radiusCollision * syJ.colBuf)) {
             collision = true;
             const double delta0 = sep;
             const double gamma = sep < 0 ? -sep : 0;

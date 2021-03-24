@@ -48,10 +48,7 @@ class Sylinder {
     double lengthCollision; ///< length for collision resolution
     double radiusSearch;    ///< radiusSearch for short range interactions
     double sepmin;          ///< minimal separation with its neighbors within radiusSearch
-
-    double tg;
-    double t;
-    double L0;
+    double colBuf;          ///< collision buffer
 
     Link link; ///< link of this sylinder
 

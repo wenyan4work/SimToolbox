@@ -47,15 +47,15 @@ SylinderConfig::SylinderConfig(std::string filename) {
     readConfig(config, VARNAME(linkKappa), linkKappa, "", true);
     readConfig(config, VARNAME(linkGap), linkGap, "", true);
 
-    sylinderFixed = true;
+    sylinderFixed = false;
     readConfig(config, VARNAME(sylinderFixed), sylinderFixed, "", true);
-    sylinderLengthSigma = 0;
+    sylinderLengthSigma = -1;
     readConfig(config, VARNAME(sylinderLengthSigma), sylinderLengthSigma, "", true);
     sylinderDiameterColRatio = 1.0;
     readConfig(config, VARNAME(sylinderDiameterColRatio), sylinderDiameterColRatio, "", true);
     sylinderLengthColRatio = 1.0;
     readConfig(config, VARNAME(sylinderLengthColRatio), sylinderLengthColRatio, "", true);
-    sylinderColBuf = 1.0;
+    sylinderColBuf = 0.3;
     readConfig(config, VARNAME(sylinderColBuf), sylinderColBuf, "", true);
 
     boundaryPtr.clear();

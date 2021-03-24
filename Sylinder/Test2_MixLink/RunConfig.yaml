@@ -24,7 +24,7 @@ sylinderLengthColRatio: 1.0
 sylinderLengthSigma: -1.0 # <0 means no randomness
 sylinderDiameter: 1.0
 sylinderDiameterColRatio: 1.0
-sylinderColBuf: 1.0
+sylinderColBuf: 0.3
 # time-stepping
 dt: 0.00001 # s
 timeTotal: 0.01 # s
