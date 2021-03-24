@@ -21,13 +21,14 @@
 #include <omp.h>
 
 /**
- * Note about RSearch:
+ * Note about RSearch and Pos:
  * getRSearch() not needed for FP type
  * getRSearch() necessary for EPI type if Gather
  * getRSearch() necessary for EPJ type if Scatter
  * getRSearch() necessary for BOTH EPI and EPJ types if Symmetry
  * getRSearch() should not return zero in any cases
- * EPI and EPJ created from the same FP should return the same getRSearch()
+ * IMPORTANT: EPI and EPJ created from the same FP should return the same getRSearch()
+ * IMPORTANT: getPos()/setPos() should always use the valid epTrg/epSrc data structure
  */
 
 /**
@@ -75,22 +76,27 @@ template <class EPT>
 struct MixEPI {
     bool trgFlag;
     double radius;
+    PS::F64vec3 pos;
     EPT epTrg;
 
     double getRSearch() const { return radius; }
 
-    PS::F64vec3 getPos() const { return epTrg.getPos(); }
-    void setPos(const PS::F64vec3 &newPos) { epTrg.setPos(newPos); }
+    PS::F64vec3 getPos() const { return trgFlag ? epTrg.getPos() : pos; }
+
+    void setPos(const PS::F64vec3 &newPos) {
+        if (trgFlag)
+            epTrg.setPos(newPos);
+        else
+            pos = newPos;
+    }
 
     template <class EPS>
     void copyFromFP(const MixFP<EPT, EPS> &fp) {
         trgFlag = fp.trgFlag;
         radius = fp.getRadius();
+        setPos(fp.getPos());
         if (trgFlag) {
             epTrg = fp.epTrg;
-        } else {
-            // pos should be always valid even if not a trg particle
-            setPos(fp.getPos());
         }
     }
 };
@@ -104,22 +110,27 @@ template <class EPS>
 struct MixEPJ {
     bool srcFlag;
     double radius;
+    PS::F64vec3 pos;
     EPS epSrc;
 
     double getRSearch() const { return radius; }
 
-    PS::F64vec3 getPos() const { return epSrc.getPos(); }
-    void setPos(const PS::F64vec3 &newPos) { epSrc.setPos(newPos); }
+    PS::F64vec3 getPos() const { return srcFlag ? epSrc.getPos() : pos; }
+
+    void setPos(const PS::F64vec3 &newPos) {
+        if (srcFlag)
+            epSrc.setPos(newPos);
+        else
+            pos = newPos;
+    }
 
     template <class EPT>
     void copyFromFP(const MixFP<EPT, EPS> &fp) {
         srcFlag = !fp.trgFlag;
         radius = fp.getRadius();
+        setPos(fp.getPos());
         if (srcFlag) {
             epSrc = fp.epSrc;
-        } else {
-            // pos should be always valid even if not a src particle
-            setPos(fp.getPos());
         }
     }
 };
@@ -263,12 +274,10 @@ void MixPairInteraction<FPT, FPS, EPT, EPS, Force>::dumpSystem() {
     const int nLocalMix = systemMix.getNumberOfParticleLocal();
 
     for (int i = 0; i < nLocalMix; i++) {
-        const auto &pos = systemMix[i].getPos();
-        const auto r = systemMix[i].trgFlag ? //
-                           systemMix[i].epTrg.getRSearch()
-                                            : //
-                           systemMix[i].epSrc.getRSearch();
-        printf("%d,%g,%g,%g,%g\n", systemMix[i].trgFlag, pos.x, pos.y, pos.z, r);
+        const auto &fp = systemMix[i];
+        const auto &pos = fp.getPos();
+        const auto r = fp.getRadius();
+        printf("%d,%g,%g,%g,%g\n", fp.trgFlag, pos.x, pos.y, pos.z, r);
     }
 }
 
