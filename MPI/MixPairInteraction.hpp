@@ -94,10 +94,10 @@ struct MixEPI {
     void copyFromFP(const MixFP<EPT, EPS> &fp) {
         trgFlag = fp.trgFlag;
         radius = fp.getRadius();
-        setPos(fp.getPos());
         if (trgFlag) {
             epTrg = fp.epTrg;
         }
+        setPos(fp.getPos());
     }
 };
 
@@ -128,10 +128,10 @@ struct MixEPJ {
     void copyFromFP(const MixFP<EPT, EPS> &fp) {
         srcFlag = !fp.trgFlag;
         radius = fp.getRadius();
-        setPos(fp.getPos());
         if (srcFlag) {
             epSrc = fp.epSrc;
         }
+        setPos(fp.getPos());
     }
 };
 
@@ -212,7 +212,7 @@ class MixPairInteraction {
      *
      */
     void updateSystem(const PS::ParticleSystem<FPT> &systemTrg, const PS::ParticleSystem<FPS> &systemSrc,
-                      PS::DomainInfo &dinfo);
+                      const PS::DomainInfo &dinfo);
 
     /**
      * @brief update treeMix
@@ -247,7 +247,7 @@ class MixPairInteraction {
 template <class FPT, class FPS, class EPT, class EPS, class Force>
 void MixPairInteraction<FPT, FPS, EPT, EPS, Force>::updateSystem(const PS::ParticleSystem<FPT> &systemTrg,
                                                                  const PS::ParticleSystem<FPS> &systemSrc,
-                                                                 PS::DomainInfo &dinfo) {
+                                                                 const PS::DomainInfo &dinfo) {
     nLocalTrg = systemTrg.getNumberOfParticleLocal();
     nLocalSrc = systemSrc.getNumberOfParticleLocal();
 
@@ -265,7 +265,6 @@ void MixPairInteraction<FPT, FPS, EPT, EPS, Force>::updateSystem(const PS::Parti
         systemMix[mixIndex].trgFlag = false;
     }
 
-    systemMix.exchangeParticle(dinfo);
     systemMix.adjustPositionIntoRootDomain(dinfo);
 }
 
