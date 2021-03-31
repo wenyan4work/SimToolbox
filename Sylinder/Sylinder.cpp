@@ -103,6 +103,8 @@ void Sylinder::writeAscii(FILE *fptr) const {
     Evec3 minus = ECmap3(pos) - 0.5 * length * direction;
     Evec3 plus = ECmap3(pos) + 0.5 * length * direction;
     char typeChar = link.group == GEO_INVALID_INDEX ? 'C' : 'F';
+    if (typeChar == 'F' && isImmovable)
+        typeChar = 'S';
     fprintf(fptr, "%c %d %g %g %g %g %g %g %g %d %d %d\n", typeChar, gid, radius, minus[0], minus[1], minus[2], plus[0],
             plus[1], plus[2], link.group, link.prev, link.next);
 }
