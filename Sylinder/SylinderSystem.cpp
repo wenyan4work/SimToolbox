@@ -309,7 +309,7 @@ void SylinderSystem::setInitialFromFile(const std::string &filename) {
             char typeChar;
             std::istringstream liness(line);
             liness >> typeChar;
-            if (typeChar == 'C' || typeChar == 'F' /* flexible */) {
+            if (typeChar == 'C' || typeChar == 'F' /* flexible */ || typeChar == 'S' /* immovable */) {
                 Sylinder newBody;
                 int gid;
                 double mx, my, mz;
@@ -325,12 +325,13 @@ void SylinderSystem::setInitialFromFile(const std::string &filename) {
                 } else {
                     Emapq(newBody.orientation) = Equatn::FromTwoVectors(Evec3(0, 0, 1), Evec3(0, 0, 1));
                 }
+                newBody.isImmovable = (typeChar == 'S') ? true : false;
                 newBody.radius = radius;
                 newBody.radiusCollision = radius;
                 newBody.lengthCollision = newBody.length;
 
                 Link link;
-                if (typeChar == 'F') { // Make sylinder a link in a flexible filament
+                if (typeChar == 'F' || typeChar == 'S') { // Make sylinder a link in a flexible filament
                     int link_grp, prev_link, next_link;
                     liness >> link_grp >> prev_link >> next_link;
                     link.group = link_grp;
@@ -625,9 +626,9 @@ void SylinderSystem::calcMobMatrix() {
         double dragPerp = 0;
         double dragRot = 0;
         sy.calcDragCoeff(mu, dragPara, dragPerp, dragRot);
-        const double dragParaInv = 1 / dragPara;
-        const double dragPerpInv = 1 / dragPerp;
-        const double dragRotInv = 1 / dragRot;
+        const double dragParaInv = sy.isImmovable ? 0.0 : 1 / dragPara;
+        const double dragPerpInv = sy.isImmovable ? 0.0 : 1 / dragPerp;
+        const double dragRotInv = sy.isImmovable ? 0.0 : 1 / dragRot;
 
         MobTrans = dragParaInv * qq + dragPerpInv * Imqq;
         MobRot = dragRotInv * qq + dragRotInv * Imqq; // = dragRotInv * Identity
