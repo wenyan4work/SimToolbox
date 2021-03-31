@@ -1019,9 +1019,9 @@ void SylinderSystem::calcVelocityBrown() {
             double dragPerp = 0;
             double dragRot = 0;
             sy.calcDragCoeff(mu, dragPara, dragPerp, dragRot);
-            const double invDragPara = 1 / dragPara;
-            const double invDragPerp = 1 / dragPerp;
-            const double invDragRot = 1 / dragRot;
+            const double dragParaInv = sy.isImmovable ? 0.0 : 1 / dragPara;
+            const double dragPerpInv = sy.isImmovable ? 0.0 : 1 / dragPerp;
+            const double dragRotInv = sy.isImmovable ? 0.0 : 1 / dragRot;
 
             // convert FDPS vec3 to Evec3
             Evec3 direction = Emapq(sy.orientation) * Evec3(0, 0, 1);
@@ -1030,7 +1030,7 @@ void SylinderSystem::calcVelocityBrown() {
             // slender fiber has 0 rot drag, regularize with identity rot mobility
             // trans mobility is this
             Evec3 q = direction;
-            Emat3 Nmat = (invDragPara - invDragPerp) * (q * q.transpose()) + (invDragPerp)*Emat3::Identity();
+            Emat3 Nmat = (dragParaInv - dragPerpInv) * (q * q.transpose()) + (dragPerpInv)*Emat3::Identity();
             Emat3 Nmatsqrt = Nmat.llt().matrixL();
 
             // velocity
@@ -1042,11 +1042,11 @@ void SylinderSystem::calcVelocityBrown() {
             Equatn orientRFD = Emapq(sy.orientation);
             EquatnHelper::rotateEquatn(orientRFD, Wrfdrot, delta);
             q = orientRFD * Evec3(0, 0, 1);
-            Emat3 Nmatrfd = (invDragPara - invDragPerp) * (q * q.transpose()) + (invDragPerp)*Emat3::Identity();
+            Emat3 Nmatrfd = (dragParaInv - dragPerpInv) * (q * q.transpose()) + (dragPerpInv)*Emat3::Identity();
 
             Evec3 vel = kBTfactor * (Nmatsqrt * Wpos);           // Gaussian noise
             vel += (kBT / delta) * ((Nmatrfd - Nmat) * Wrfdpos); // rfd drift. seems no effect in this case
-            Evec3 omega = sqrt(invDragRot) * kBTfactor * Wrot;   // regularized identity rotation drag
+            Evec3 omega = sqrt(dragRotInv) * kBTfactor * Wrot;   // regularized identity rotation drag
 
             Emap3(sy.velBrown) = vel;
             Emap3(sy.omegaBrown) = omega;
