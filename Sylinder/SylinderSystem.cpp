@@ -388,6 +388,8 @@ void SylinderSystem::setInitialFromVTKFile(const std::string &pvtpFileName) {
             vtkArrayDownCast<vtkTypeInt32Array>(polydata->GetCellData()->GetAbstractArray("prev"));
         vtkSmartPointer<vtkTypeInt32Array> nextData =
             vtkArrayDownCast<vtkTypeInt32Array>(polydata->GetCellData()->GetAbstractArray("next"));
+        vtkSmartPointer<vtkTypeInt32Array> isImmovableData =
+            vtkArrayDownCast<vtkTypeInt32Array>(polydata->GetCellData()->GetAbstractArray("isImmovable"));
         // float types
         vtkSmartPointer<vtkDataArray> lengthData = polydata->GetCellData()->GetArray("length");
         vtkSmartPointer<vtkDataArray> lengthCollisionData = polydata->GetCellData()->GetArray("lengthCollision");
@@ -415,6 +417,7 @@ void SylinderSystem::setInitialFromVTKFile(const std::string &pvtpFileName) {
             newBody.link.group = groupData->GetTypedComponent(i, 0);
             newBody.link.prev = prevData->GetTypedComponent(i, 0);
             newBody.link.next = nextData->GetTypedComponent(i, 0);
+            newBody.isImmovable = (bool)isImmovableData->GetTypedComponent(i, 0);
             newBody.length = lengthData->GetComponent(i, 0);
             newBody.lengthCollision = lengthCollisionData->GetComponent(i, 0);
             newBody.radius = radiusData->GetComponent(i, 0);

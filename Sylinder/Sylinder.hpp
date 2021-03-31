@@ -228,6 +228,8 @@ class Sylinder {
         cellDataFields.emplace_back(1, IOHelper::IOTYPE::Int32, "group");
         cellDataFields.emplace_back(1, IOHelper::IOTYPE::Int32, "prev");
         cellDataFields.emplace_back(1, IOHelper::IOTYPE::Int32, "next");
+        cellDataFields.emplace_back(1, IOHelper::IOTYPE::Int32, "isImmovable");
+
         cellDataFields.emplace_back(1, IOHelper::IOTYPE::Float32, "radius");
         cellDataFields.emplace_back(1, IOHelper::IOTYPE::Float32, "radiusCollision");
         cellDataFields.emplace_back(1, IOHelper::IOTYPE::Float32, "length");
@@ -295,11 +297,14 @@ class Sylinder {
         std::vector<int32_t> connectivity(2 * sylinderNumber);
         std::vector<int32_t> offset(sylinderNumber);
 
+        // immovable?
+
         // sylinder data
         std::vector<int32_t> gid(sylinderNumber);
         std::vector<int32_t> group(sylinderNumber);
         std::vector<int32_t> prev(sylinderNumber);
         std::vector<int32_t> next(sylinderNumber);
+        std::vector<int32_t> isImmovable(sylinderNumber);
         std::vector<float> radius(sylinderNumber);
         std::vector<float> radiusCollision(sylinderNumber);
         std::vector<float> length(sylinderNumber);
@@ -359,6 +364,8 @@ class Sylinder {
             group[i] = sy.link.group;
             prev[i] = sy.link.prev;
             next[i] = sy.link.next;
+            isImmovable[i] = (int32_t)sy.isImmovable;
+
             radius[i] = sy.radius;
             radiusCollision[i] = sy.radiusCollision;
             length[i] = sy.length;
@@ -419,6 +426,7 @@ class Sylinder {
         IOHelper::writeDataArrayBase64(group, "group", 1, file);
         IOHelper::writeDataArrayBase64(prev, "prev", 1, file);
         IOHelper::writeDataArrayBase64(next, "next", 1, file);
+        IOHelper::writeDataArrayBase64(isImmovable, "isImmovable", 1, file);
         IOHelper::writeDataArrayBase64(radius, "radius", 1, file);
         IOHelper::writeDataArrayBase64(radiusCollision, "radiusCollision", 1, file);
         IOHelper::writeDataArrayBase64(length, "length", 1, file);
