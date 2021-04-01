@@ -3,7 +3,7 @@ import scipy as sp
 import glob
 
 files = glob.glob('./result/result*-*/SylinderAscii_*.dat')
-radSy = 0.5
+radSy = 0.25
 eps = 4e-4
 
 
@@ -14,7 +14,7 @@ def checkWall1(point):
     rvec = point-center
     error = rvec.dot(norm_hat) - radSy
     if error < -eps:
-        print("Fail wall1", point, error)
+        print("Failed wall1", point, error)
 
     return
 
@@ -26,7 +26,7 @@ def checkWall2(point):
     rvec = point-center
     error = rvec.dot(norm_hat) - radSy
     if error < -eps:
-        print("Fail wall2", point, error)
+        print("Failed wall2", point, error)
 
     return
 
@@ -40,7 +40,7 @@ def checkTube(point):
     radvec = rvec-rvec.dot(axis_hat)*axis_hat
     error = np.linalg.norm(radvec) - (radius - radSy)
     if error > eps:
-        print("Fail tube", point, error)
+        print("Failed tube", point, error)
 
     return
 
@@ -50,7 +50,7 @@ def checkSphere(point):
     radius = 10
     error = np.linalg.norm(point-center) - (radius-radSy)
     if error > eps:
-        print("Fail sphere", point, error)
+        print("Failed sphere", point, error)
     return
 
 
