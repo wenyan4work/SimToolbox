@@ -23,12 +23,12 @@
 #include "Util/TRngPool.hpp"
 
 #include <vtkCellData.h>
-#include <vtkDataArray.h>
-#include <vtkPointData.h>
-#include <vtkPoints.h>
 #include <vtkPolyData.h>
 #include <vtkSmartPointer.h>
+#include <vtkTypeInt32Array.h>
+#include <vtkTypeUInt8Array.h>
 #include <vtkXMLPPolyDataReader.h>
+#include <vtkXMLPolyDataReader.h>
 
 /**
  * @brief A collection of sylinders distributed to multiple MPI ranks.

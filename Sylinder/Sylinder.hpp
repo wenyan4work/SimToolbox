@@ -221,14 +221,14 @@ class Sylinder {
         std::vector<std::string> pieceNames;
 
         std::vector<IOHelper::FieldVTU> pointDataFields;
-        pointDataFields.emplace_back(1, IOHelper::IOTYPE::Float32, "endLabel");
+        pointDataFields.emplace_back(1, IOHelper::IOTYPE::UInt8, "endLabel");
 
         std::vector<IOHelper::FieldVTU> cellDataFields;
         cellDataFields.emplace_back(1, IOHelper::IOTYPE::Int32, "gid");
         cellDataFields.emplace_back(1, IOHelper::IOTYPE::Int32, "group");
         cellDataFields.emplace_back(1, IOHelper::IOTYPE::Int32, "prev");
         cellDataFields.emplace_back(1, IOHelper::IOTYPE::Int32, "next");
-        cellDataFields.emplace_back(1, IOHelper::IOTYPE::Int32, "isImmovable");
+        cellDataFields.emplace_back(1, IOHelper::IOTYPE::UInt8, "isImmovable");
 
         cellDataFields.emplace_back(1, IOHelper::IOTYPE::Float32, "radius");
         cellDataFields.emplace_back(1, IOHelper::IOTYPE::Float32, "radiusCollision");
@@ -291,7 +291,7 @@ class Sylinder {
         // use float to save some space
         // point and point data
         std::vector<double> pos(6 * sylinderNumber); // position always in Float64
-        std::vector<float> label(2 * sylinderNumber);
+        std::vector<uint8_t> label(2 * sylinderNumber);
 
         // point connectivity of line
         std::vector<int32_t> connectivity(2 * sylinderNumber);
@@ -304,7 +304,7 @@ class Sylinder {
         std::vector<int32_t> group(sylinderNumber);
         std::vector<int32_t> prev(sylinderNumber);
         std::vector<int32_t> next(sylinderNumber);
-        std::vector<int32_t> isImmovable(sylinderNumber);
+        std::vector<uint8_t> isImmovable(sylinderNumber);
         std::vector<float> radius(sylinderNumber);
         std::vector<float> radiusCollision(sylinderNumber);
         std::vector<float> length(sylinderNumber);
@@ -351,7 +351,7 @@ class Sylinder {
             pos[6 * i + 3] = end1[0];
             pos[6 * i + 4] = end1[1];
             pos[6 * i + 5] = end1[2];
-            label[2 * i] = -1;
+            label[2 * i] = 0;
             label[2 * i + 1] = 1;
 
             // connectivity
@@ -364,7 +364,7 @@ class Sylinder {
             group[i] = sy.link.group;
             prev[i] = sy.link.prev;
             next[i] = sy.link.next;
-            isImmovable[i] = (int32_t)sy.isImmovable;
+            isImmovable[i] = sy.isImmovable ? 1 : 0;
 
             radius[i] = sy.radius;
             radiusCollision[i] = sy.radiusCollision;
