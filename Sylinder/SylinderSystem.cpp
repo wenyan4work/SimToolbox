@@ -1117,7 +1117,7 @@ void SylinderSystem::collectBoundaryCollision() {
                     }
                 };
 
-                if (sy.isSphere()) {
+                if (sy.isSphere(true)) {
                     double radius = sy.lengthCollision * 0.5 + sy.radiusCollision;
                     checkEnd(center, radius);
                 } else {

@@ -42,7 +42,7 @@ class Sylinder {
     int globalIndex = GEO_INVALID_INDEX; ///< unique global index sequentially ordered
     int rank = -1;                       ///< mpi rank
 
-    bool isImmovable; ///< flag for if Sylinder can move
+    bool isImmovable = false; ///< flag for if Sylinder can move
 
     double radius;          ///< radius
     double radiusCollision; ///< radius for collision resolution
