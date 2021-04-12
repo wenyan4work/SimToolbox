@@ -1,5 +1,6 @@
 #include "SylinderSystem.hpp"
 
+#include "MPI/CommMPI.hpp"
 #include "Util/EquatnHelper.hpp"
 #include "Util/GeoUtil.hpp"
 #include "Util/IOHelper.hpp"
@@ -8,7 +9,16 @@
 #include <cstdio>
 #include <fstream>
 #include <memory>
+#include <random>
 #include <vector>
+
+#include <vtkCellData.h>
+#include <vtkPolyData.h>
+#include <vtkSmartPointer.h>
+#include <vtkTypeInt32Array.h>
+#include <vtkTypeUInt8Array.h>
+#include <vtkXMLPPolyDataReader.h>
+#include <vtkXMLPolyDataReader.h>
 
 #include <mpi.h>
 #include <omp.h>
@@ -52,6 +62,7 @@ void SylinderSystem::initialize(const SylinderConfig &runConfig_, const std::str
     } else {
         setInitialFromConfig();
     }
+    setLinkMapFromFile(posFile);
 
     // at this point all sylinders located on rank 0
     commRcp->barrier();
@@ -296,6 +307,36 @@ void SylinderSystem::calcVolFrac() {
 }
 
 void SylinderSystem::setInitialFromFile(const std::string &filename) {
+
+    auto parseSylinder = [&](Sylinder &sy, const std::string &line) {
+        std::stringstream liness(line);
+        // required data
+        int gid;
+        char type;
+        double radius;
+        double mx, my, mz;
+        double px, py, pz;
+        liness >> type >> gid >> radius >> mx >> my >> mz >> px >> py >> pz;
+        // optional data
+        int group = -1;
+        liness >> group;
+
+        Emap3(sy.pos) = Evec3((mx + px), (my + py), (mz + pz)) * 0.5;
+        sy.gid = gid;
+        sy.group = group;
+        sy.isImmovable = (type == 'S') ? true : false;
+        sy.radius = radius;
+        sy.radiusCollision = radius;
+        sy.length = sqrt(pow(px - mx, 2) + pow(py - my, 2) + pow(pz - mz, 2));
+        sy.lengthCollision = sy.length;
+        if (sy.length > 1e-7) {
+            Evec3 direction(px - mx, py - my, pz - mz);
+            Emapq(sy.orientation) = Equatn::FromTwoVectors(Evec3(0, 0, 1), direction);
+        } else {
+            Emapq(sy.orientation) = Equatn::FromTwoVectors(Evec3(0, 0, 1), Evec3(0, 0, 1));
+        }
+    };
+
     if (commRcp->getRank() != 0) {
         sylinderContainer.setNumberOfParticleLocal(0);
     } else {
@@ -304,54 +345,20 @@ void SylinderSystem::setInitialFromFile(const std::string &filename) {
         std::getline(myfile, line); // read two header lines
         std::getline(myfile, line);
 
-        std::vector<Sylinder> sylinderReadFromFile;
+        std::deque<Sylinder> sylinderReadFromFile;
         while (std::getline(myfile, line)) {
-            char typeChar;
-            std::istringstream liness(line);
-            liness >> typeChar;
-            if (typeChar == 'C' || typeChar == 'F' /* flexible */ || typeChar == 'S' /* immovable */) {
-                Sylinder newBody;
-                int gid;
-                double mx, my, mz;
-                double px, py, pz;
-                double radius;
-                liness >> gid >> radius >> mx >> my >> mz >> px >> py >> pz;
-                Emap3(newBody.pos) = Evec3((mx + px) / 2, (my + py) / 2, (mz + pz) / 2);
-                newBody.gid = gid;
-                newBody.length = sqrt((px - mx) * (px - mx) + (py - my) * (py - my) + (pz - mz) * (pz - mz));
-                if (newBody.length > 1e-7) {
-                    Evec3 direction(px - mx, py - my, pz - mz);
-                    Emapq(newBody.orientation) = Equatn::FromTwoVectors(Evec3(0, 0, 1), direction);
-                } else {
-                    Emapq(newBody.orientation) = Equatn::FromTwoVectors(Evec3(0, 0, 1), Evec3(0, 0, 1));
-                }
-                newBody.isImmovable = (typeChar == 'S') ? true : false;
-                newBody.radius = radius;
-                newBody.radiusCollision = radius;
-                newBody.lengthCollision = newBody.length;
-
-                Link link;
-                if (typeChar == 'F' || typeChar == 'S') { // Make sylinder a link in a flexible filament
-                    int link_grp, prev_link, next_link;
-                    liness >> link_grp >> prev_link >> next_link;
-                    link.group = link_grp;
-                    link.prev = prev_link;
-                    link.next = next_link;
-                }
-                newBody.link = link;
-
-                sylinderReadFromFile.push_back(newBody);
-                typeChar = 'N';
+            if (line[0] == 'C' || line[0] == 'S') {
+                Sylinder sy;
+                parseSylinder(sy, line);
+                sylinderReadFromFile.push_back(sy);
             }
         }
         myfile.close();
 
         // sort body, gid ascending;
         std::cout << "Sylinder number in file: " << sylinderReadFromFile.size() << std::endl;
-        std::sort(sylinderReadFromFile.begin(), sylinderReadFromFile.end(),
-                  [](const Sylinder &t1, const Sylinder &t2) { return t1.gid < t2.gid; });
 
-        // set local
+        // set on rank 0
         const int nRead = sylinderReadFromFile.size();
         sylinderContainer.setNumberOfParticleLocal(nRead);
 #pragma omp parallel for
@@ -360,6 +367,30 @@ void SylinderSystem::setInitialFromFile(const std::string &filename) {
             sylinderContainer[i].clear();
         }
     }
+}
+
+void SylinderSystem::setLinkMapFromFile(const std::string &filename) {
+    auto parseLink = [&](Link &link, const std::string &line) {
+        std::stringstream liness(line);
+        char header;
+        liness >> header >> link.prev >> link.next;
+        assert(header == 'L');
+    };
+
+    std::ifstream myfile(filename);
+    std::string line;
+    std::getline(myfile, line); // read two header lines
+    std::getline(myfile, line);
+
+    linkMap.clear();
+    while (std::getline(myfile, line)) {
+        if (line[0] == 'L') {
+            Link link;
+            parseLink(link, line);
+            linkMap.emplace(link.prev, link.next);
+        }
+    }
+    myfile.close();
 }
 
 void SylinderSystem::setInitialFromVTKFile(const std::string &pvtpFileName) {
@@ -384,10 +415,6 @@ void SylinderSystem::setInitialFromVTKFile(const std::string &pvtpFileName) {
             vtkArrayDownCast<vtkTypeInt32Array>(polydata->GetCellData()->GetAbstractArray("gid"));
         vtkSmartPointer<vtkTypeInt32Array> groupData =
             vtkArrayDownCast<vtkTypeInt32Array>(polydata->GetCellData()->GetAbstractArray("group"));
-        vtkSmartPointer<vtkTypeInt32Array> prevData =
-            vtkArrayDownCast<vtkTypeInt32Array>(polydata->GetCellData()->GetAbstractArray("prev"));
-        vtkSmartPointer<vtkTypeInt32Array> nextData =
-            vtkArrayDownCast<vtkTypeInt32Array>(polydata->GetCellData()->GetAbstractArray("next"));
         // unsigned char type
         vtkSmartPointer<vtkTypeUInt8Array> isImmovableData =
             vtkArrayDownCast<vtkTypeUInt8Array>(polydata->GetCellData()->GetAbstractArray("isImmovable"));
@@ -400,55 +427,42 @@ void SylinderSystem::setInitialFromVTKFile(const std::string &pvtpFileName) {
         vtkSmartPointer<vtkDataArray> velData = polydata->GetCellData()->GetArray("vel");
         vtkSmartPointer<vtkDataArray> omegaData = polydata->GetCellData()->GetArray("omega");
 
-        // Store the data within a temporary vector of Sylinders
         const int sylinderNumberInFile = posData->GetNumberOfPoints() / 2; // two points per sylinder
-        std::vector<Sylinder> sylinderReadFromFile(sylinderNumberInFile);
+        sylinderContainer.setNumberOfParticleLocal(sylinderNumberInFile);
+        std::cout << "Sylinder number in file: " << sylinderNumberInFile << std::endl;
 
 #pragma omp parallel for
         for (int i = 0; i < sylinderNumberInFile; i++) {
-            auto &newBody = sylinderReadFromFile[i];
+            auto &sy = sylinderContainer[i];
             double leftEndpointPos[3] = {0, 0, 0};
             double rightEndpointPos[3] = {0, 0, 0};
             posData->GetPoint(i * 2, leftEndpointPos);
             posData->GetPoint(i * 2 + 1, rightEndpointPos);
-            newBody.pos[0] = (leftEndpointPos[0] + rightEndpointPos[0]) / 2;
-            newBody.pos[1] = (leftEndpointPos[1] + rightEndpointPos[1]) / 2;
-            newBody.pos[2] = (leftEndpointPos[2] + rightEndpointPos[2]) / 2;
-            newBody.gid = gidData->GetComponent(i, 0);
-            newBody.link.group = groupData->GetTypedComponent(i, 0);
-            newBody.link.prev = prevData->GetTypedComponent(i, 0);
-            newBody.link.next = nextData->GetTypedComponent(i, 0);
-            newBody.isImmovable = isImmovableData->GetTypedComponent(i, 0) > 0 ? true : false;
-            newBody.length = lengthData->GetComponent(i, 0);
-            newBody.lengthCollision = lengthCollisionData->GetComponent(i, 0);
-            newBody.radius = radiusData->GetComponent(i, 0);
-            newBody.radiusCollision = radiusCollisionData->GetComponent(i, 0);
+
+            Emap3(sy.pos) = (Emap3(leftEndpointPos) + Emap3(rightEndpointPos)) * 0.5;
+            sy.gid = gidData->GetComponent(i, 0);
+            sy.group = groupData->GetComponent(i, 0);
+            sy.isImmovable = isImmovableData->GetTypedComponent(i, 0) > 0 ? true : false;
+            sy.length = lengthData->GetComponent(i, 0);
+            sy.lengthCollision = lengthCollisionData->GetComponent(i, 0);
+            sy.radius = radiusData->GetComponent(i, 0);
+            sy.radiusCollision = radiusCollisionData->GetComponent(i, 0);
             const Evec3 direction(znormData->GetComponent(i, 0), znormData->GetComponent(i, 1),
                                   znormData->GetComponent(i, 2));
-            Emapq(newBody.orientation) = Equatn::FromTwoVectors(Evec3(0, 0, 1), direction);
-            newBody.vel[0] = velData->GetComponent(i, 0);
-            newBody.vel[1] = velData->GetComponent(i, 1);
-            newBody.vel[2] = velData->GetComponent(i, 2);
-            newBody.omega[0] = omegaData->GetComponent(i, 0);
-            newBody.omega[1] = omegaData->GetComponent(i, 1);
-            newBody.omega[2] = omegaData->GetComponent(i, 2);
+            Emapq(sy.orientation) = Equatn::FromTwoVectors(Evec3(0, 0, 1), direction);
+            sy.vel[0] = velData->GetComponent(i, 0);
+            sy.vel[1] = velData->GetComponent(i, 1);
+            sy.vel[2] = velData->GetComponent(i, 2);
+            sy.omega[0] = omegaData->GetComponent(i, 0);
+            sy.omega[1] = omegaData->GetComponent(i, 1);
+            sy.omega[2] = omegaData->GetComponent(i, 2);
         }
 
         // sort the vector of Sylinders by gid ascending;
-        std::cout << "Sylinder number in file: " << sylinderReadFromFile.size() << std::endl;
-        std::sort(sylinderReadFromFile.begin(), sylinderReadFromFile.end(),
-                  [](const Sylinder &t1, const Sylinder &t2) { return t1.gid < t2.gid; });
-
-        // set local
-        const int nRead = sylinderReadFromFile.size();
-        sylinderContainer.setNumberOfParticleLocal(nRead);
-#pragma omp parallel for
-        for (int i = 0; i < nRead; i++) {
-            sylinderContainer[i] = sylinderReadFromFile[i];
-            // sylinderContainer[i].clear(); (Do not clear the sylinderContainer as the velocity data is needed to take
-            // a EulerStep)
-        }
+        // std::sort(sylinderReadFromFile.begin(), sylinderReadFromFile.end(),
+        //           [](const Sylinder &t1, const Sylinder &t2) { return t1.gid < t2.gid; });
     }
+    commRcp->barrier();
 }
 
 std::string SylinderSystem::getCurrentResultFolder() { return getResultFolderWithID(this->snapID); }
@@ -471,6 +485,14 @@ void SylinderSystem::writeAscii(const std::string &baseFolder) {
     header.nparticle = nGlobal;
     header.time = stepCount * runConfig.dt;
     sylinderContainer.writeParticleAscii(name.c_str(), header);
+    if (commRcp->getRank() == 0) {
+        FILE *fptr = fopen(name.c_str(), "a");
+        for (const auto &key_value : linkMap) {
+            fprintf(fptr, "L %d %d\n", key_value.first, key_value.second);
+        }
+        fclose(fptr);
+    }
+    commRcp->barrier();
 }
 
 void SylinderSystem::writeTimeStepInfo(const std::string &baseFolder) {
@@ -531,13 +553,7 @@ void SylinderSystem::showOnScreenRank0() {
     if (commRcp->getRank() == 0) {
         printf("-----------SylinderSystem Settings-----------\n");
         runConfig.dump();
-        // printf("-----------Sylinder Configurations-----------\n");
-        // const int nLocal = sylinderContainer.getNumberOfParticleLocal();
-        // for (int i = 0; i < nLocal; i++) {
-        //     sylinderContainer[i].dumpSylinder();
-        // }
     }
-    // commRcp->barrier();
 }
 
 void SylinderSystem::setDomainInfo() {
@@ -1294,60 +1310,71 @@ void SylinderSystem::calcOrderParameter() {
     }
 }
 
-void SylinderSystem::addNewSylinder(std::vector<Sylinder> &newSylinder, std::vector<Link> &linkage) {
+std::vector<int> SylinderSystem::addNewSylinder(const std::vector<Sylinder> &newSylinder) {
     // assign unique new gid for sylinders on all ranks
     std::pair<int, int> maxGid = getMaxGid();
     const int maxGidLocal = maxGid.first;
     const int maxGidGlobal = maxGid.second;
-    const int newNumberOnLocal = newSylinder.size();
-    const auto &newMapRcp = getTMAPFromLocalSize(newNumberOnLocal, commRcp);
+    const int newCountLocal = newSylinder.size();
+    std::vector<int> newGid;
 
-    // a large enough buffer on every rank
-    std::vector<int> newID(newMapRcp->getGlobalNumElements(), 0);
-    std::vector<int> newNumber(commRcp->getSize(), 0);
-    std::vector<int> displ(commRcp->getSize(), 0);
+    int newCountGlobal = 0;
+    MPI_Reduce(&newCountLocal, &newCountGlobal, 1, MPI_INT, MPI_SUM, 0, MPI_COMM_WORLD);
 
-    // assign random id on rank 0
+    // generate random gid on rank 0
     if (commRcp->getRank() == 0) {
-        std::iota(newID.begin(), newID.end(), 0);
-        std::random_shuffle(newID.begin(), newID.end());
+        newGid.resize(newCountGlobal, 0);
+        std::iota(newGid.begin(), newGid.end(), 0);
+        std::random_device rd;
+        std::mt19937 g(rd());
+        std::shuffle(newGid.begin(), newGid.end(), g);
+    } else {
+        newGid.resize(newCountLocal, 0);
     }
+
     // collect number of ids from all ranks to rank0
-    MPI_Gather(&newNumberOnLocal, 1, MPI_INT, newNumber.data(), 1, MPI_INT, 0, MPI_COMM_WORLD);
+    std::vector<int> newCount(commRcp->getSize(), 0);
+    std::vector<int> displ(commRcp->getSize(), 0);
+    MPI_Gather(&newCountLocal, 1, MPI_INT, newCount.data(), 1, MPI_INT, 0, MPI_COMM_WORLD);
 
     if (commRcp->getRank() == 0) {
-        std::partial_sum(newNumber.cbegin(), newNumber.cend() - 1, displ.begin() + 1);
+        std::partial_sum(newCount.cbegin(), newCount.cend() - 1, displ.begin() + 1);
     }
 
-    std::vector<int> newIDRecv(newNumberOnLocal, 0);
     // scatter from rank 0 to every rank
-    MPI_Scatterv(newID.data(), newNumber.data(), displ.data(), MPI_INT, //
-                 newIDRecv.data(), newNumberOnLocal, MPI_INT, 0, MPI_COMM_WORLD);
+    std::vector<int> newGidRecv(newCountLocal, 0);
+    MPI_Scatterv(newGid.data(), newCount.data(), displ.data(), MPI_INT, //
+                 newGidRecv.data(), newCountLocal, MPI_INT, 0, MPI_COMM_WORLD);
 
     // set new gid
-    for (int i = 0; i < newNumberOnLocal; i++) {
-        newSylinder[i].gid = newIDRecv[i] + 1 + maxGidGlobal;
+    newGid.resize(newCountLocal);
+    for (int i = 0; i < newCountLocal; i++) {
+        newGid[i] = newGidRecv[i] + 1 + maxGidGlobal;
     }
 
-    // set link connection
-    if (linkage.size() == newNumberOnLocal) {
-        for (int i = 0; i < newNumberOnLocal; i++) {
-            newSylinder[i].link.group = linkage[i].group;
-            newSylinder[i].link.prev =
-                (linkage[i].prev == GEO_INVALID_INDEX) ? GEO_INVALID_INDEX : newSylinder[linkage[i].prev].gid;
-            newSylinder[i].link.next =
-                (linkage[i].next == GEO_INVALID_INDEX) ? GEO_INVALID_INDEX : newSylinder[linkage[i].next].gid;
-        }
-    } else if (linkage.size() == 0) {
-        // no linkage, do nothing
-    } else {
-        printf("wrong linkage on rank: %d\n", commRcp->getRank());
-        std::exit(1);
+    for (int i = 0; i < newCountLocal; i++) {
+        Sylinder sy = newSylinder[i];
+        sy.gid = newGid[i];
+        sylinderContainer.addOneParticle(sy);
     }
 
-    // add new cell to old cell
-    for (int i = 0; i < newNumberOnLocal; i++) {
-        sylinderContainer.addOneParticle(newSylinder[i]);
+    return newGid;
+}
+
+void SylinderSystem::addNewLink(const std::vector<Link> &newLink) {
+    // synchronize newLink to all mpi ranks
+    const int newCountLocal = newLink.size();
+    std::vector<int> newCount(commRcp->getSize(), 0);
+    MPI_Allgather(&newCountLocal, 1, MPI_INT, newCount.data(), 1, MPI_INT, MPI_COMM_WORLD);
+    std::vector<int> displ(commRcp->getSize() + 1, 0);
+    std::partial_sum(newCount.cbegin(), newCount.cend() - 1, displ.begin() + 1);
+    std::vector<Link> newLinkRecv(displ.back() + 1);
+    MPI_Allgatherv(newLink.data(), newCountLocal, createMPIStructType<Link>(), newLinkRecv.data(), newCount.data(),
+                   displ.data(), createMPIStructType<Link>(), MPI_COMM_WORLD);
+
+    // put newLinks into the map, same op on all mpi ranks
+    for (const auto &ll : newLinkRecv) {
+        linkMap.insert(ll.prev, ll.next);
     }
 }
 
@@ -1375,8 +1402,7 @@ void SylinderSystem::buildSylinderNearDataDirectory() {
 void SylinderSystem::collectLinkBilateral() {
     // setup bilateral link constraints
     // need special treatment of periodic boundary conditions
-    // if a sylinder is treated as a sphere, bilateral links start from its center
-    // for a sylinder, bilateral links start from the ends of its cylindrical section
+
     const int nLocal = sylinderContainer.getNumberOfParticleLocal();
     auto &conPool = *(this->conCollectorPtr->constraintPoolPtr);
     if (conPool.size() != omp_get_max_threads()) {
@@ -1389,8 +1415,11 @@ void SylinderSystem::collectLinkBilateral() {
     const auto &dataToFind = sylinderNearDataDirectoryPtr->dataToFind;
 
     gidToFind.clear();
-    gidToFind.resize(nLocal);
-#pragma omp parallel for
+    gidToFind.reserve(nLocal);
+
+    // loop over all sylinders
+    // if linkMap[sy.gid] not empty, find info for all next
+
     for (int i = 0; i < nLocal; i++) {
         const auto &sy = sylinderContainer[i];
         if (sy.link.next >= 0) {

@@ -27,9 +27,8 @@
  *
  */
 struct Link {
-    int group = GEO_INVALID_INDEX; ///< group id of sylinder links
-    int prev = GEO_INVALID_INDEX;  ///< previous link in the link group
-    int next = GEO_INVALID_INDEX;  ///< next link in the link group
+    int prev = GEO_INVALID_INDEX; ///< previous link in the link group
+    int next = GEO_INVALID_INDEX; ///< next link in the link group
 };
 
 /**
@@ -41,6 +40,7 @@ class Sylinder {
     int gid = GEO_INVALID_INDEX;         ///< unique global id
     int globalIndex = GEO_INVALID_INDEX; ///< unique global index sequentially ordered
     int rank = -1;                       ///< mpi rank
+    int group = -1;                      ///< a 'marker'
 
     bool isImmovable = false; ///< flag for if Sylinder can move
 
@@ -51,8 +51,6 @@ class Sylinder {
     double radiusSearch;    ///< radiusSearch for short range interactions
     double sepmin;          ///< minimal separation with its neighbors within radiusSearch
     double colBuf;          ///< collision buffer
-
-    Link link; ///< link of this sylinder
 
     double pos[3];         ///< position
     double orientation[4]; ///< orientation quaternion. direction norm vector = orientation * (0,0,1)
@@ -226,8 +224,6 @@ class Sylinder {
         std::vector<IOHelper::FieldVTU> cellDataFields;
         cellDataFields.emplace_back(1, IOHelper::IOTYPE::Int32, "gid");
         cellDataFields.emplace_back(1, IOHelper::IOTYPE::Int32, "group");
-        cellDataFields.emplace_back(1, IOHelper::IOTYPE::Int32, "prev");
-        cellDataFields.emplace_back(1, IOHelper::IOTYPE::Int32, "next");
         cellDataFields.emplace_back(1, IOHelper::IOTYPE::UInt8, "isImmovable");
 
         cellDataFields.emplace_back(1, IOHelper::IOTYPE::Float32, "radius");
@@ -302,8 +298,6 @@ class Sylinder {
         // sylinder data
         std::vector<int32_t> gid(sylinderNumber);
         std::vector<int32_t> group(sylinderNumber);
-        std::vector<int32_t> prev(sylinderNumber);
-        std::vector<int32_t> next(sylinderNumber);
         std::vector<uint8_t> isImmovable(sylinderNumber);
         std::vector<float> radius(sylinderNumber);
         std::vector<float> radiusCollision(sylinderNumber);
@@ -361,9 +355,7 @@ class Sylinder {
 
             // sylinder data
             gid[i] = sy.gid;
-            group[i] = sy.link.group;
-            prev[i] = sy.link.prev;
-            next[i] = sy.link.next;
+            group[i] = sy.group;
             isImmovable[i] = sy.isImmovable ? 1 : 0;
 
             radius[i] = sy.radius;
@@ -424,8 +416,6 @@ class Sylinder {
         file << "<CellData Scalars=\"scalars\">\n";
         IOHelper::writeDataArrayBase64(gid, "gid", 1, file);
         IOHelper::writeDataArrayBase64(group, "group", 1, file);
-        IOHelper::writeDataArrayBase64(prev, "prev", 1, file);
-        IOHelper::writeDataArrayBase64(next, "next", 1, file);
         IOHelper::writeDataArrayBase64(isImmovable, "isImmovable", 1, file);
         IOHelper::writeDataArrayBase64(radius, "radius", 1, file);
         IOHelper::writeDataArrayBase64(radiusCollision, "radiusCollision", 1, file);

@@ -22,13 +22,7 @@
 #include "Trilinos/ZDD.hpp"
 #include "Util/TRngPool.hpp"
 
-#include <vtkCellData.h>
-#include <vtkPolyData.h>
-#include <vtkSmartPointer.h>
-#include <vtkTypeInt32Array.h>
-#include <vtkTypeUInt8Array.h>
-#include <vtkXMLPPolyDataReader.h>
-#include <vtkXMLPolyDataReader.h>
+#include <unordered_map>
 
 /**
  * @brief A collection of sylinders distributed to multiple MPI ranks.
@@ -48,6 +42,8 @@ class SylinderSystem {
     std::unique_ptr<TreeSylinderNear> treeSylinderNearPtr; ///< short range interaction of sylinders
     int treeSylinderNumber;                                ///< the current max_glb number of treeSylinderNear
     void setTreeSylinder();
+
+    std::unordered_multimap<int, int> linkMap; ///< links
 
     // Constraint stuff
     std::shared_ptr<ConstraintSolver> conSolverPtr;       ///< pointer to ConstraintSolver
@@ -89,6 +85,14 @@ class SylinderSystem {
      * @param filename
      */
     void setInitialFromFile(const std::string &filename);
+
+    /**
+     * @brief set linkMap from the .dat file
+     *
+     * Every mpi rank run this simultaneously to set linkMap from the same file
+     * @param filename
+     */
+    void setLinkMapFromFile(const std::string &filename);
 
     /**
      * @brief set initial configuration as given in the (.dat) file
@@ -337,21 +341,23 @@ class SylinderSystem {
     /**
      * @brief add new Sylinders into the system from all ranks
      *
-     * add new sylinders and assign new (unique) gid
-     * if no connection, set group/prev/next in linkage as GEO_INVALID_ID (as default constructor)
-     * if connection, group will be set as is, prev/next will set according to new gid
-     *
-     * example: 2 new linked sylinders as group 8
-     * input, linkage is specified by the order in newSylinder:
-     *  linkage[0]={8,GEO_INVALID_ID,1}, linkage[1]={8,0,GEO_INVALID_ID}
-     * after processed by this function, linkage will be specified by the new gid assigned
-     *  linkage[0]={8,GEO_INVALID_ID,newgid of newSylinder[1]}, linkage[1]={8,new gid of newSylinder[0],GEO_INVALID_ID}
+     * add new sylinders
+     * 1. new gids will be randomly generated and assigned to each new sylinder
+     * 2. added new sylinders will be appended to the local rank
      *
      * @param newSylinder list of new sylinders.
-     * @param linkage specify linkage of new sylinders.
-     *
+     * @return the generated new gids of the added new sylinders
      */
-    void addNewSylinder(std::vector<Sylinder> &newSylinder, std::vector<Link> &linkage);
+    std::vector<int> addNewSylinder(const std::vector<Sylinder> &newSylinder);
+
+    /**
+     * @brief add new links into the system from all ranks
+     *
+     * the newLink will be gathered from all ranks, remove duplication, and synchronized to the linkMap on all ranks
+     *
+     * @param newLink
+     */
+    void addNewLink(const std::vector<Link> &newLink);
 
     /**
      * @brief calculate both Col and Bi stress
