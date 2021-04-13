@@ -388,6 +388,7 @@ void SylinderSystem::setLinkMapFromFile(const std::string &filename) {
             Link link;
             parseLink(link, line);
             linkMap.emplace(link.prev, link.next);
+            linkReverseMap.emplace(link.next, link.prev);
         }
     }
     myfile.close();
@@ -1316,29 +1317,24 @@ std::vector<int> SylinderSystem::addNewSylinder(const std::vector<Sylinder> &new
     const int maxGidLocal = maxGid.first;
     const int maxGidGlobal = maxGid.second;
     const int newCountLocal = newSylinder.size();
+
+    // collect number of ids from all ranks to rank0
+    std::vector<int> newCount(commRcp->getSize(), 0);
+    std::vector<int> displ(commRcp->getSize() + 1, 0);
+    MPI_Gather(&newCountLocal, 1, MPI_INT, newCount.data(), 1, MPI_INT, 0, MPI_COMM_WORLD);
+
     std::vector<int> newGid;
-
-    int newCountGlobal = 0;
-    MPI_Reduce(&newCountLocal, &newCountGlobal, 1, MPI_INT, MPI_SUM, 0, MPI_COMM_WORLD);
-
-    // generate random gid on rank 0
     if (commRcp->getRank() == 0) {
+        // generate random gid on rank 0
+        std::partial_sum(newCount.cbegin(), newCount.cend(), displ.begin() + 1);
+        const int newCountGlobal = displ.back();
         newGid.resize(newCountGlobal, 0);
-        std::iota(newGid.begin(), newGid.end(), 0);
+        std::iota(newGid.begin(), newGid.end(), maxGidGlobal + 1);
         std::random_device rd;
         std::mt19937 g(rd());
         std::shuffle(newGid.begin(), newGid.end(), g);
     } else {
         newGid.resize(newCountLocal, 0);
-    }
-
-    // collect number of ids from all ranks to rank0
-    std::vector<int> newCount(commRcp->getSize(), 0);
-    std::vector<int> displ(commRcp->getSize(), 0);
-    MPI_Gather(&newCountLocal, 1, MPI_INT, newCount.data(), 1, MPI_INT, 0, MPI_COMM_WORLD);
-
-    if (commRcp->getRank() == 0) {
-        std::partial_sum(newCount.cbegin(), newCount.cend() - 1, displ.begin() + 1);
     }
 
     // scatter from rank 0 to every rank
@@ -1347,18 +1343,13 @@ std::vector<int> SylinderSystem::addNewSylinder(const std::vector<Sylinder> &new
                  newGidRecv.data(), newCountLocal, MPI_INT, 0, MPI_COMM_WORLD);
 
     // set new gid
-    newGid.resize(newCountLocal);
-    for (int i = 0; i < newCountLocal; i++) {
-        newGid[i] = newGidRecv[i] + 1 + maxGidGlobal;
-    }
-
     for (int i = 0; i < newCountLocal; i++) {
         Sylinder sy = newSylinder[i];
-        sy.gid = newGid[i];
+        sy.gid = newGidRecv[i];
         sylinderContainer.addOneParticle(sy);
     }
 
-    return newGid;
+    return newGidRecv;
 }
 
 void SylinderSystem::addNewLink(const std::vector<Link> &newLink) {
@@ -1367,14 +1358,15 @@ void SylinderSystem::addNewLink(const std::vector<Link> &newLink) {
     std::vector<int> newCount(commRcp->getSize(), 0);
     MPI_Allgather(&newCountLocal, 1, MPI_INT, newCount.data(), 1, MPI_INT, MPI_COMM_WORLD);
     std::vector<int> displ(commRcp->getSize() + 1, 0);
-    std::partial_sum(newCount.cbegin(), newCount.cend() - 1, displ.begin() + 1);
-    std::vector<Link> newLinkRecv(displ.back() + 1);
+    std::partial_sum(newCount.cbegin(), newCount.cend(), displ.begin() + 1);
+    std::vector<Link> newLinkRecv(displ.back());
     MPI_Allgatherv(newLink.data(), newCountLocal, createMPIStructType<Link>(), newLinkRecv.data(), newCount.data(),
                    displ.data(), createMPIStructType<Link>(), MPI_COMM_WORLD);
 
     // put newLinks into the map, same op on all mpi ranks
     for (const auto &ll : newLinkRecv) {
-        linkMap.insert(ll.prev, ll.next);
+        linkMap.emplace(ll.prev, ll.next);
+        linkReverseMap.emplace(ll.next, ll.prev);
     }
 }
 
@@ -1414,19 +1406,21 @@ void SylinderSystem::collectLinkBilateral() {
     auto &gidToFind = sylinderNearDataDirectoryPtr->gidToFind;
     const auto &dataToFind = sylinderNearDataDirectoryPtr->dataToFind;
 
+    std::vector<int> gidDisp(nLocal + 1, 0);
     gidToFind.clear();
     gidToFind.reserve(nLocal);
 
     // loop over all sylinders
     // if linkMap[sy.gid] not empty, find info for all next
-
     for (int i = 0; i < nLocal; i++) {
         const auto &sy = sylinderContainer[i];
-        if (sy.link.next >= 0) {
-            gidToFind[i] = sy.link.next;
-        } else {
-            gidToFind[i] = sy.gid;
+        const auto &range = linkMap.equal_range(sy.gid);
+        int count = 0;
+        for (auto it = range.first; it != range.second; it++) {
+            gidToFind.push_back(it->second); // next
+            count++;
         }
+        gidDisp[i + 1] = gidDisp[i] + count; // number of links for each local Sylinder
     }
 
     sylinderNearDataDirectoryPtr->find();
@@ -1437,58 +1431,60 @@ void SylinderSystem::collectLinkBilateral() {
         auto &conQue = conPool[threadId];
 #pragma omp for
         for (int i = 0; i < nLocal; i++) {
-            const auto &syI = sylinderContainer[i];                        // sylinder
-            const auto &syJ = sylinderNearDataDirectoryPtr->dataToFind[i]; // sylinderNear
+            const auto &syI = sylinderContainer[i]; // sylinder
+            const int lb = gidDisp[i];
+            const int ub = gidDisp[i + 1];
 
-            if (syI.link.next < 0) // no valid link for this segment
-                continue;
+            for (int j = lb; j < ub; j++) {
+                const auto &syJ = sylinderNearDataDirectoryPtr->dataToFind[j]; // sylinderNear
 
-            const Evec3 &centerI = ECmap3(syI.pos);
-            Evec3 centerJ = ECmap3(syJ.pos);
-            // apply PBC on centerJ
-            for (int k = 0; k < 3; k++) {
-                if (!runConfig.simBoxPBC[k])
-                    continue;
-                double trg = centerI[k];
-                double xk = centerJ[k];
-                findPBCImage(runConfig.simBoxLow[k], runConfig.simBoxHigh[k], xk, trg);
-                centerJ[k] = xk;
-                // error check
-                if (fabs(trg - xk) > 0.5 * (runConfig.simBoxHigh[k] - runConfig.simBoxLow[k])) {
-                    printf("pbc image error in bilateral links\n");
-                    std::exit(1);
+                const Evec3 &centerI = ECmap3(syI.pos);
+                Evec3 centerJ = ECmap3(syJ.pos);
+                // apply PBC on centerJ
+                for (int k = 0; k < 3; k++) {
+                    if (!runConfig.simBoxPBC[k])
+                        continue;
+                    double trg = centerI[k];
+                    double xk = centerJ[k];
+                    findPBCImage(runConfig.simBoxLow[k], runConfig.simBoxHigh[k], xk, trg);
+                    centerJ[k] = xk;
+                    // error check
+                    if (fabs(trg - xk) > 0.5 * (runConfig.simBoxHigh[k] - runConfig.simBoxLow[k])) {
+                        printf("pbc image error in bilateral links\n");
+                        std::exit(1);
+                    }
                 }
+                // sylinders are not treated as spheres for bilateral constraints
+                // constraint is always added between Pp and Qm
+                // constraint target length is radiusI + radiusJ + runConfig.linkGap
+                const Evec3 directionI = ECmapq(syI.orientation) * Evec3(0, 0, 1);
+                const Evec3 Pp = centerI + directionI * (0.5 * syI.length); // plus end
+                const Evec3 directionJ = ECmap3(syJ.direction);
+                const Evec3 Qm = centerJ - directionJ * (0.5 * syJ.length);
+                const Evec3 Ploc = Pp;
+                const Evec3 Qloc = Qm;
+                const Evec3 rvec = Qloc - Ploc;
+                const double rnorm = rvec.norm();
+                const double delta0 = rnorm - syI.radius - syJ.radius - runConfig.linkGap;
+                const double gamma = delta0 < 0 ? -delta0 : 0;
+                const Evec3 normI = (Ploc - Qloc).normalized();
+                const Evec3 normJ = -normI;
+                const Evec3 posI = Ploc - centerI;
+                const Evec3 posJ = Qloc - centerJ;
+                ConstraintBlock conBlock(delta0, gamma,              // current separation, initial guess of gamma
+                                         syI.gid, syJ.gid,           //
+                                         syI.globalIndex,            //
+                                         syJ.globalIndex,            //
+                                         normI.data(), normJ.data(), // direction of collision force
+                                         posI.data(), posJ.data(), // location of collision relative to particle center
+                                         Ploc.data(), Qloc.data(), // location of collision in lab frame
+                                         false, true, runConfig.linkKappa, 0.0);
+                Emat3 stressIJ;
+                CalcSylinderNearForce::collideStress(directionI, directionJ, centerI, centerJ, syI.length, syJ.length,
+                                                     syI.radius, syJ.radius, 1.0, Ploc, Qloc, stressIJ);
+                conBlock.setStress(stressIJ);
+                conQue.push_back(conBlock);
             }
-            // sylinders are not treated as spheres for bilateral constraints
-            // constraint is added between Pp and Qm
-            // constraint target length is radiusI + radiusJ + runConfig.linkGap
-            const Evec3 directionI = ECmapq(syI.orientation) * Evec3(0, 0, 1);
-            const Evec3 Pp = centerI + directionI * (0.5 * syI.length); // plus end
-            const Evec3 directionJ = ECmap3(syJ.direction);
-            const Evec3 Qm = centerJ - directionJ * (0.5 * syJ.length);
-            const Evec3 Ploc = Pp;
-            const Evec3 Qloc = Qm;
-            const Evec3 rvec = Qloc - Ploc;
-            const double rnorm = rvec.norm();
-            const double delta0 = rnorm - syI.radius - syJ.radius - runConfig.linkGap;
-            const double gamma = delta0 < 0 ? -delta0 : 0;
-            const Evec3 normI = (Ploc - Qloc).normalized();
-            const Evec3 normJ = -normI;
-            const Evec3 posI = Ploc - centerI;
-            const Evec3 posJ = Qloc - centerJ;
-            ConstraintBlock conBlock(delta0, gamma,              // current separation, initial guess of gamma
-                                     syI.gid, syJ.gid,           //
-                                     syI.globalIndex,            //
-                                     syJ.globalIndex,            //
-                                     normI.data(), normJ.data(), // direction of collision force
-                                     posI.data(), posJ.data(),   // location of collision relative to particle center
-                                     Ploc.data(), Qloc.data(),   // location of collision in lab frame
-                                     false, true, runConfig.linkKappa, 0.0);
-            Emat3 stressIJ;
-            CalcSylinderNearForce::collideStress(directionI, directionJ, centerI, centerJ, syI.length, syJ.length,
-                                                 syI.radius, syJ.radius, 1.0, Ploc, Qloc, stressIJ);
-            conBlock.setStress(stressIJ);
-            conQue.push_back(conBlock);
         }
     }
 }

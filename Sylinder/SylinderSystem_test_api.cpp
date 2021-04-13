@@ -37,17 +37,11 @@ void testAddLinks(SylinderSystem &sylinderSystem) {
     MPI_Comm_rank(MPI_COMM_WORLD, &rank); // using rank as group id
     const int nLocalNew = 20;
     std::vector<Sylinder> newSylinder(nLocalNew);
-    std::vector<Link> linkage(nLocalNew);
     for (int i = 0; i < nLocalNew; i++) {
         newSylinder[i] = Sylinder(i, runConfig.sylinderDiameter / 2, runConfig.sylinderDiameter / 2,
                                   runConfig.sylinderLength / 2, runConfig.sylinderLength / 2);
-        linkage[i].group = rank;
     }
-    // sequentially linked
-    for (int i = 0; i < nLocalNew - 1; i++) {
-        linkage[i].next = i + 1;
-        linkage[i + 1].prev = i - 1;
-    }
+
     // specify linked sylinders
     newSylinder[0].pos[0] = rngPoolPtr->getU01(0) * runConfig.simBoxHigh[0];
     newSylinder[0].pos[1] = rngPoolPtr->getU01(0) * runConfig.simBoxHigh[1];
@@ -68,7 +62,20 @@ void testAddLinks(SylinderSystem &sylinderSystem) {
         Emap3(sy.pos) = sypos;
     }
 
-    sylinderSystem.addNewSylinder(newSylinder, linkage);
+    const auto &newGid = sylinderSystem.addNewSylinder(newSylinder);
+    assert(nLocalNew == newGid.size());
+    // sequentially linked
+    std::vector<Link> linkage(nLocalNew - 1);
+    for (int i = 0; i < nLocalNew - 1; i++) {
+        linkage[i].prev = newGid[i];
+        linkage[i].next = newGid[i + 1];
+    }
+    sylinderSystem.addNewLink(linkage);
+
+    auto &linkMap = sylinderSystem.getLinkMap();
+    for (auto &pn : linkMap) {
+        printf("L %d, %d, %d\n", rank, pn.first, pn.second);
+    }
 
     // run 10 steps
     const int nSteps = 10;
@@ -78,8 +85,8 @@ void testAddLinks(SylinderSystem &sylinderSystem) {
         int nLocal = sylinderContainer.getNumberOfParticleLocal();
         std::vector<double> forceNonBrown(nLocal * 6, 0.0);
         for (int i = 0; i < nLocal; i++) {
-            if (sylinderContainer[i].link.group != GEO_INVALID_INDEX &&
-                sylinderContainer[i].link.next == GEO_INVALID_INDEX) {
+            const auto &gid = sylinderContainer[i].gid;
+            if (linkMap.count(gid) > 0) {
                 forceNonBrown[6 * i + 1] = 10; // y
                 forceNonBrown[6 * i + 2] = 10; // z
             }

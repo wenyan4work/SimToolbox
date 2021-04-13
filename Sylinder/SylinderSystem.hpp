@@ -43,7 +43,8 @@ class SylinderSystem {
     int treeSylinderNumber;                                ///< the current max_glb number of treeSylinderNear
     void setTreeSylinder();
 
-    std::unordered_multimap<int, int> linkMap; ///< links
+    std::unordered_multimap<int, int> linkMap;        ///< links prev,next
+    std::unordered_multimap<int, int> linkReverseMap; ///< links next, prev
 
     // Constraint stuff
     std::shared_ptr<ConstraintSolver> conSolverPtr;       ///< pointer to ConstraintSolver
@@ -283,6 +284,9 @@ class SylinderSystem {
      */
     const PS::DomainInfo &getDomainInfo() { return dinfo; }
     PS::DomainInfo &getDomainInfoNonConst() { return dinfo; }
+
+    const std::unordered_multimap<int, int> &getLinkMap() { return linkMap; }
+    const std::unordered_multimap<int, int> &getLinkReverseMap() { return linkReverseMap; }
 
     /**
      * @brief Get the RngPoolPtr object
