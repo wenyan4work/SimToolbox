@@ -1,5 +1,6 @@
 #include "BCQPSolver.hpp"
 #include "Trilinos/TpetraUtil.hpp"
+#include "spdlog/spdlog.h"
 
 #include <mpi.h>
 #include <omp.h>
@@ -120,8 +121,8 @@ BCQPSolver::BCQPSolver(int localSize, double diagonal) {
     Teuchos::RCP<TCMAT> Atemp = Teuchos::rcp(new TCMAT(rowMapRcp, colMapRcp, rowPointers, columnIndices, values));
     Atemp->fillComplete(rowMapRcp, rowMapRcp);
     this->ARcp = Teuchos::rcp_dynamic_cast<const TOP>(Atemp, true);
-    // ARcp = Atemp;
-    std::cout << "Constraint operator ARcp is: " << ARcp->description() << std::endl;
+
+    spdlog::info("Constraint operator ARcp is: ", ARcp->description());
 
     // dump problem
     dumpTCMAT(Atemp, "Amat");
@@ -137,10 +138,8 @@ int BCQPSolver::solveBBPGD(Teuchos::RCP<TV> &xsolRcp, const double tol, const in
 
     int mvCount = 0; // count matrix-vector multiplications
     int iteCount = 0;
-    // if (commRcp->getRank() == 0) {
-    //     std::cout << "solving BBPGD" << std::endl;
-    //     std::cout << "Constraint operator ARcp is: " << ARcp->description() << std::endl;
-    // }
+    spdlog::debug("solving APGD");
+    spdlog::debug("Constraint operator ARcp is: ", ARcp->description());
 
     Teuchos::RCP<TV> xkRcp = Teuchos::rcp(new TV(*xsolRcp, Teuchos::Copy));   // deep copy, xk=x0
     Teuchos::RCP<TV> xkm1Rcp = Teuchos::rcp(new TV(*xsolRcp, Teuchos::Copy)); // deep copy, xkm1=x0
@@ -228,7 +227,7 @@ int BCQPSolver::solveBBPGD(Teuchos::RCP<TV> &xsolRcp, const double tol, const in
         alpha = a / b; // new step size
 
         if (alpha < std::numeric_limits<double>::epsilon() * 10) {
-            printf("BBPGD Stagnate");
+            spdlog::critical("BBPGD Stagnate");
             stagFlag = true;
             break;
         }
@@ -253,10 +252,8 @@ int BCQPSolver::solveAPGD(Teuchos::RCP<TV> &xsolRcp, const double tol, const int
                                "xsolrcp and A operator do not have the same Map.")
 
     int mvCount = 0;
-    if (commRcp->getRank() == 0) {
-        std::cout << "solving APGD" << std::endl;
-        std::cout << "Constraint operator ARcp is: " << ARcp->description() << std::endl;
-    };
+    spdlog::debug("solving APGD");
+    spdlog::debug("Constraint operator ARcp is: ", ARcp->description());
 
     // allocate vectors
     Teuchos::RCP<TV> xkRcp = Teuchos::rcp(new TV(*xsolRcp, Teuchos::Copy)); // deep copy
@@ -338,7 +335,7 @@ int BCQPSolver::solveAPGD(Teuchos::RCP<TV> &xsolRcp, const double tol, const int
         }
 
         if (tk < std::numeric_limits<double>::epsilon() * 10) {
-            printf("APGD Stagnate");
+            spdlog::critical("APGD Stagnate");
             stagFlag = true;
             break;
         }
@@ -401,9 +398,7 @@ int BCQPSolver::selfTest(double tol, int maxIte, int solverChoice) {
     dumpTV(lbRcp, "lbvec");
     dumpTV(ubRcp, "ubvec");
 
-    if (commRcp->getRank() == 0) {
-        printf("START TEST\n");
-    }
+    spdlog::info("START TEST\n");
 
     switch (solverChoice) {
     case 1:
@@ -417,7 +412,7 @@ int BCQPSolver::selfTest(double tol, int maxIte, int solverChoice) {
     }
 
     // dump iterative history to csv format
-    if (commRcp->getRank() == 0) {
+    if (commRcp->getRank() == 0)
         for (const auto &record : history) {
             if (solverChoice == 1) {
                 printf("APGD_HISTORY,");
@@ -425,11 +420,10 @@ int BCQPSolver::selfTest(double tol, int maxIte, int solverChoice) {
                 printf("BBPGD_HISTORY,");
             }
             for (const auto &v : record) {
-                std::cout << v << ",";
+                printf("%.6g, ", v);
             }
-            std::cout << std::endl;
+            printf("\n");
         }
-    }
 
     return 0;
 }
@@ -487,7 +481,7 @@ double BCQPSolver::checkProjectionResidual(const Teuchos::RCP<const TV> &XRcp, c
         } else if (xPtr(i, c) > lbPtr(i, c) && xPtr(i, c) < ubPtr(i, c)) {
             qPtr(i, c) = yPtr(i, c);
         } else {
-            printf("projection error occured\n");
+            spdlog::error("projection error occured");
             projectionError = true;
         }
     }
