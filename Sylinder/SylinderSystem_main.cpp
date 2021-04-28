@@ -36,10 +36,8 @@ int main(int argc, char **argv) {
         while (system.getStepCount() * system.runConfig.dt < system.runConfig.timeTotal) {
             system.prepareStep();
             system.runStep();
-            if (system.getIfWriteResultCurrentStep()) {
-                system.calcOrderParameter();
-                system.calcConStress();
-            }
+            system.calcOrderParameter();
+            system.calcConStress();
             system.printTimingSummary();
         }
     }
