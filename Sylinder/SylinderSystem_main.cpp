@@ -36,10 +36,11 @@ int main(int argc, char **argv) {
         while (system.getStepCount() * system.runConfig.dt < system.runConfig.timeTotal) {
             system.prepareStep();
             system.runStep();
-            system.calcOrderParameter();
-            system.calcConStress();
-            Teuchos::TimeMonitor::summarize();
-            Teuchos::TimeMonitor::zeroOutTimers();
+            if (system.getIfWriteResultCurrentStep()) {
+                system.calcOrderParameter();
+                system.calcConStress();
+            }
+            system.printTimingSummary();
         }
     }
     // mpi finalize

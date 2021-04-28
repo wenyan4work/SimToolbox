@@ -24,17 +24,18 @@
 class SylinderConfig {
   public:
     unsigned int rngSeed; ///< random number seed
+    int printLevel = 0;   ///< 0 = stat, 1 = +timing, 2 = +trace
 
     // domain setting
-    double simBoxHigh[3]; ///< simulation box size
-    double simBoxLow[3];  ///< simulation box size
-    bool simBoxPBC[3];    ///< flag of true/false of periodic in that direction
-    bool monolayer;       ///< flag for simulating monolayer on x-y plane
+    double simBoxHigh[3];   ///< simulation box size
+    double simBoxLow[3];    ///< simulation box size
+    bool simBoxPBC[3];      ///< flag of true/false of periodic in that direction
+    bool monolayer = false; ///< flag for simulating monolayer on x-y plane
 
-    double initBoxHigh[3]; ///< initialize sylinders within this box
-    double initBoxLow[3];  ///< initialize sylinders within this box
-    double initOrient[3];  ///< initial orientation for each sylinder. >1 <-1 means random
-    bool initCircularX;    ///< set the initial cross-section as a circle in the yz-plane
+    double initBoxHigh[3];      ///< initialize sylinders within this box
+    double initBoxLow[3];       ///< initialize sylinders within this box
+    double initOrient[3];       ///< initial orientation for each sylinder. >1 <-1 means random
+    bool initCircularX = false; ///< set the initial cross-section as a circle in the yz-plane
 
     // physical constant
     double viscosity; ///< unit pN/(um^2 s), water ~ 0.0009
@@ -43,7 +44,7 @@ class SylinderConfig {
     double linkGap;   ///< um length of gap between sylinder links
 
     // sylinder settings
-    bool sylinderFixed;         ///< sylinders do not move
+    bool sylinderFixed = false; ///< sylinders do not move
     int sylinderNumber;         ///< initial number of sylinders
     double sylinderLength;      ///< sylinder length (mean if sigma>0)
     double sylinderLengthSigma; ///< sylinder length lognormal distribution sigma

@@ -169,12 +169,6 @@ class SylinderSystem {
      */
     void updateSylinderRank();
 
-    /**
-     * @brief print a message from rank 0
-     *
-     */
-    void printRank0(const std::string &message);
-
   public:
     SylinderConfig runConfig; ///< system configuration. Be careful if this is modified on the fly
 
@@ -484,6 +478,21 @@ class SylinderSystem {
      * @return std::pair<int, int> [localMaxGid,globalMaxGid]
      */
     std::pair<int, int> getMaxGid();
+
+    /**
+     * @brief print a message from rank 0
+     *
+     * @param message
+     * @param level    level of this message. messages with levels < runConfig.printLevel are printed
+     */
+    void printRank0(const std::string &message, const int level = 0);
+
+    /**
+     * @brief 
+     * 
+     * @param zeroOut zero out all timing info after printing out
+     */
+    void printTimingSummary(const bool zeroOut=true);
 };
 
 #endif

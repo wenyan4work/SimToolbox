@@ -105,6 +105,9 @@ void SylinderSystem::initialize(const SylinderConfig &runConfig_, const std::str
 
     printf("SylinderSystem Initialized. %d sylinders on process %d\n", sylinderContainer.getNumberOfParticleLocal(),
            commRcp->getRank());
+
+    if (runConfig.printLevel < 1)
+        enableTimer = false;
 }
 
 void SylinderSystem::reinitialize(const SylinderConfig &runConfig_, const std::string &restartFile, int argc,
@@ -165,6 +168,9 @@ void SylinderSystem::reinitialize(const SylinderConfig &runConfig_, const std::s
 
     printf("SylinderSystem Reinitialized. %d sylinders on process %d\n", sylinderContainer.getNumberOfParticleLocal(),
            commRcp->getRank());
+
+    if (runConfig.printLevel < 1)
+        enableTimer = false;
 }
 
 void SylinderSystem::setTreeSylinder() {
@@ -826,20 +832,14 @@ void SylinderSystem::resolveConstraints() {
         Teuchos::TimeMonitor::getNewCounter("SylinderSystem::CollectCollision");
     Teuchos::RCP<Teuchos::Time> collectLinkTimer = Teuchos::TimeMonitor::getNewCounter("SylinderSystem::CollectLink");
 
-    if (enableTimer) {
-        collectColTimer->enable();
-    } else {
-        collectColTimer->disable();
-    }
-
-    printRank0("start collect collisions");
+    printRank0("start collect collisions", 2);
     {
         Teuchos::TimeMonitor mon(*collectColTimer);
         collectPairCollision();
         collectBoundaryCollision();
     }
 
-    printRank0("start collect links");
+    printRank0("start collect links", 2);
     {
         Teuchos::TimeMonitor mon(*collectLinkTimer);
         collectLinkBilateral();
@@ -849,21 +849,16 @@ void SylinderSystem::resolveConstraints() {
     // positive buffer value means collision radius is effectively smaller
     // i.e., less likely to collide
     Teuchos::RCP<Teuchos::Time> solveTimer = Teuchos::TimeMonitor::getNewCounter("SylinderSystem::SolveConstraints");
-    if (enableTimer) {
-        solveTimer->enable();
-    } else {
-        solveTimer->disable();
-    }
     {
         Teuchos::TimeMonitor mon(*solveTimer);
         const double buffer = 0;
-        // printRank0("constraint solver setup");
+        printRank0("constraint solver setup", 2);
         conSolverPtr->setup(*conCollectorPtr, mobilityOperatorRcp, velocityNonConRcp, runConfig.dt);
-        // printRank0("set control");
+        printRank0("setControl", 2);
         conSolverPtr->setControlParams(runConfig.conResTol, runConfig.conMaxIte, runConfig.conSolverChoice);
-        // printRank0("solve");
+        printRank0("solveConstraints", 2);
         conSolverPtr->solveConstraints();
-        // printRank0("writeback");
+        printRank0("writebackGamma", 2);
         conSolverPtr->writebackGamma();
     }
 
@@ -1370,12 +1365,6 @@ void SylinderSystem::addNewLink(const std::vector<Link> &newLink) {
     }
 }
 
-void SylinderSystem::printRank0(const std::string &message) {
-    if (commRcp->getRank() == 0) {
-        std::cout << message << std::endl;
-    }
-}
-
 void SylinderSystem::buildSylinderNearDataDirectory() {
     const int nLocal = sylinderContainer.getNumberOfParticleLocal();
     auto &sylinderNearDataDirectory = *sylinderNearDataDirectoryPtr;
@@ -1487,4 +1476,23 @@ void SylinderSystem::collectLinkBilateral() {
             }
         }
     }
+}
+
+void SylinderSystem::printRank0(const std::string &message, const int level) {
+    if (commRcp->getRank() != 0) {
+        return;
+    }
+
+    if (runConfig.printLevel >= 0 && level < runConfig.printLevel)
+        std::cout << message << std::endl;
+    else if (runConfig.printLevel < 0 && level == 0 && getIfWriteResultCurrentStep()) {
+        std::cout << message << std::endl;
+    }
+}
+
+void SylinderSystem::printTimingSummary(const bool zeroOut) {
+    if (runConfig.printLevel > 0)
+        Teuchos::TimeMonitor::summarize();
+    if (zeroOut)
+        Teuchos::TimeMonitor::zeroOutTimers();
 }

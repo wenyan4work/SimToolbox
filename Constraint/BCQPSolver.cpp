@@ -137,10 +137,10 @@ int BCQPSolver::solveBBPGD(Teuchos::RCP<TV> &xsolRcp, const double tol, const in
 
     int mvCount = 0; // count matrix-vector multiplications
     int iteCount = 0;
-    if (commRcp->getRank() == 0) {
-        std::cout << "solving BBPGD" << std::endl;
-        std::cout << "Constraint operator ARcp is: " << ARcp->description() << std::endl;
-    }
+    // if (commRcp->getRank() == 0) {
+    //     std::cout << "solving BBPGD" << std::endl;
+    //     std::cout << "Constraint operator ARcp is: " << ARcp->description() << std::endl;
+    // }
 
     Teuchos::RCP<TV> xkRcp = Teuchos::rcp(new TV(*xsolRcp, Teuchos::Copy));   // deep copy, xk=x0
     Teuchos::RCP<TV> xkm1Rcp = Teuchos::rcp(new TV(*xsolRcp, Teuchos::Copy)); // deep copy, xkm1=x0

@@ -28,6 +28,9 @@ SylinderConfig::SylinderConfig(std::string filename) {
     readConfig(config, VARNAME(conSolverChoice), conSolverChoice, "");
 
     // optional parameters
+    printLevel = 0;
+    readConfig(config, VARNAME(printLevel), printLevel, "", true);
+
     monolayer = false;
     readConfig(config, VARNAME(monolayer), monolayer, "", true);
 
@@ -80,6 +83,7 @@ void SylinderConfig::dump() const {
         printf("-------------------------------------------\n");
         printf("Run Setting: \n");
         printf("Random number seed: %d\n", rngSeed);
+        printf("Print Level: %d\n", printLevel);
         printf("Simulation box Low: %g,%g,%g\n", simBoxLow[0], simBoxLow[1], simBoxLow[2]);
         printf("Simulation box High: %g,%g,%g\n", simBoxHigh[0], simBoxHigh[1], simBoxHigh[2]);
         printf("Periodicity: %d,%d,%d\n", simBoxPBC[0], simBoxPBC[1], simBoxPBC[2]);
