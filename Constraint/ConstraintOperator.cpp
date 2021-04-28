@@ -1,4 +1,5 @@
 #include "ConstraintOperator.hpp"
+#include "spdlog/spdlog.h"
 
 ConstraintOperator::ConstraintOperator(Teuchos::RCP<TOP> &mobOp_, Teuchos::RCP<TCMAT> &DMatTransRcp_,
                                        Teuchos::RCP<TV> &invKappa_)

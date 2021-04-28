@@ -1,4 +1,5 @@
 #include "ConstraintCollector.hpp"
+#include "spdlog/spdlog.h"
 
 #include <cstdlib>
 
@@ -9,7 +10,8 @@ ConstraintCollector::ConstraintCollector() {
     for (auto &queue : *constraintPoolPtr) {
         queue.clear();
     }
-    std::cout << "ConstraintCollector constructed for:" << constraintPoolPtr->size() << " threads" << std::endl;
+
+    spdlog::debug("ConstraintCollector constructed for {:d} threads", constraintPoolPtr->size());
 }
 
 bool ConstraintCollector::valid() const { return constraintPoolPtr->empty(); }
@@ -276,7 +278,7 @@ int ConstraintCollector::buildConstraintMatrixVector(const Teuchos::RCP<const TM
     }
 
     if (rowPointerIndex != localGammaSize) {
-        printf("rowPointerIndexError in collision solver\n");
+        spdlog::critical("rowPointerIndexError in collision solver");
         std::exit(1);
     }
 
@@ -353,7 +355,7 @@ int ConstraintCollector::buildConstraintMatrixVector(const Teuchos::RCP<const TM
     // if the column index is out of [mobMinLID, mobMaxLID], add it to the map
     const int colIndexNum = columnIndices.dimension_0();
     if (colIndexNum != colIndexCount) {
-        printf("colIndexNum error");
+        spdlog::critical("colIndexNum error");
         std::exit(1);
     }
     for (int i = 0; i < colIndexNum; i++) {
