@@ -485,14 +485,25 @@ class SylinderSystem {
      * @param message
      * @param level    level of this message. messages with levels < runConfig.printLevel are printed
      */
-    void printRank0(const std::string &message, const int level = 0);
+    template <class... Args>
+    void printRank0(const int level, Args... args) {
+        if (commRcp->getRank() != 0) {
+            return;
+        }
+
+        if (runConfig.printLevel >= 0 && level <= runConfig.printLevel)
+            printf(args...);
+        else if (runConfig.printLevel < 0 && level == 0 && getIfWriteResultCurrentStep()) {
+            printf(args...);
+        }
+    }
 
     /**
-     * @brief 
-     * 
+     * @brief
+     *
      * @param zeroOut zero out all timing info after printing out
      */
-    void printTimingSummary(const bool zeroOut=true);
+    void printTimingSummary(const bool zeroOut = true);
 };
 
 #endif

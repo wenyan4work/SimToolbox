@@ -144,7 +144,18 @@ void SylinderSystem::reinitialize(const SylinderConfig &runConfig_, const std::s
     sylinderContainer.initialize();
     sylinderContainer.setAverageTargetNumberOfSampleParticlePerProcess(200); // more samples for better balance
 
-    setInitialFromVTKFile(pvtpFileName);
+    std::string asciiFileName = pvtpFileName;
+    auto pos = asciiFileName.find_last_of('.');
+    asciiFileName.replace(pos, 5, std::string(".dat")); // replace '.pvtp' with '.dat'
+    pos = asciiFileName.find_last_of('_');
+    asciiFileName.replace(pos, 1, std::string("Ascii_")); // replace '_' with 'Ascii_'
+
+    std::string baseFolder = getCurrentResultFolder();
+    std::cout << "Reading " << baseFolder + pvtpFileName << std::endl;
+    setInitialFromVTKFile(baseFolder + pvtpFileName);
+
+    std::cout << "Reading " << baseFolder + asciiFileName << std::endl;
+    setLinkMapFromFile(baseFolder + asciiFileName);
 
     // VTK data is wrote before the Euler step, thus we need to run one Euler step below
     if (eulerStep)
@@ -404,12 +415,10 @@ void SylinderSystem::setInitialFromVTKFile(const std::string &pvtpFileName) {
     if (commRcp->getRank() != 0) {
         sylinderContainer.setNumberOfParticleLocal(0);
     } else {
-        std::string baseFolder = getCurrentResultFolder();
 
         // Read the pvtp file and automatically merge the vtks files into a single polydata
         vtkSmartPointer<vtkXMLPPolyDataReader> reader = vtkSmartPointer<vtkXMLPPolyDataReader>::New();
-        std::cout << "Reading " << baseFolder + pvtpFileName << std::endl;
-        reader->SetFileName((baseFolder + pvtpFileName).c_str());
+        reader->SetFileName(pvtpFileName.c_str());
         reader->Update();
 
         // Extract the polydata (At this point, the polydata is unsorted)
@@ -832,14 +841,14 @@ void SylinderSystem::resolveConstraints() {
         Teuchos::TimeMonitor::getNewCounter("SylinderSystem::CollectCollision");
     Teuchos::RCP<Teuchos::Time> collectLinkTimer = Teuchos::TimeMonitor::getNewCounter("SylinderSystem::CollectLink");
 
-    printRank0("start collect collisions", 2);
+    printRank0(2, "start collect collisions");
     {
         Teuchos::TimeMonitor mon(*collectColTimer);
         collectPairCollision();
         collectBoundaryCollision();
     }
 
-    printRank0("start collect links", 2);
+    printRank0(2, "start collect links");
     {
         Teuchos::TimeMonitor mon(*collectLinkTimer);
         collectLinkBilateral();
@@ -852,13 +861,13 @@ void SylinderSystem::resolveConstraints() {
     {
         Teuchos::TimeMonitor mon(*solveTimer);
         const double buffer = 0;
-        printRank0("constraint solver setup", 2);
+        printRank0(2, "constraint solver setup");
         conSolverPtr->setup(*conCollectorPtr, mobilityOperatorRcp, velocityNonConRcp, runConfig.dt);
-        printRank0("setControl", 2);
+        printRank0(2, "setControl");
         conSolverPtr->setControlParams(runConfig.conResTol, runConfig.conMaxIte, runConfig.conSolverChoice);
-        printRank0("solveConstraints", 2);
+        printRank0(2, "solveConstraints");
         conSolverPtr->solveConstraints();
-        printRank0("writebackGamma", 2);
+        printRank0(2, "writebackGamma");
         conSolverPtr->writebackGamma();
     }
 
@@ -884,6 +893,7 @@ bool SylinderSystem::getIfWriteResultCurrentStep() {
 }
 
 void SylinderSystem::prepareStep() {
+    printRank0(0, "CurrentStep %d\n", stepCount);
     applyBoxBC();
 
     if (stepCount % 50 == 0) {
@@ -1475,18 +1485,6 @@ void SylinderSystem::collectLinkBilateral() {
                 conQue.push_back(conBlock);
             }
         }
-    }
-}
-
-void SylinderSystem::printRank0(const std::string &message, const int level) {
-    if (commRcp->getRank() != 0) {
-        return;
-    }
-
-    if (runConfig.printLevel >= 0 && level < runConfig.printLevel)
-        std::cout << message << std::endl;
-    else if (runConfig.printLevel < 0 && level == 0 && getIfWriteResultCurrentStep()) {
-        std::cout << message << std::endl;
     }
 }
 
