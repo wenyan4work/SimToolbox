@@ -12,6 +12,7 @@
 #define IOHELPER_HPP_
 
 #include "Base64.hpp"
+#include "Logger.hpp"
 
 #include <array>
 #include <cstring>
@@ -61,14 +62,14 @@ class IOHelper {
 
     static void makeSubFolder(const std::string folder) {
 
-       const int err = mkdir(folder.c_str(), 0755); // make one folder at a time. parent folder must exist
+        const int err = mkdir(folder.c_str(), 0755); // make one folder at a time. parent folder must exist
         if (errno == EEXIST) {
             // printf("Directory already exists.\n");
             return;
         }
         if (err != 0) {
-            printf("errno: %d \n", errno);
-            printf("Error creating directory!\n");
+            spdlog::critical("errno: {} ", errno);
+            spdlog::critical("Error creating directory!");
             std::exit(1);
         }
     }

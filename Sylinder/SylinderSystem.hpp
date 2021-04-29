@@ -480,25 +480,6 @@ class SylinderSystem {
     std::pair<int, int> getMaxGid();
 
     /**
-     * @brief print a message from rank 0
-     *
-     * @param message
-     * @param level    level of this message. messages with levels < runConfig.printLevel are printed
-     */
-    template <class... Args>
-    void printRank0(const int level, Args... args) {
-        if (commRcp->getRank() != 0) {
-            return;
-        }
-
-        if (runConfig.printLevel >= 0 && level <= runConfig.printLevel)
-            printf(args...);
-        else if (runConfig.printLevel < 0 && level == 0 && getIfWriteResultCurrentStep()) {
-            printf(args...);
-        }
-    }
-
-    /**
      * @brief
      *
      * @param zeroOut zero out all timing info after printing out

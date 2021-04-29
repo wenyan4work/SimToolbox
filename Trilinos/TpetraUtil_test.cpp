@@ -1,4 +1,5 @@
 #include "TpetraUtil.hpp"
+#include "Util/Logger.hpp"
 
 #include <vector>
 
@@ -8,7 +9,7 @@ int main(int argc, char **argv) {
 
     MPI_Init(&argc, &argv);
     {
-
+        Logger::setup_mpi_spdlog();
         Teuchos::RCP<const TCOMM> commRcp = getMPIWORLDTCOMM();
 
         std::vector<int> gColIndexOnLocal = {1 + commRcp->getRank(), 3 + commRcp->getRank()};

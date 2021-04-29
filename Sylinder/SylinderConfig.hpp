@@ -24,7 +24,8 @@
 class SylinderConfig {
   public:
     unsigned int rngSeed; ///< random number seed
-    int printLevel = 0;   ///< 0 = stat, 1 = +timing, 2 = +trace
+    int logLevel;         ///< follows SPDLOG level enum, see Util/Logger.hpp for details
+    int timerLevel = 0;   ///< how detailed the timer should be
 
     // domain setting
     double simBoxHigh[3];   ///< simulation box size

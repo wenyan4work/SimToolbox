@@ -17,6 +17,7 @@
 #include "Constraint/ConstraintCollector.hpp"
 #include "FDPS/particle_simulator.hpp"
 #include "Util/EigenDef.hpp"
+#include "Util/Logger.hpp"
 
 #include <cassert>
 #include <deque>
@@ -173,9 +174,7 @@ class CalcSylinderNearForce {
      * @param colPoolPtr_ the CollisionBlockPool object to write to
      */
     CalcSylinderNearForce(std::shared_ptr<ConstraintBlockPool> &conPoolPtr_) {
-#ifdef DEBUGSYLINDERNEAR
-        std::cout << "stress recoder size:" << colPoolPtr_->size() << std::endl;
-#endif
+        spdlog::debug("stress recoder size: {}", conPoolPtr_->size());
 
         conPoolPtr = conPoolPtr_;
         assert(conPoolPtr);

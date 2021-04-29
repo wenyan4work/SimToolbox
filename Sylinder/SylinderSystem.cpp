@@ -4,6 +4,7 @@
 #include "Util/EquatnHelper.hpp"
 #include "Util/GeoUtil.hpp"
 #include "Util/IOHelper.hpp"
+#include "Util/Logger.hpp"
 
 #include <cmath>
 #include <cstdio>
@@ -43,7 +44,10 @@ void SylinderSystem::initialize(const SylinderConfig &runConfig_, const std::str
     int mpiflag;
     MPI_Initialized(&mpiflag);
     TEUCHOS_ASSERT(mpiflag);
+
+    Logger::set_level(runConfig.logLevel);
     commRcp = getMPIWORLDTCOMM();
+
     showOnScreenRank0();
 
     // TRNG pool must be initialized after mpi is initialized
@@ -84,11 +88,7 @@ void SylinderSystem::initialize(const SylinderConfig &runConfig_, const std::str
     if (!runConfig.sylinderFixed) {
         // 100 NON-B steps to resolve initial configuration collisions
         // no output
-        if (commRcp->getRank() == 0) {
-            printf("-------------------------------------\n");
-            printf("-Initial Collision Resolution Begin--\n");
-            printf("-------------------------------------\n");
-        }
+        spdlog::warn("Initial Collision Resolution Begin");
         for (int i = 0; i < 100; i++) {
             prepareStep();
             calcVelocityNonCon();
@@ -97,17 +97,10 @@ void SylinderSystem::initialize(const SylinderConfig &runConfig_, const std::str
             sumForceVelocity();
             stepEuler();
         }
-        if (commRcp->getRank() == 0) {
-            printf("--Initial Collision Resolution End---\n");
-            printf("-------------------------------------\n");
-        }
+        spdlog::warn("Initial Collision Resolution End");
     }
 
-    printf("SylinderSystem Initialized. %d sylinders on process %d\n", sylinderContainer.getNumberOfParticleLocal(),
-           commRcp->getRank());
-
-    if (runConfig.printLevel < 1)
-        enableTimer = false;
+    spdlog::warn("SylinderSystem Initialized. {} local sylinders", sylinderContainer.getNumberOfParticleLocal());
 }
 
 void SylinderSystem::reinitialize(const SylinderConfig &runConfig_, const std::string &restartFile, int argc,
@@ -130,7 +123,10 @@ void SylinderSystem::reinitialize(const SylinderConfig &runConfig_, const std::s
     int mpiflag;
     MPI_Initialized(&mpiflag);
     TEUCHOS_ASSERT(mpiflag);
+
+    Logger::set_level(runConfig.logLevel);
     commRcp = getMPIWORLDTCOMM();
+
     showOnScreenRank0();
 
     // TRNG pool must be initialized after mpi is initialized
@@ -151,10 +147,8 @@ void SylinderSystem::reinitialize(const SylinderConfig &runConfig_, const std::s
     asciiFileName.replace(pos, 1, std::string("Ascii_")); // replace '_' with 'Ascii_'
 
     std::string baseFolder = getCurrentResultFolder();
-    std::cout << "Reading " << baseFolder + pvtpFileName << std::endl;
     setInitialFromVTKFile(baseFolder + pvtpFileName);
 
-    std::cout << "Reading " << baseFolder + asciiFileName << std::endl;
     setLinkMapFromFile(baseFolder + asciiFileName);
 
     // VTK data is wrote before the Euler step, thus we need to run one Euler step below
@@ -177,11 +171,7 @@ void SylinderSystem::reinitialize(const SylinderConfig &runConfig_, const std::s
     setTreeSylinder();
     calcVolFrac();
 
-    printf("SylinderSystem Reinitialized. %d sylinders on process %d\n", sylinderContainer.getNumberOfParticleLocal(),
-           commRcp->getRank());
-
-    if (runConfig.printLevel < 1)
-        enableTimer = false;
+    spdlog::warn("SylinderSystem Initialized. {} local sylinders", sylinderContainer.getNumberOfParticleLocal());
 }
 
 void SylinderSystem::setTreeSylinder() {
@@ -314,16 +304,15 @@ void SylinderSystem::calcVolFrac() {
     Teuchos::reduceAll(*commRcp, Teuchos::SumValueReductionOp<int, double>(), 1, &volLocal, &volGlobal);
 
     // step 2, reduce to root and compute total volume
-    if (commRcp->getRank() == 0) {
-        double boxVolume = (runConfig.simBoxHigh[0] - runConfig.simBoxLow[0]) *
-                           (runConfig.simBoxHigh[1] - runConfig.simBoxLow[1]) *
-                           (runConfig.simBoxHigh[2] - runConfig.simBoxLow[2]);
-        std::cout << "Volume Sylinder = " << volGlobal << std::endl;
-        std::cout << "Volume fraction = " << volGlobal / boxVolume << std::endl;
-    }
+    double boxVolume = (runConfig.simBoxHigh[0] - runConfig.simBoxLow[0]) *
+                       (runConfig.simBoxHigh[1] - runConfig.simBoxLow[1]) *
+                       (runConfig.simBoxHigh[2] - runConfig.simBoxLow[2]);
+    spdlog::warn("Volume Sylinder = {:g}", volGlobal);
+    spdlog::warn("Volume fraction = {:g}", volGlobal / boxVolume);
 }
 
 void SylinderSystem::setInitialFromFile(const std::string &filename) {
+    spdlog::warn("Reading file " + filename);
 
     auto parseSylinder = [&](Sylinder &sy, const std::string &line) {
         std::stringstream liness(line);
@@ -372,8 +361,7 @@ void SylinderSystem::setInitialFromFile(const std::string &filename) {
         }
         myfile.close();
 
-        // sort body, gid ascending;
-        std::cout << "Sylinder number in file: " << sylinderReadFromFile.size() << std::endl;
+        spdlog::debug("Sylinder number in file {} ", sylinderReadFromFile.size());
 
         // set on rank 0
         const int nRead = sylinderReadFromFile.size();
@@ -387,6 +375,8 @@ void SylinderSystem::setInitialFromFile(const std::string &filename) {
 }
 
 void SylinderSystem::setLinkMapFromFile(const std::string &filename) {
+    spdlog::warn("Reading file " + filename);
+
     auto parseLink = [&](Link &link, const std::string &line) {
         std::stringstream liness(line);
         char header;
@@ -409,9 +399,13 @@ void SylinderSystem::setLinkMapFromFile(const std::string &filename) {
         }
     }
     myfile.close();
+
+    spdlog::debug("Link number in file {} ", linkMap.size());
 }
 
 void SylinderSystem::setInitialFromVTKFile(const std::string &pvtpFileName) {
+    spdlog::warn("Reading file " + pvtpFileName);
+
     if (commRcp->getRank() != 0) {
         sylinderContainer.setNumberOfParticleLocal(0);
     } else {
@@ -445,7 +439,7 @@ void SylinderSystem::setInitialFromVTKFile(const std::string &pvtpFileName) {
 
         const int sylinderNumberInFile = posData->GetNumberOfPoints() / 2; // two points per sylinder
         sylinderContainer.setNumberOfParticleLocal(sylinderNumberInFile);
-        std::cout << "Sylinder number in file: " << sylinderNumberInFile << std::endl;
+        spdlog::debug("Sylinder number in file {} ", sylinderNumberInFile);
 
 #pragma omp parallel for
         for (int i = 0; i < sylinderNumberInFile; i++) {
@@ -719,10 +713,7 @@ void SylinderSystem::calcMobMatrix() {
         Teuchos::rcp(new TCMAT(sylinderMobilityMapRcp, sylinderMobilityMapRcp, rowPointers, columnIndices, values));
     mobilityMatrixRcp->fillComplete(sylinderMobilityMapRcp, sylinderMobilityMapRcp); // domainMap, rangeMap
 
-#ifdef DEBUGLCPCOL
-    std::cout << "MobMat Constructed: " << mobilityMatrixRcp->description() << std::endl;
-    dumpTCMAT(mobilityMatrixRcp, "MobMat.mtx");
-#endif
+    spdlog::debug("MobMat Constructed " + mobilityMatrixRcp->description());
 }
 
 void SylinderSystem::calcMobOperator() {
@@ -841,14 +832,14 @@ void SylinderSystem::resolveConstraints() {
         Teuchos::TimeMonitor::getNewCounter("SylinderSystem::CollectCollision");
     Teuchos::RCP<Teuchos::Time> collectLinkTimer = Teuchos::TimeMonitor::getNewCounter("SylinderSystem::CollectLink");
 
-    printRank0(2, "start collect collisions");
+    spdlog::debug("start collect collisions");
     {
         Teuchos::TimeMonitor mon(*collectColTimer);
         collectPairCollision();
         collectBoundaryCollision();
     }
 
-    printRank0(2, "start collect links");
+    spdlog::debug("start collect links");
     {
         Teuchos::TimeMonitor mon(*collectLinkTimer);
         collectLinkBilateral();
@@ -861,13 +852,13 @@ void SylinderSystem::resolveConstraints() {
     {
         Teuchos::TimeMonitor mon(*solveTimer);
         const double buffer = 0;
-        printRank0(2, "constraint solver setup");
+        spdlog::debug("constraint solver setup");
         conSolverPtr->setup(*conCollectorPtr, mobilityOperatorRcp, velocityNonConRcp, runConfig.dt);
-        printRank0(2, "setControl");
+        spdlog::debug("setControl");
         conSolverPtr->setControlParams(runConfig.conResTol, runConfig.conMaxIte, runConfig.conSolverChoice);
-        printRank0(2, "solveConstraints");
+        spdlog::debug("solveConstraints");
         conSolverPtr->solveConstraints();
-        printRank0(2, "writebackGamma");
+        spdlog::debug("writebackGamma");
         conSolverPtr->writebackGamma();
     }
 
@@ -893,7 +884,7 @@ bool SylinderSystem::getIfWriteResultCurrentStep() {
 }
 
 void SylinderSystem::prepareStep() {
-    printRank0(0, "CurrentStep %d\n", stepCount);
+    spdlog::warn("CurrentStep {}", stepCount);
     applyBoxBC();
 
     if (stepCount % 50 == 0) {
@@ -1176,8 +1167,7 @@ std::pair<int, int> SylinderSystem::getMaxGid() {
 
     int maxGidGlobal = maxGidLocal;
     Teuchos::reduceAll(*commRcp, Teuchos::MaxValueReductionOp<int, int>(), 1, &maxGidLocal, &maxGidGlobal);
-    if (commRcp->getRank() == 0)
-        printf("rank: %d,maxGidLocal: %d,maxGidGlobal %d\n", commRcp->getRank(), maxGidLocal, maxGidGlobal);
+    spdlog::warn("rank: {}, maxGidLocal: {}, maxGidGlobal {}", commRcp->getRank(), maxGidLocal, maxGidGlobal);
 
     return std::pair<int, int>(maxGidLocal, maxGidGlobal);
 }
@@ -1233,6 +1223,9 @@ void SylinderSystem::updateSylinderRank() {
 void SylinderSystem::applyBoxBC() { sylinderContainer.adjustPositionIntoRootDomain(dinfo); }
 
 void SylinderSystem::calcConStress() {
+    if (runConfig.logLevel > spdlog::level::info)
+        return;
+
     Emat3 sumBiStress = Emat3::Zero();
     Emat3 sumUniStress = Emat3::Zero();
     conCollectorPtr->sumLocalConstraintStress(sumUniStress, sumBiStress, false);
@@ -1258,19 +1251,20 @@ void SylinderSystem::calcConStress() {
     Teuchos::reduceAll(*commRcp, Teuchos::SumValueReductionOp<int, double>(), 9, uniStressLocal, uniStressGlobal);
     Teuchos::reduceAll(*commRcp, Teuchos::SumValueReductionOp<int, double>(), 9, biStressLocal, biStressGlobal);
 
-    if (commRcp->getRank() == 0) {
-        printf("RECORD: ColXF,%7g,%7g,%7g,%7g,%7g,%7g,%7g,%7g,%7g\n",      //
-               uniStressGlobal[0], uniStressGlobal[1], uniStressGlobal[2], //
-               uniStressGlobal[3], uniStressGlobal[4], uniStressGlobal[5], //
-               uniStressGlobal[6], uniStressGlobal[7], uniStressGlobal[8]);
-        printf("RECORD: BiXF,%7g,%7g,%7g,%7g,%7g,%7g,%7g,%7g,%7g\n",    //
-               biStressGlobal[0], biStressGlobal[1], biStressGlobal[2], //
-               biStressGlobal[3], biStressGlobal[4], biStressGlobal[5], //
-               biStressGlobal[6], biStressGlobal[7], biStressGlobal[8]);
-    }
+    spdlog::info("RECORD: ColXF,{:g},{:g},{:g},{:g},{:g},{:g},{:g},{:g},{:g}", //
+                 uniStressGlobal[0], uniStressGlobal[1], uniStressGlobal[2],   //
+                 uniStressGlobal[3], uniStressGlobal[4], uniStressGlobal[5],   //
+                 uniStressGlobal[6], uniStressGlobal[7], uniStressGlobal[8]);
+    spdlog::info("RECORD: BiXF,{:g},{:g},{:g},{:g},{:g},{:g},{:g},{:g},{:g}", //
+                 biStressGlobal[0], biStressGlobal[1], biStressGlobal[2],     //
+                 biStressGlobal[3], biStressGlobal[4], biStressGlobal[5],     //
+                 biStressGlobal[6], biStressGlobal[7], biStressGlobal[8]);
 }
 
 void SylinderSystem::calcOrderParameter() {
+    if (runConfig.logLevel > spdlog::level::info)
+        return;
+
     double px = 0, py = 0, pz = 0;    // pvec
     double Qxx = 0, Qxy = 0, Qxz = 0; // Qtensor
     double Qyx = 0, Qyy = 0, Qyz = 0; // Qtensor
@@ -1306,14 +1300,12 @@ void SylinderSystem::calcOrderParameter() {
         pQ[i] *= (1.0 / nGlobal);
     }
 
-    if (commRcp()->getRank() == 0) {
-        printf("RECORD: Order P,%6g,%6g,%6g,Q,%6g,%6g,%6g,%6g,%6g,%6g,%6g,%6g,%6g\n", //
-               pQ[0], pQ[1], pQ[2],                                                   // pvec
-               pQ[3], pQ[4], pQ[5],                                                   // Qtensor
-               pQ[6], pQ[7], pQ[8],                                                   // Qtensor
-               pQ[9], pQ[10], pQ[11]                                                  // Qtensor
-        );
-    }
+    spdlog::info("RECORD: Order P,{:g},{:g},{:g},Q,{:g},{:g},{:g},{:g},{:g},{:g},{:g},{:g},{:g}", //
+                 pQ[0], pQ[1], pQ[2],                                                             // pvec
+                 pQ[3], pQ[4], pQ[5],                                                             // Qtensor
+                 pQ[6], pQ[7], pQ[8],                                                             // Qtensor
+                 pQ[9], pQ[10], pQ[11]                                                            // Qtensor
+    );
 }
 
 std::vector<int> SylinderSystem::addNewSylinder(const std::vector<Sylinder> &newSylinder) {
@@ -1397,7 +1389,7 @@ void SylinderSystem::collectLinkBilateral() {
     const int nLocal = sylinderContainer.getNumberOfParticleLocal();
     auto &conPool = *(this->conCollectorPtr->constraintPoolPtr);
     if (conPool.size() != omp_get_max_threads()) {
-        printf("conPool multithread mismatch error\n");
+        spdlog::critical("conPool multithread mismatch error");
         std::exit(1);
     }
 
@@ -1449,7 +1441,7 @@ void SylinderSystem::collectLinkBilateral() {
                     centerJ[k] = xk;
                     // error check
                     if (fabs(trg - xk) > 0.5 * (runConfig.simBoxHigh[k] - runConfig.simBoxLow[k])) {
-                        printf("pbc image error in bilateral links\n");
+                        spdlog::critical("pbc image error in bilateral links");
                         std::exit(1);
                     }
                 }
@@ -1489,7 +1481,7 @@ void SylinderSystem::collectLinkBilateral() {
 }
 
 void SylinderSystem::printTimingSummary(const bool zeroOut) {
-    if (runConfig.printLevel > 0)
+    if (runConfig.timerLevel > 0)
         Teuchos::TimeMonitor::summarize();
     if (zeroOut)
         Teuchos::TimeMonitor::zeroOutTimers();

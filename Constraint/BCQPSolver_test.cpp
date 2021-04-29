@@ -21,7 +21,7 @@ int main(int argc, char **argv) {
     int nprocs = 0;
     MPI_Comm_size(MPI_COMM_WORLD, &nprocs);
     {
-        logger::setup_mpi_spdlog();
+        Logger::setup_mpi_spdlog();
         const int localSize = argc > 1 ? atoi(argv[1]) : 500;
         const double diagonal = argc > 2 ? atof(argv[2]) : 0.0;
         const int maxIte = argc > 3 ? atoi(argv[3]) : localSize;

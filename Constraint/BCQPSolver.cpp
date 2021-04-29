@@ -122,7 +122,7 @@ BCQPSolver::BCQPSolver(int localSize, double diagonal) {
     Atemp->fillComplete(rowMapRcp, rowMapRcp);
     this->ARcp = Teuchos::rcp_dynamic_cast<const TOP>(Atemp, true);
 
-    spdlog::info("Constraint operator ARcp is: ", ARcp->description());
+    spdlog::info("Constraint operator ARcp is " + ARcp->description());
 
     // dump problem
     dumpTCMAT(Atemp, "Amat");
@@ -139,7 +139,7 @@ int BCQPSolver::solveBBPGD(Teuchos::RCP<TV> &xsolRcp, const double tol, const in
     int mvCount = 0; // count matrix-vector multiplications
     int iteCount = 0;
     spdlog::debug("solving APGD");
-    spdlog::debug("Constraint operator ARcp is: ", ARcp->description());
+    spdlog::debug("Constraint operator ARcp is "+ ARcp->description());
 
     Teuchos::RCP<TV> xkRcp = Teuchos::rcp(new TV(*xsolRcp, Teuchos::Copy));   // deep copy, xk=x0
     Teuchos::RCP<TV> xkm1Rcp = Teuchos::rcp(new TV(*xsolRcp, Teuchos::Copy)); // deep copy, xkm1=x0
@@ -253,7 +253,7 @@ int BCQPSolver::solveAPGD(Teuchos::RCP<TV> &xsolRcp, const double tol, const int
 
     int mvCount = 0;
     spdlog::debug("solving APGD");
-    spdlog::debug("Constraint operator ARcp is: ", ARcp->description());
+    spdlog::debug("Constraint operator ARcp is "+ ARcp->description());
 
     // allocate vectors
     Teuchos::RCP<TV> xkRcp = Teuchos::rcp(new TV(*xsolRcp, Teuchos::Copy)); // deep copy
@@ -398,7 +398,7 @@ int BCQPSolver::selfTest(double tol, int maxIte, int solverChoice) {
     dumpTV(lbRcp, "lbvec");
     dumpTV(ubRcp, "ubvec");
 
-    spdlog::info("START TEST\n");
+    spdlog::info("START TEST");
 
     switch (solverChoice) {
     case 1:

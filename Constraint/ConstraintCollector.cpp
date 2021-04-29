@@ -11,7 +11,7 @@ ConstraintCollector::ConstraintCollector() {
         queue.clear();
     }
 
-    spdlog::debug("ConstraintCollector constructed for {:d} threads", constraintPoolPtr->size());
+    spdlog::debug("ConstraintCollector constructed for {} threads", constraintPoolPtr->size());
 }
 
 bool ConstraintCollector::valid() const { return constraintPoolPtr->empty(); }

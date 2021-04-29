@@ -8,8 +8,10 @@
  * @copyright Copyright (c) 2021
  *
  */
+#include "SylinderSystem.hpp"
+
 #include "MPI/CommMPI.hpp"
-#include "Sylinder/SylinderSystem.hpp"
+#include "Util/Logger.hpp"
 
 void testAddLinks(SylinderSystem &sylinderSystem) {
     /*********************************
@@ -100,6 +102,7 @@ void testAddLinks(SylinderSystem &sylinderSystem) {
 
 int main(int argc, char **argv) {
     MPI_Init(&argc, &argv);
+    Logger::setup_mpi_spdlog();
 
     {
         auto runConfig = SylinderConfig("RunConfig.yaml");

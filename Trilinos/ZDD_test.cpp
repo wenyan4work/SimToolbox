@@ -17,6 +17,8 @@ int main(int argc, char **argv) {
     MPI_Comm_rank(MPI_COMM_WORLD, &rank);
     MPI_Comm_size(MPI_COMM_WORLD, &nprocs);
 
+    Logger::setup_mpi_spdlog();
+
     {
         ZDD<data> doubleDataDirectory(100);
 

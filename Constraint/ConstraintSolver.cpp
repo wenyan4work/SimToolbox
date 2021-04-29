@@ -1,4 +1,5 @@
 #include "ConstraintSolver.hpp"
+#include "Util/Logger.hpp"
 
 void ConstraintSolver::setup(ConstraintCollector &conCollector_, Teuchos::RCP<TOP> &mobOpRcp_,
                              Teuchos::RCP<TV> &velncRcp_, double dt_) {
@@ -60,12 +61,12 @@ void ConstraintSolver::solveConstraints() {
     const auto &commRcp = gammaRcp->getMap()->getComm();
     // solver
     BCQPSolver solver(MOpRcp, qRcp);
-    // printf("solver constructed\n");
+    spdlog::debug("solver constructed");
 
     // the bound of BCQP. 0 for gammau, unbound for gammab.
     Teuchos::RCP<TV> lbRcp = solver.getLowerBound();
     lbRcp->scale(-1e8, *biFlagRcp); // 0 if biFlag=0, -1e8 if biFlag=1
-    // printf("bound constructed\n");
+    spdlog::debug("bound constructed");
 
     // solve
     IteHistory history;
@@ -81,14 +82,13 @@ void ConstraintSolver::solveConstraints() {
         break;
     }
 
-    if (commRcp->getRank() == 0 && history.size() > 0) {
-        auto &p = history.back();
-        std::cout << "RECORD: BCQP residue";
-        for (auto &v : p) {
-            std::cout << "," << v;
-        }
-        std::cout << std::endl;
+    for (auto it = history.begin(); it != history.end() - 1; it++) {
+        auto &p = *it;
+        spdlog::debug("RECORD: BCQP history {:g}, {:g}, {:g}, {:g}, {:g}, {:g}", p[0], p[1], p[2], p[3], p[4], p[5]);
     }
+
+    auto &p = history.back();
+    spdlog::info("RECORD: BCQP residue {:g}, {:g}, {:g}, {:g}, {:g}, {:g}", p[0], p[1], p[2], p[3], p[4], p[5]);
 
     // calculate unilateral and bilateral vel/force with solution
     Teuchos::RCP<TCMAT> DMatRcp = MOpRcp->getDMat();

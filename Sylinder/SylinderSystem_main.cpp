@@ -12,12 +12,12 @@
 #include <mpi.h>
 
 #include "SylinderSystem.hpp"
+#include "Util/Logger.hpp"
 
 int main(int argc, char **argv) {
     MPI_Init(&argc, &argv);
     PS::Initialize(argc, argv);
-    int myRank;
-    MPI_Comm_rank(MPI_COMM_WORLD, &myRank);
+    Logger::setup_mpi_spdlog();
     {
         // create a system and distribute it to all ranks
         // MPI is initialized inside PS::Initialize()

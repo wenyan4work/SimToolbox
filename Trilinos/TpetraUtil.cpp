@@ -1,12 +1,11 @@
 #include "TpetraUtil.hpp"
+#include "Util/Logger.hpp"
 
 #include <limits>
 
 void dumpTCMAT(const Teuchos::RCP<const TCMAT> &A, std::string filename) {
     filename = filename + std::string("_TCMAT.mtx");
-    if (A->getComm()->getRank() == 0) {
-        std::cout << "dumping " << filename << std::endl;
-    }
+    spdlog::info("dumping " + filename);
 
     Tpetra::MatrixMarket::Writer<TCMAT> matDumper;
     matDumper.writeSparseFile(filename, A, filename, filename, true);
@@ -14,9 +13,7 @@ void dumpTCMAT(const Teuchos::RCP<const TCMAT> &A, std::string filename) {
 
 void dumpTV(const Teuchos::RCP<const TV> &A, std::string filename) {
     filename = filename + std::string("_TV.mtx");
-    if (A->getMap()->getComm()->getRank() == 0) {
-        std::cout << "dumping " << filename << std::endl;
-    }
+    spdlog::info("dumping " + filename);
 
     const auto &fromMap = A->getMap();
     const auto &toMap =
@@ -31,9 +28,8 @@ void dumpTV(const Teuchos::RCP<const TV> &A, std::string filename) {
 
 void dumpTMAP(const Teuchos::RCP<const TMAP> &map, std::string filename) {
     filename = filename + std::string("_TMAP.mtx");
-    if (map->getComm()->getRank() == 0) {
-        std::cout << "dumping " << filename << std::endl;
-    }
+    spdlog::info("dumping " + filename);
+
     Tpetra::MatrixMarket::Writer<TV> writer;
     writer.writeMapFile(filename, *map);
 }

@@ -12,6 +12,8 @@
 #ifndef ZDD_HPP_
 #define ZDD_HPP_
 
+#include "Util/Logger.hpp"
+
 #include <cstdio>
 #include <cstdlib>
 #include <iostream>
@@ -70,7 +72,7 @@ class ZDD {
         error = this->findZDD.Create(MPI_COMM_WORLD, 1, 0, sizeof(DATA_TYPE) / sizeof(char), 0, 0);
 #endif
         if (error != ZOLTAN_OK) {
-            printf("ZDD Create error %d\n", error);
+            spdlog::critical("ZDD Create error {}", error);
             findZDD.Print();
             findZDD.Stats();
             std::exit(1);
@@ -81,17 +83,6 @@ class ZDD {
         static_assert(std::is_default_constructible<DATA_TYPE>::value, "");
     }
 
-    // /**
-    //  * @brief clean all ID and Data lists
-    //  *
-    //  */
-    // void clearAll() {
-    //     gidOnLocal.clear();
-    //     gidToFind.clear();
-    //     dataOnLocal.clear();
-    //     dataToFind.clear();
-    // }
-
     /**
      * @brief Destroy the ZDD object
      *
@@ -101,7 +92,7 @@ class ZDD {
 #ifdef ZDDDEBUG
         findZDD.Print();
         findZDD.Stats();
-        std::cout << "ZDD destructed" << std::endl;
+        spdlog::debug("ZDD destructed");
 #endif
     }
 
@@ -117,7 +108,7 @@ class ZDD {
         for (auto &id : gidOnLocal) {
             printf("local ID %u on rank %d\n", id, myRank);
         }
-        printf("ZDD before Update\n");
+        spdlog::debug("ZDD before Update");
         findZDD.Print();
         findZDD.Stats();
 #endif
@@ -126,7 +117,7 @@ class ZDD {
         DATA_TYPE *dataPtr = dataOnLocal.data();
         int error = findZDD.Update(idPtr, NULL, (char *)dataPtr, NULL, gidOnLocal.size());
         if (error != ZOLTAN_OK) {
-            printf("ZDD Update error %d\n", error);
+            spdlog::critical("ZDD Update error {}", error);
             std::exit(1);
         }
 

@@ -11,6 +11,8 @@
 #ifndef YAMLHELPER_HPP_
 #define YAMLHELPER_HPP_
 
+#include "Logger.hpp"
+
 #include <iostream>
 #include <yaml-cpp/yaml.h>
 
@@ -36,10 +38,11 @@ void readConfig(const YAML::Node &config, const std::string &name, T &variable, 
     if (config[name]) {
         variable = config[name].as<T>();
     } else {
-        std::cout << "Expecting " << name << " in input yaml file not found. " << err << std::endl;
         if (!optional) {
+            spdlog::critical("Required parameter " + name + " in input yaml file not found");
             std::exit(1);
         }
+        spdlog::warn("Optional " + name + " in input yaml file not found, using default");
     }
 }
 
@@ -59,16 +62,18 @@ void readConfig(const YAML::Node &config, const std::string &name, T variable[],
     if (config[name]) {
         YAML::Node seq = config[name];
         if (seq.size() != dim) {
-            std::cout << "Expecting " << dim << " elements in " << name << " in input yaml file. " << err << std::endl;
+            spdlog::critical("Expecting {} elements in {} in input yaml file. {}. ", dim, name, err);
+            std::exit(1);
         }
         for (int i = 0; i < dim; i++) {
             variable[i] = seq[i].as<T>();
         }
     } else {
-        std::cout << "Expecting " << name << " in input yaml file not found. " << err << std::endl;
         if (!optional) {
+            spdlog::critical("Required parameter " + name + " in input yaml file not found");
             std::exit(1);
         }
+        spdlog::warn("Optional " + name + " in input yaml file not found, using default");
     }
 }
 
@@ -93,10 +98,11 @@ void readConfig(const YAML::Node &config, const std::string &name, std::vector<T
             variable[i] = seq[i].as<T>();
         }
     } else {
-        std::cout << "Expecting " << name << " in input yaml file not found. " << err << std::endl;
         if (!optional) {
+            spdlog::critical("Required parameter " + name + " in input yaml file not found");
             std::exit(1);
         }
+        spdlog::warn("Optional " + name + " in input yaml file not found, using default");
     }
 }
 

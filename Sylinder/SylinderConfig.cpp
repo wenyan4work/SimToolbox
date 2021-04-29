@@ -1,5 +1,6 @@
 #include "SylinderConfig.hpp"
 
+#include "Util/Logger.hpp"
 #include "Util/YamlHelper.hpp"
 
 SylinderConfig::SylinderConfig(std::string filename) {
@@ -28,8 +29,11 @@ SylinderConfig::SylinderConfig(std::string filename) {
     readConfig(config, VARNAME(conSolverChoice), conSolverChoice, "");
 
     // optional parameters
-    printLevel = 0;
-    readConfig(config, VARNAME(printLevel), printLevel, "", true);
+    logLevel = spdlog::level::info; // default to info
+    readConfig(config, VARNAME(logLevel), logLevel, "", true);
+
+    timerLevel = logLevel; // default to info
+    readConfig(config, VARNAME(timerLevel), timerLevel, "", true);
 
     monolayer = false;
     readConfig(config, VARNAME(monolayer), monolayer, "", true);
@@ -66,7 +70,7 @@ SylinderConfig::SylinderConfig(std::string filename) {
         YAML::Node boundaries = config["boundaries"];
         for (const auto &b : boundaries) {
             std::string name = b["type"].as<std::string>();
-            std::cout << name << std::endl;
+            spdlog::debug(name);
             if (name == "wall") {
                 boundaryPtr.push_back(std::make_shared<Wall>(b));
             } else if (name == "tube") {
@@ -83,7 +87,8 @@ void SylinderConfig::dump() const {
         printf("-------------------------------------------\n");
         printf("Run Setting: \n");
         printf("Random number seed: %d\n", rngSeed);
-        printf("Print Level: %d\n", printLevel);
+        printf("Log Level: %d\n", logLevel);
+        printf("Timer Level: %d\n", timerLevel);
         printf("Simulation box Low: %g,%g,%g\n", simBoxLow[0], simBoxLow[1], simBoxLow[2]);
         printf("Simulation box High: %g,%g,%g\n", simBoxHigh[0], simBoxHigh[1], simBoxHigh[2]);
         printf("Periodicity: %d,%d,%d\n", simBoxPBC[0], simBoxPBC[1], simBoxPBC[2]);
