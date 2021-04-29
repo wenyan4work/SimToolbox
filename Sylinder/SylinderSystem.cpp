@@ -1481,7 +1481,7 @@ void SylinderSystem::collectLinkBilateral() {
 }
 
 void SylinderSystem::printTimingSummary(const bool zeroOut) {
-    if (runConfig.timerLevel > 0)
+    if (runConfig.timerLevel <= spdlog::level::info)
         Teuchos::TimeMonitor::summarize();
     if (zeroOut)
         Teuchos::TimeMonitor::zeroOutTimers();
