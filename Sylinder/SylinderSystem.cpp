@@ -89,7 +89,7 @@ void SylinderSystem::initialize(const SylinderConfig &runConfig_, const std::str
         // 100 NON-B steps to resolve initial configuration collisions
         // no output
         spdlog::warn("Initial Collision Resolution Begin");
-        for (int i = 0; i < 100; i++) {
+        for (int i = 0; i < runConfig.initPreSteps; i++) {
             prepareStep();
             calcVelocityNonCon();
             resolveConstraints();

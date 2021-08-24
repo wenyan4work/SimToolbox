@@ -49,6 +49,9 @@ SylinderConfig::SylinderConfig(std::string filename) {
     initCircularX = false;
     readConfig(config, VARNAME(initCircularX), initCircularX, "", true);
 
+    initPreSteps = 100;
+    readConfig(config, VARNAME(initPreSteps), initPreSteps, "", true);
+
     linkKappa = 100;
     linkGap = 0.01;
     readConfig(config, VARNAME(linkKappa), linkKappa, "", true);
@@ -96,6 +99,7 @@ void SylinderConfig::dump() const {
         printf("Initialization box High: %g,%g,%g\n", initBoxHigh[0], initBoxHigh[1], initBoxHigh[2]);
         printf("Initialization orientation: %g,%g,%g\n", initOrient[0], initOrient[1], initOrient[2]);
         printf("Initialization circular cross: %d\n", initCircularX);
+        printf("Initialization pre-steps for collision-resolution: %d\n", initPreSteps);
         printf("Time step size: %g\n", dt);
         printf("Total Time: %g\n", timeTotal);
         printf("Snap Time: %g\n", timeSnap);

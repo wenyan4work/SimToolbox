@@ -103,7 +103,7 @@ void Sylinder::writeAscii(FILE *fptr) const {
     Evec3 minus = ECmap3(pos) - 0.5 * length * direction;
     Evec3 plus = ECmap3(pos) + 0.5 * length * direction;
     char typeChar = isImmovable ? 'S' : 'C';
-    fprintf(fptr, "%c %d %g %g %g %g %g %g %g %d\n", //
-            typeChar, gid, radius,                   //
+    fprintf(fptr, "%c %d %.8g %.8g %.8g %.8g %.8g %.8g %.8g %d\n", //
+            typeChar, gid, radius,                                 //
             minus[0], minus[1], minus[2], plus[0], plus[1], plus[2], group);
 }
