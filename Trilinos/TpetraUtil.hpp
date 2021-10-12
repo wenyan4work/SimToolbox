@@ -38,16 +38,22 @@
 // Preconditioner
 #include <Ifpack2_Factory.hpp>
 
-// no need to specify node type for new version of Tpetra. It defaults to
-// Kokkos::default, which is openmp
-// typedef Tpetra::Details::DefaultTypes::node_type TNODE;
+// Packages: Trilinos-wide next generation stack
+// Deprecation: Explicit instantiation of multiple different global ordinal types and multiple different local ordinal
+// types Mitigation: Use default global ordinal type long long and local ordinal type int, or specify to CMake -DTpetra
+// INST INT INT=ON to use global ordinal type int and local ordinal type int. Justification: Building with multiple
+// ordinal types increases build times and library sizes; all applications surveyed used only one global ordinal type
 
-using TCOMM = Teuchos::Comm<int>;                  ///< default Teuchos::Comm type
-using TMAP = Tpetra::Map<int, int>;                ///< default Teuchos::Map type
-using TOP = Tpetra::Operator<double, int, int>;    ///< default Tpetra::Operator type
-using TCMAT = Tpetra::CrsMatrix<double, int, int>; ///< default Tpetra::CrsMatrix type
-using TMV = Tpetra::MultiVector<double, int, int>; ///< default Tpetra::MultiVector type
-using TV = Tpetra::Vector<double, int, int>;       ///< default to Tpetra::Vector type
+using TCOMM = Teuchos::Comm<int>; ///< default Teuchos::Comm type
+
+using TMAP = Tpetra::Map<>;                      ///< default Teuchos::Map type
+using LocalOrdinal = TMAP::local_ordinal_type;   ///< default local ordinal type
+using GlobalOrdinal = TMAP::global_ordinal_type; ///< default global ordinal type
+
+using TOP = Tpetra::Operator<double, LocalOrdinal, GlobalOrdinal>;    ///< default Tpetra::Operator type
+using TCMAT = Tpetra::CrsMatrix<double, LocalOrdinal, GlobalOrdinal>; ///< default Tpetra::CrsMatrix type
+using TMV = Tpetra::MultiVector<double, LocalOrdinal, GlobalOrdinal>; ///< default Tpetra::MultiVector type
+using TV = Tpetra::Vector<double, LocalOrdinal, GlobalOrdinal>;       ///< default to Tpetra::Vector type
 
 /**
  * @brief inserting a specialization for Tpetra objects into Belos namespace
@@ -138,7 +144,7 @@ Teuchos::RCP<const TCOMM> getMPIWORLDTCOMM();
  * @param commRcp
  * @return Teuchos::RCP<TMAP>
  */
-Teuchos::RCP<TMAP> getTMAPFromLocalSize(const int &localSize, Teuchos::RCP<const TCOMM> &commRcp);
+Teuchos::RCP<TMAP> getTMAPFromLocalSize(const size_t localSize, Teuchos::RCP<const TCOMM> &commRcp);
 
 /**
  * @brief get a TMAP from arbitrary global index on local
@@ -148,8 +154,8 @@ Teuchos::RCP<TMAP> getTMAPFromLocalSize(const int &localSize, Teuchos::RCP<const
  * @param commRcp
  * @return Teuchos::RCP<TMAP>
  */
-Teuchos::RCP<TMAP> getTMAPFromGlobalIndexOnLocal(const std::vector<int> &gidOnLocal, const int globalSize,
-                                                 Teuchos::RCP<const TCOMM> &commRcp);
+Teuchos::RCP<TMAP> getTMAPFromGlobalIndexOnLocal(const std::vector<GlobalOrdinal> &gidOnLocal,
+                                                 const GlobalOrdinal globalSize, Teuchos::RCP<const TCOMM> &commRcp);
 
 /**
  * @brief create a map for vector with two blocks X=[X1;X2],
@@ -168,10 +174,10 @@ Teuchos::RCP<TMAP> getTMAPFromTwoBlockTMAP(const Teuchos::RCP<const TMAP> &map1,
 
 /**
  * @brief create a vector for two blocks X=[X1;X2]
- * 
- * @param vec1 
- * @param vec2 
- * @return Teuchos::RCP<TV> 
+ *
+ * @param vec1
+ * @param vec2
+ * @return Teuchos::RCP<TV>
  */
 Teuchos::RCP<TV> getTVFromTwoBlockTV(const Teuchos::RCP<const TV> &vec1, const Teuchos::RCP<const TV> &vec2);
 

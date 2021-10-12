@@ -62,7 +62,7 @@ void ConstraintOperator::apply(const TMV &X, TMV &Y, Teuchos::ETransp mode, scal
         auto YcolPtr = YcolRcp->getLocalView<Kokkos::HostSpace>();
         YcolRcp->modify<Kokkos::HostSpace>();
         auto invKappaPtr = invKappa->getLocalView<Kokkos::HostSpace>();
-        const int localSize = YcolPtr.dimension_0();
+        const int localSize = YcolPtr.extent(0);
 #pragma omp parallel for
         for (int k = 0; k < localSize; k++) {
             YcolPtr(k, 0) += alpha * invKappaPtr(k, 0) * XcolPtr(k, 0);

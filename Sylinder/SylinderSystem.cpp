@@ -980,10 +980,10 @@ void SylinderSystem::saveForceVelocityConstraints() {
     auto forceBiPtr = forceBiRcp->getLocalView<Kokkos::HostSpace>();
 
     const int sylinderLocalNumber = sylinderContainer.getNumberOfParticleLocal();
-    TEUCHOS_ASSERT(velUniPtr.dimension_0() == sylinderLocalNumber * 6);
-    TEUCHOS_ASSERT(velUniPtr.dimension_1() == 1);
-    TEUCHOS_ASSERT(velBiPtr.dimension_0() == sylinderLocalNumber * 6);
-    TEUCHOS_ASSERT(velBiPtr.dimension_1() == 1);
+    TEUCHOS_ASSERT(velUniPtr.extent(0) == sylinderLocalNumber * 6);
+    TEUCHOS_ASSERT(velUniPtr.extent(1) == 1);
+    TEUCHOS_ASSERT(velBiPtr.extent(0) == sylinderLocalNumber * 6);
+    TEUCHOS_ASSERT(velBiPtr.extent(1) == 1);
 
 #pragma omp parallel for
     for (int i = 0; i < sylinderLocalNumber; i++) {
@@ -1074,8 +1074,8 @@ void SylinderSystem::calcVelocityBrown() {
     auto velocityPtr = velocityBrownRcp->getLocalView<Kokkos::HostSpace>();
     velocityBrownRcp->modify<Kokkos::HostSpace>();
 
-    TEUCHOS_ASSERT(velocityPtr.dimension_0() == nLocal * 6);
-    TEUCHOS_ASSERT(velocityPtr.dimension_1() == 1);
+    TEUCHOS_ASSERT(velocityPtr.extent(0) == nLocal * 6);
+    TEUCHOS_ASSERT(velocityPtr.extent(1) == 1);
 
 #pragma omp parallel for
     for (int i = 0; i < nLocal; i++) {

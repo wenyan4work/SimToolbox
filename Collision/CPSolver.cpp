@@ -19,9 +19,9 @@ void CPSolver::clipZero(Teuchos::RCP<TV> &vecRcp) const {
     // std::cout << strides[0] << " " << strides[1] << std::endl;
     // std::cout << std::is_same<decltype(x_2d)::array_layout, Kokkos::LayoutLeft>::value << std::endl;
 
-    for (int c = 0; c < x_2d.dimension_1(); c++) {
+    for (int c = 0; c < x_2d.extent(1); c++) {
 #pragma omp parallel for
-        for (int i = 0; i < x_2d.dimension_0(); i++) {
+        for (int i = 0; i < x_2d.extent(0); i++) {
             const double temp = x_2d(i, c);
             x_2d(i, c) = temp < 0 ? 0 : temp;
         }
@@ -46,9 +46,9 @@ void CPSolver::maxXY(const Teuchos::RCP<const TV> &vecXRcp, const Teuchos::RCP<c
     auto y_2d = vecYRcp->getLocalView<Kokkos::HostSpace>();
     auto z_2d = vecZRcp->getLocalView<Kokkos::HostSpace>();
     vecZRcp->modify<Kokkos::HostSpace>();
-    for (int c = 0; c < x_2d.dimension_1(); c++) {
+    for (int c = 0; c < x_2d.extent(1); c++) {
 #pragma omp parallel for
-        for (int i = 0; i < x_2d.dimension_0(); i++) {
+        for (int i = 0; i < x_2d.extent(0); i++) {
             z_2d(i, c) = std::max(x_2d(i, c), y_2d(i, c));
         }
     }
@@ -72,9 +72,9 @@ void CPSolver::minXY(const Teuchos::RCP<const TV> &vecXRcp, const Teuchos::RCP<c
     auto y_2d = vecYRcp->getLocalView<Kokkos::HostSpace>();
     auto z_2d = vecZRcp->getLocalView<Kokkos::HostSpace>();
     vecZRcp->modify<Kokkos::HostSpace>();
-    for (int c = 0; c < x_2d.dimension_1(); c++) {
+    for (int c = 0; c < x_2d.extent(1); c++) {
 #pragma omp parallel for
-        for (int i = 0; i < x_2d.dimension_0(); i++) {
+        for (int i = 0; i < x_2d.extent(0); i++) {
             z_2d(i, c) = std::min(x_2d(i, c), y_2d(i, c));
         }
     }
@@ -99,9 +99,9 @@ double CPSolver::checkResiduePhi(const Teuchos::RCP<const TV> &vecXRcp, const Te
     auto b_2d = vecbRcp->getLocalView<Kokkos::HostSpace>();
     auto z_2d = vecTempRcp->getLocalView<Kokkos::HostSpace>();
     vecTempRcp->modify<Kokkos::HostSpace>();
-    for (int c = 0; c < x_2d.dimension_1(); c++) {
+    for (int c = 0; c < x_2d.extent(1); c++) {
 #pragma omp parallel for
-        for (int i = 0; i < x_2d.dimension_0(); i++) {
+        for (int i = 0; i < x_2d.extent(0); i++) {
             z_2d(i, c) = std::min(x_2d(i, c), y_2d(i, c) + b_2d(i, c));
         }
     }
@@ -153,9 +153,9 @@ void CPSolver::hMinMap(const Teuchos::RCP<const TV> &xRcp, const Teuchos::RCP<co
     hRcp->modify<Kokkos::HostSpace>();
     maskRcp->modify<Kokkos::HostSpace>();
 
-    for (int c = 0; c < xView.dimension_1(); c++) {
+    for (int c = 0; c < xView.extent(1); c++) {
 #pragma omp parallel for
-        for (int i = 0; i < xView.dimension_0(); i++) {
+        for (int i = 0; i < xView.extent(0); i++) {
             if (xView(i, c) < yView(i, c)) {
                 hView(i, c) = xView(i, c);
                 maskView(i, c) = 1;
@@ -582,8 +582,8 @@ class mmNewtonOperator : public TOP {
         auto yView = Y.getLocalView<Kokkos::HostSpace>();
         auto maskView = maskRcp->getLocalView<Kokkos::HostSpace>();
         Y.modify<Kokkos::HostSpace>();
-        for (int c = 0; c < xView.dimension_1(); c++) {
-            for (int i = 0; i < xView.dimension_0(); i++) {
+        for (int c = 0; c < xView.extent(1); c++) {
+            for (int i = 0; i < xView.extent(0); i++) {
                 if (maskView(i, c) > 0.5) {
                     yView(i, c) = xView(i, c);
                 }
@@ -838,9 +838,9 @@ int CPSolver::test_LCP(double tol, int maxIte, int solverChoice) {
     double xerrormax = 0.0;
     int yerrorN = 0;
     double yerrormax = 0.0;
-    assert(xView.dimension_0() == mapRcp->getNodeNumElements());
-    for (int c = 0; c < xView.dimension_1(); c++) {
-        for (int i = 0; i < xView.dimension_0(); i++) {
+    assert(xView.extent(0) == mapRcp->getNodeNumElements());
+    for (int c = 0; c < xView.extent(1); c++) {
+        for (int i = 0; i < xView.extent(0); i++) {
             if (xView(i, c) < 0) {
                 xerrorN++;
                 xerrormax = std::max(xerrormax, static_cast<double>(-xView(i, c)));

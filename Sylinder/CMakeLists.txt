@@ -26,13 +26,13 @@ target_compile_definitions(
                               PARTICLE_SIMULATOR_MPI_PARALLEL)
 target_include_directories(
   SylinderSystem_main PRIVATE ${PROJECT_SOURCE_DIR} ${Trilinos_INCLUDE_DIRS}
-                              ${TRNG_INCLUDE_DIR} ${YAML_CPP_INCLUDE_DIR})
+                              ${TRNG_INCLUDE_DIR})
 target_link_libraries(
   SylinderSystem_main
   PRIVATE ${Trilinos_LIBRARIES}
           ${Trilinos_TPL_LIBRARIES}
-          ${YAML_CPP_LIBRARIES}
           ${TRNG_LIBRARY}
+          yaml-cpp
           VTK::IOXML
           Eigen3::Eigen
           OpenMP::OpenMP_CXX
@@ -57,14 +57,13 @@ target_compile_definitions(
                                   PARTICLE_SIMULATOR_MPI_PARALLEL)
 target_include_directories(
   SylinderSystem_test_api
-  PRIVATE ${PROJECT_SOURCE_DIR} ${Trilinos_INCLUDE_DIRS} ${TRNG_INCLUDE_DIR}
-          ${YAML_CPP_INCLUDE_DIR})
+  PRIVATE ${PROJECT_SOURCE_DIR} ${Trilinos_INCLUDE_DIRS} ${TRNG_INCLUDE_DIR})
 target_link_libraries(
   SylinderSystem_test_api
   PRIVATE ${Trilinos_LIBRARIES}
           ${Trilinos_TPL_LIBRARIES}
-          ${YAML_CPP_LIBRARIES}
           ${TRNG_LIBRARY}
+          yaml-cpp
           VTK::IOXML
           Eigen3::Eigen
           OpenMP::OpenMP_CXX

@@ -39,8 +39,8 @@ class ConstraintSolver {
     // forbid copy
     ConstraintSolver(const ConstraintSolver &) = delete;
     ConstraintSolver(ConstraintSolver &&) = delete;
-    const ConstraintSolver &operator=(const ConstraintSolver &) = delete;
-    const ConstraintSolver &operator=(ConstraintSolver &&) = delete;
+    ConstraintSolver &operator=(const ConstraintSolver &) = delete;
+    ConstraintSolver &operator=(ConstraintSolver &&) = delete;
 
     /**
      * @brief reset the parameters and release all allocated spaces
@@ -68,7 +68,8 @@ class ConstraintSolver {
      * @param objMobMapRcp_
      * @param dt_
      */
-    void setup(ConstraintCollector &conCollector_, Teuchos::RCP<TOP> &mobOpRcp_, Teuchos::RCP<TV> &velncRcp_, double dt_);
+    void setup(ConstraintCollector &conCollector_, Teuchos::RCP<TOP> &mobOpRcp_, Teuchos::RCP<TV> &velncRcp_,
+               double dt_);
 
     /**
      * @brief solve the constraint BCQP problem
@@ -98,25 +99,23 @@ class ConstraintSolver {
     // mobility-map
     Teuchos::RCP<const TMAP> mobMapRcp; ///< distributed map for obj mobility. 6 dof per obj
     Teuchos::RCP<TOP> mobOpRcp;         ///< mobility operator, 6 dof per obj to 6 dof per obj
-    Teuchos::RCP<TV> forceuRcp;   ///< force vec, 6 dof per obj, due to unilateral constraints
-    Teuchos::RCP<TV> forcebRcp;   ///< force vec, 6 dof per obj, due to bilateral constraints
-    Teuchos::RCP<TV> veluRcp;     ///< velocity vec, 6 dof per obj. due to unilateral constraints
-    Teuchos::RCP<TV> velbRcp;     ///< velocity vec, 6 dof per obj. due to bilateral constraints
+    Teuchos::RCP<TV> forceuRcp;         ///< force vec, 6 dof per obj, due to unilateral constraints
+    Teuchos::RCP<TV> forcebRcp;         ///< force vec, 6 dof per obj, due to bilateral constraints
+    Teuchos::RCP<TV> veluRcp;           ///< velocity vec, 6 dof per obj. due to unilateral constraints
+    Teuchos::RCP<TV> velbRcp;           ///< velocity vec, 6 dof per obj. due to bilateral constraints
     Teuchos::RCP<TV> velncRcp;          ///< the non-constraint velocity vel_nc
 
     // composite vectors and operators
     Teuchos::RCP<TCMAT> DMatTransRcp; ///< D^Trans matrix
-    Teuchos::RCP<TV> invKappaRcp; ///< K^{-1} diagonal matrix
-    Teuchos::RCP<TV> biFlagRcp; ///< bilateral flag vector
-    Teuchos::RCP<TV> delta0Rcp;  ///< the current (geometric) delta vector delta_0 = [delta_0u ; delta_0b]
-    Teuchos::RCP<TV> deltancRcp; ///< delta_nc = [Du^Trans vel_nc,u ; Db^Trans vel_nc,b]
-    
+    Teuchos::RCP<TV> invKappaRcp;     ///< K^{-1} diagonal matrix
+    Teuchos::RCP<TV> biFlagRcp;       ///< bilateral flag vector
+    Teuchos::RCP<TV> delta0Rcp;       ///< the current (geometric) delta vector delta_0 = [delta_0u ; delta_0b]
+    Teuchos::RCP<TV> deltancRcp;      ///< delta_nc = [Du^Trans vel_nc,u ; Db^Trans vel_nc,b]
 
     // the constraint problem M gamma + q
     Teuchos::RCP<ConstraintOperator> MOpRcp; ///< the operator of BCQP problem. M = [B,C;E,F]
     Teuchos::RCP<TV> gammaRcp;               ///< the unknown constraint force magnitude gamma = [gamma_u;gamma_b]
     Teuchos::RCP<TV> qRcp;                   ///< the constant part of BCQP problem. q = delta_0 + delta_nc
-
 };
 
 #endif

@@ -139,7 +139,7 @@ int BCQPSolver::solveBBPGD(Teuchos::RCP<TV> &xsolRcp, const double tol, const in
     int mvCount = 0; // count matrix-vector multiplications
     int iteCount = 0;
     spdlog::debug("solving APGD");
-    spdlog::debug("Constraint operator ARcp is "+ ARcp->description());
+    spdlog::debug("Constraint operator ARcp is " + ARcp->description());
 
     Teuchos::RCP<TV> xkRcp = Teuchos::rcp(new TV(*xsolRcp, Teuchos::Copy));   // deep copy, xk=x0
     Teuchos::RCP<TV> xkm1Rcp = Teuchos::rcp(new TV(*xsolRcp, Teuchos::Copy)); // deep copy, xkm1=x0
@@ -253,7 +253,7 @@ int BCQPSolver::solveAPGD(Teuchos::RCP<TV> &xsolRcp, const double tol, const int
 
     int mvCount = 0;
     spdlog::debug("solving APGD");
-    spdlog::debug("Constraint operator ARcp is "+ ARcp->description());
+    spdlog::debug("Constraint operator ARcp is " + ARcp->description());
 
     // allocate vectors
     Teuchos::RCP<TV> xkRcp = Teuchos::rcp(new TV(*xsolRcp, Teuchos::Copy)); // deep copy
@@ -432,7 +432,7 @@ void BCQPSolver::boundProjection(Teuchos::RCP<TV> &vecRcp) const {
 
     auto vecPtr = vecRcp->getLocalView<Kokkos::HostSpace>(); // LeftLayout
     vecRcp->modify<Kokkos::HostSpace>();
-    const int ibound = vecPtr.dimension_0();
+    const int ibound = vecPtr.extent(0);
     const int c = 0; // vecRcp, lbRcp, ubRcp have only 1 column
 
     // project to lb
@@ -467,7 +467,7 @@ double BCQPSolver::checkProjectionResidual(const Teuchos::RCP<const TV> &XRcp, c
     auto ubPtr = ubRcp->getLocalView<Kokkos::HostSpace>(); // LeftLayout
     auto qPtr = QRcp->getLocalView<Kokkos::HostSpace>();   // LeftLayout
     QRcp->modify<Kokkos::HostSpace>();
-    const int ibound = xPtr.dimension_0();
+    const int ibound = xPtr.extent(0);
     const int c = 0; // vecRcp, lbRcp, ubRcp have only 1 column
 
     bool projectionError = false;
@@ -520,7 +520,7 @@ void BCQPSolver::generateRandomBounds() {
     auto vec2Ptr = vec2->getLocalView<Kokkos::HostSpace>(); // LeftLayout
     vec1->modify<Kokkos::HostSpace>();
     vec2->modify<Kokkos::HostSpace>();
-    const int ibound = vec1Ptr.dimension_0();
+    const int ibound = vec1Ptr.extent(0);
 #pragma omp parallel for
     for (int i = 0; i < ibound; i++) {
         double a = vec1Ptr(i, 0);

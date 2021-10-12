@@ -64,13 +64,9 @@ class BCQPSolver {
         ubRcp = ubRcp_;
     };
 
-    Teuchos::RCP<TV> getLowerBound(){
-      return lbRcp;
-    }
+    Teuchos::RCP<TV> getLowerBound() { return lbRcp; }
 
-    Teuchos::RCP<TV> getUpperBound(){
-      return ubRcp;
-    }
+    Teuchos::RCP<TV> getUpperBound() { return ubRcp; }
 
     /**
      * @brief call this before any solve() functions
@@ -115,8 +111,8 @@ class BCQPSolver {
     Teuchos::RCP<const TV> bRcp;       ///< vector \f$b\f$
     Teuchos::RCP<const TMAP> mapRcp;   ///< map for the distribution of xsolRcp, bRcp, and ARcp->rowMap
     Teuchos::RCP<const TCOMM> commRcp; ///< Teuchos::MpiComm
-    Teuchos::RCP<TV> lbRcp;      ///< lower bound
-    Teuchos::RCP<TV> ubRcp;      ///< upper bound
+    Teuchos::RCP<TV> lbRcp;            ///< lower bound
+    Teuchos::RCP<TV> ubRcp;            ///< upper bound
     bool lbSet = false;
     bool ubSet = false;
 

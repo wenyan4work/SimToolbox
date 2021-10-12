@@ -23,7 +23,7 @@ void test() {
      * vec = [vec1;vec2]. vec, vec1, vec2 are all partitioned across ranks
      * vec1 = [0,1,1,2,2,2,3,3,3,3,...]
      * vec2 = [0,0,1,1,1,1,2,2,2,2,2,2,...]
-     * vec = [0,1,1,...,0,0,1,1,1,1,...]
+     * vec  = [0,1,1,...,0,0,1,1,1,1,...]
      */
 
     int rank, nprocs;
@@ -50,10 +50,10 @@ void test() {
     auto vecSubView2Ptr = vecSubView2->getLocalView<Kokkos::HostSpace>();
     vecSubView1->modify<Kokkos::HostSpace>();
     vecSubView2->modify<Kokkos::HostSpace>();
-    for (int i = 0; i < vecSubView1Ptr.dimension_0(); i++) {
+    for (int i = 0; i < vecSubView1Ptr.extent(0); i++) {
         vecSubView1Ptr(i, 0) = rank;
     }
-    for (int i = 0; i < vecSubView2Ptr.dimension_0(); i++) {
+    for (int i = 0; i < vecSubView2Ptr.extent(0); i++) {
         vecSubView2Ptr(i, 0) = rank;
     }
 
