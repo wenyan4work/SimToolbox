@@ -1,48 +1,22 @@
 # Example of how to compile and link target_compile_options
 # target_include_directories target_link_libraries
 
-#########################################################################
-add_executable(TMAP_test TMAP_test.cpp
-                         ${PROJECT_SOURCE_DIR}/Trilinos/TpetraUtil.cpp)
-target_compile_options(TMAP_test PRIVATE ${OpenMP_CXX_FLAGS})
-target_include_directories(
-  TMAP_test PRIVATE ${PROJECT_SOURCE_DIR} ${Trilinos_INCLUDE_DIRS}
-                    ${TRNG_INCLUDE_DIR})
-target_link_libraries(
-  TMAP_test PRIVATE ${Trilinos_LIBRARIES} ${Trilinos_TPL_LIBRARIES}
-                    ${TRNG_LIBRARY} OpenMP::OpenMP_CXX MPI::MPI_CXX)
-add_test(NAME TMAP COMMAND mpirun -n 4 TMAP_test)
+function(exetest exename)
+  add_executable(${exename}_test ${exename}_test.cpp TpetraUtil.cpp)
+  target_include_directories(
+    ${exename}_test PRIVATE ${CMAKE_SOURCE_DIR} ${Trilinos_INCLUDE_DIRS}
+                            ${TRNG_INCLUDE_DIR})
+  target_link_libraries(
+    ${exename}_test PRIVATE ${Trilinos_LIBRARIES} ${Trilinos_TPL_LIBRARIES}
+                            ${TRNG_LIBRARY} OpenMP::OpenMP_CXX MPI::MPI_CXX)
+  add_test(NAME ${exename} COMMAND mpirun -n 4 ${exename}_test)
+endfunction()
 
 #########################################################################
-add_executable(TCMAT_test TCMAT_test.cpp TpetraUtil.cpp)
-target_include_directories(
-  TCMAT_test PRIVATE ${PROJECT_SOURCE_DIR} ${Trilinos_INCLUDE_DIRS}
-                     ${Trilinos_TPL_INCLUDE_DIRS})
-target_link_libraries(TCMAT_test ${Trilinos_LIBRARIES}
-                      ${Trilinos_TPL_LIBRARIES} OpenMP::OpenMP_CXX MPI::MPI_CXX)
-add_test(NAME TCMAT COMMAND mpirun -n 4 TCMAT_test)
-
-#########################################################################
-add_executable(SubView_test SubView_test.cpp
-                            ${PROJECT_SOURCE_DIR}/Trilinos/TpetraUtil.cpp)
-target_compile_options(SubView_test PRIVATE ${OpenMP_CXX_FLAGS})
-target_include_directories(
-  SubView_test PRIVATE ${PROJECT_SOURCE_DIR} ${Trilinos_INCLUDE_DIRS}
-                       ${TRNG_INCLUDE_DIR})
-target_link_libraries(
-  SubView_test PRIVATE ${Trilinos_LIBRARIES} ${Trilinos_TPL_LIBRARIES}
-                       ${TRNG_LIBRARY} OpenMP::OpenMP_CXX MPI::MPI_CXX)
-add_test(NAME SubView COMMAND SubView_test)
-
-#########################################################################
-add_executable(ZDD_test ZDD_test.cpp)
-target_compile_options(ZDD_test PRIVATE ${OpenMP_CXX_FLAGS})
-target_include_directories(
-  ZDD_test PRIVATE ${PROJECT_SOURCE_DIR} ${Trilinos_INCLUDE_DIRS}
-                   ${Trilinos_TPL_INCLUDE_DIRS})
-target_link_libraries(ZDD_test ${Trilinos_LIBRARIES} ${Trilinos_TPL_LIBRARIES}
-                      OpenMP::OpenMP_CXX MPI::MPI_CXX)
-add_test(NAME ZDD COMMAND ZDD_test)
+exetest(TMAP)
+exetest(TCMAT)
+exetest(SubView)
+exetest(ZDD)
 
 #########################################################################
 add_executable(Belos_test Belos_test.cpp TpetraUtil.cpp)
