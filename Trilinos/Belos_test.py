@@ -1,6 +1,7 @@
 import os
 
-link="ftp://math.nist.gov/pub/MatrixMarket2/misc/cylshell/s1rmq4m1.mtx.gz"
+# test matrix is 5489 x 5489, 143300 entries and real symmetric positive definite
+link = "https://math.nist.gov/pub/MatrixMarket2/misc/cylshell/s1rmq4m1.mtx.gz"
 file = os.path.basename(link)
 print(file)
 if os.path.exists(file):

@@ -8,12 +8,11 @@
 int main(int argc, char **argv) {
 
   MPI_Init(&argc, &argv);
-  int rank, nProcs;
-  MPI_Comm_rank(MPI_COMM_WORLD, &rank);
-  MPI_Comm_size(MPI_COMM_WORLD, &nProcs);
+  Logger::setup_mpi_spdlog();
   {
-    Logger::setup_mpi_spdlog();
     auto commRcp = getMPIWORLDTCOMM();
+    const int rank = commRcp->getRank();
+    const int nProcs = commRcp->getSize();
 
     using LO = TMAP::local_ordinal_type;
     using GO = TMAP::global_ordinal_type;

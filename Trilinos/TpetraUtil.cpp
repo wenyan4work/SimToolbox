@@ -17,7 +17,7 @@ void dumpTV(const Teuchos::RCP<const TV> &A, std::string filename) {
 
   const auto &fromMap = A->getMap();
   const auto &toMap =
-      Teuchos::rcp(new TMAP(fromMap->getGlobalNumElements(), 0,
+      Teuchos::rcp(new TMAP(fromMap->getGlobalNumElements(), 0LL,
                             fromMap->getComm(), Tpetra::GloballyDistributed));
   Tpetra::Import<TV::local_ordinal_type, TV::global_ordinal_type, TV::node_type>
       importer(fromMap, toMap);
@@ -52,7 +52,7 @@ getTMAPFromGlobalIndexOnLocal(const std::vector<TGO> &gidOnLocal,
                               const TGO globalSize,
                               Teuchos::RCP<const TCOMM> &commRcp) {
   return Teuchos::rcp(
-      new TMAP(globalSize, gidOnLocal.data(), gidOnLocal.size(), 0, commRcp));
+      new TMAP(globalSize, gidOnLocal.data(), gidOnLocal.size(), 0LL, commRcp));
 }
 
 Teuchos::RCP<TMAP>
@@ -109,20 +109,98 @@ Teuchos::RCP<TV> getTVFromVector(const std::vector<double> &in,
 
   Teuchos::RCP<TMAP> contigMapRcp = getTMAPFromLocalSize(localSize, commRcp);
 
-  Teuchos::RCP<TV> out = Teuchos::rcp(new TV(contigMapRcp, false));
-
-  auto out_2d = out->getLocalView<Kokkos::HostSpace>();
-  assert(out_2d.extent(0) == localSize);
-
-  out->modify<Kokkos::HostSpace>();
-  const auto oe0 = out_2d.extent(0);
-  const auto oe1 = out_2d.extent(1);
-  for (size_t c = 0; c < oe1; c++) {
-#pragma omp parallel for // schedule(dynamic, 1024)
-    for (size_t i = 0; i < oe0; i++) {
-      out_2d(i, c) = in[i];
-    }
-  }
+  Teuchos::RCP<TV> out =
+      Teuchos::rcp(new TV(contigMapRcp, Teuchos::arrayViewFromVector(in)));
 
   return out;
+}
+
+Teuchos::RCP<TOP>
+createIfpack2Preconditioner(const Teuchos::RCP<const TCMAT> &A,
+                            const Teuchos::ParameterList &plist) {
+  using Teuchos::RCP;
+  using Teuchos::rcp;
+  using Teuchos::Time;
+  using Teuchos::TimeMonitor;
+
+  using PrecType =
+      Ifpack2::Preconditioner<TCMAT::scalar_type, TCMAT::local_ordinal_type,
+                              TCMAT::global_ordinal_type>;
+
+  // Create timers to show how long it takes for Ifpack2 to do various
+  // operations.
+  RCP<Time> initTimer =
+      TimeMonitor::getNewCounter("Ifpack2::Preconditioner::initialize");
+  RCP<Time> computeTimer =
+      TimeMonitor::getNewCounter("Ifpack2::Preconditioner::compute");
+
+  // Create the preconditioner and set parameters.
+  // This doesn't actually _compute_ the preconditioner.
+  // It just sets up the specific type of preconditioner and
+  // its associated parameters (which depend on the type).
+  RCP<PrecType> prec;
+  Ifpack2::Factory factory;
+
+  // Set up the preconditioner of the given type.
+  prec = factory.create(plist.name(), A);
+  prec->setParameters(plist);
+
+  {
+    TimeMonitor mon(*initTimer);
+    prec->initialize();
+  }
+
+  {
+    // THIS ACTUALLY COMPUTES THE PRECONDITIONER (e.g., does the incomplete
+    // factorization).
+    TimeMonitor mon(*computeTimer);
+    prec->compute();
+  }
+  return prec;
+}
+
+Teuchos::RCP<TOP> createILUTPreconditioner(const Teuchos::RCP<const TCMAT> &A,
+                                           double tol, double fill) {
+
+  spdlog::info("Preconditioner ILUT setup");
+
+  const auto &commRcp = A->getComm();
+
+  Teuchos::ParameterList plist;
+
+  plist.setName("ILUT");
+  plist.set("fact: ilut level-of-fill", fill);
+  plist.set("fact: drop tolerance", tol);
+
+  // this stablizes the preconditioner but takes more iterations
+  plist.set("fact: absolute threshold", 0.0001);
+
+  return createIfpack2Preconditioner(A, plist);
+}
+
+Teuchos::RCP<TOP> createPlnPreconditioner(const Teuchos::RCP<const TCMAT> &A,
+                                          int sweep, double damping) {
+  using Teuchos::RCP;
+  using Teuchos::rcp;
+  using Teuchos::Time;
+  using Teuchos::TimeMonitor;
+
+  spdlog::info("Preconditioner Pln setup");
+
+  auto commRcp = A->getComm();
+
+  Teuchos::ParameterList plist;
+  plist.setName("RELAXATION");
+
+  plist.set("relaxation: type", "Jacobi");
+  plist.set("relaxation: sweeps", sweep);
+  plist.set("relaxation: damping factor", damping);
+  plist.set("relaxation: use l1", true);
+  plist.set("relaxation: fix tiny diagonal entries", true);
+  plist.set("relaxation: min diagonal value", 1e-5);
+
+  // must be true. otherwise may give random or NAN result
+  plist.set("relaxation: zero starting solution", true);
+
+  return createIfpack2Preconditioner(A, plist);
 }

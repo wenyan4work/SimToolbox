@@ -53,12 +53,6 @@ public:
 
     int rank;
     MPI_Comm_rank(MPI_COMM_WORLD, &rank);
-    // spdlog::logger sink = rank ? spdlog::logger("log",
-    // std::make_shared<spdlog::sinks::stdout_sink_st>())
-    //                            : spdlog::logger("log",
-    //                            std::make_shared<spdlog::sinks::null_sink_st>());
-    // sink.set_level(spdlog::level::err);
-    // spdlog::cfg::load_env_levels();
 
     spdlog::logger sink =
         spdlog::logger("rank " + std::to_string(rank),

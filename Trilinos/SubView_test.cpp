@@ -1,4 +1,5 @@
-#include "Trilinos/TpetraUtil.hpp"
+#include "TpetraUtil.hpp"
+#include "Util/Logger.hpp"
 
 void test() {
 
@@ -50,10 +51,12 @@ void test() {
   const auto localSize = vecView.extent(0);
   assert(localSize == localSize1 + localSize2);
   for (long i = 0; i < localSize1; i++) {
-    assert(vecView(i, 0) == rank);
+    if (vecView(i, 0) != rank)
+      printf("Error %d %g\n", i, vecView(i, 0));
   }
   for (long i = 0; i < localSize2; i++) {
-    assert(vecView(i + localSize1, 0) == rank + nprocs);
+    if (vecView(i + localSize1, 0) != rank + nprocs)
+      printf("Error %d %g\n", i, vecView(i + localSize1, 0));
   }
 
   dumpTV(vecSubView1, "vecSubView1");
@@ -64,6 +67,7 @@ void test() {
 
 int main(int argc, char **argv) {
   MPI_Init(&argc, &argv);
+  Logger::setup_mpi_spdlog();
 
   test();
 

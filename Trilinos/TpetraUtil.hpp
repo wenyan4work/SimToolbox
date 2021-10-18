@@ -17,6 +17,7 @@
 #include <Teuchos_GlobalMPISession.hpp>
 #include <Teuchos_SerialDenseMatrix.hpp>
 #include <Teuchos_TimeMonitor.hpp>
+#include <Teuchos_VerboseObject.hpp>
 #include <Teuchos_oblackholestream.hpp>
 
 // Tpetra container
@@ -126,6 +127,19 @@ public:
 } // namespace Belos
 
 /**
+ * @brief describe obj
+ *
+ * @tparam T
+ * @param obj
+ */
+template <class T>
+void describe(const T &obj) {
+  Teuchos::RCP<Teuchos::FancyOStream> out =
+      Teuchos::VerboseObjectBase::getDefaultOStream();
+  obj->describe(*out, Teuchos::EVerbosityLevel::VERB_MEDIUM);
+}
+
+/**
  * @brief write TCMAT A to a file in MatrixMarket format
  *
  * @param A
@@ -198,6 +212,17 @@ getTMAPFromTwoBlockTMAP(const Teuchos::RCP<const TMAP> &map1,
                         const Teuchos::RCP<const TMAP> &map2);
 
 /**
+ * @brief contiguous TV from a local vector
+ *
+ * @param in
+ * @param commRcp
+ * @return Teuchos::RCP<TV> the local part of this TV will contain the same
+ * entries as given in the input vector
+ */
+Teuchos::RCP<TV> getTVFromVector(const std::vector<double> &in,
+                                 Teuchos::RCP<const TCOMM> &commRcp);
+
+/**
  * @brief create a vector for two blocks X=[X1;X2]
  *
  * @param vec1
@@ -208,14 +233,35 @@ Teuchos::RCP<TV> getTVFromTwoBlockTV(const Teuchos::RCP<const TV> &vec1,
                                      const Teuchos::RCP<const TV> &vec2);
 
 /**
- * @brief contiguous TV from a local vector
+ * @brief Create a Ifpack2 Preconditioner object
  *
- * @param in
- * @param commRcp
- * @return Teuchos::RCP<TV> the local part of this TV will contain the same
- * entries as given in the input vector
+ * @param A
+ * @param plist
+ * @return Teuchos::RCP<TOP>
  */
-Teuchos::RCP<TV> getTVFromVector(const std::vector<double> &in,
-                                 Teuchos::RCP<const TCOMM> &commRcp);
+Teuchos::RCP<TOP>
+createIfpack2Preconditioner(const Teuchos::RCP<const TCMAT> &A,
+                            const Teuchos::ParameterList &plist);
+
+/**
+ * @brief create an ILUT preconditioner from Ifpack2
+ *
+ * @param A
+ * @param tol
+ * @param fill
+ * @return Teuchos::RCP<TOP>
+ */
+Teuchos::RCP<TOP> createILUTPreconditioner(const Teuchos::RCP<const TCMAT> &A,
+                                           double tol = 1e-4,
+                                           double fill = 2.0);
+
+/**
+ * @brief Create a Pln Preconditioner
+ *
+ * @param A
+ * @return Teuchos::RCP<TOP>
+ */
+Teuchos::RCP<TOP> createPlnPreconditioner(const Teuchos::RCP<const TCMAT> &A,
+                                          int sweep = 5, double damping = 2.0);
 
 #endif /* TPETRAUTIL_HPP_ */
