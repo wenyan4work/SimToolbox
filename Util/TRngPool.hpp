@@ -85,7 +85,7 @@ class TRngPool {
 
         rngEngineThreadsPtr.resize(nThreads);
 #pragma omp parallel for num_threads(nThreads)
-        for (int i = 0; i < nThreads; i++) {
+        for (long i = 0; i < nThreads; i++) {
             // a copy of engine for each thread
             rngEngineThreadsPtr[i].reset(new myEngineType());
             *rngEngineThreadsPtr[i] = rngEngine;

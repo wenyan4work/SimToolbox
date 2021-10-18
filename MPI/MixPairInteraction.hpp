@@ -272,7 +272,7 @@ template <class FPT, class FPS, class EPT, class EPS, class Force>
 void MixPairInteraction<FPT, FPS, EPT, EPS, Force>::dumpSystem() {
     const int nLocalMix = systemMix.getNumberOfParticleLocal();
 
-    for (int i = 0; i < nLocalMix; i++) {
+    for (long i = 0; i < nLocalMix; i++) {
         const auto &fp = systemMix[i];
         const auto &pos = fp.getPos();
         const auto r = fp.getRadius();
@@ -303,7 +303,7 @@ void MixPairInteraction<FPT, FPS, EPT, EPS, Force>::computeForce(CalcMixForce &c
 
     forceResult.resize(nLocalTrg);
 #pragma omp parallel for
-    for (int i = 0; i < nLocalTrg; i++) {
+    for (long i = 0; i < nLocalTrg; i++) {
         forceResult[i] = treeMixPtr->getForce(i);
     }
 }

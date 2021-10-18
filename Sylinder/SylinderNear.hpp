@@ -202,7 +202,7 @@ class CalcSylinderNearForce {
             forceI.clear();
 
             if (isSphere(syI)) { // sphereI collisions
-                for (int j = 0; j < Njp; j++) {
+                for (long j = 0; j < Njp; j++) {
                     auto &syJ = ep_j[j];
                     if (syI.gid >= syJ.gid)
                         continue;
@@ -217,7 +217,7 @@ class CalcSylinderNearForce {
                         conQue.push_back(conBlock);
                 }
             } else { // sylinderI collisions
-                for (int j = 0; j < Njp; j++) {
+                for (long j = 0; j < Njp; j++) {
                     auto &syJ = ep_j[j];
                     if (syI.gid >= syJ.gid)
                         continue;
@@ -461,11 +461,11 @@ class CalcSylinderNearForce {
         Emat3 SGI, SGJ;
         SGI.setZero();
         SGJ.setZero();
-        for (int i = 0; i < 3; i++) {
-            for (int j = 0; j < 3; j++) {
-                for (int k = 0; k < 3; k++) {
-                    for (int l = 0; l < 3; l++) {
-                        for (int r = 0; r < 3; r++) {
+        for (long i = 0; i < 3; i++) {
+            for (long j = 0; j < 3; j++) {
+                for (long k = 0; k < 3; k++) {
+                    for (long l = 0; l < 3; l++) {
+                        for (long r = 0; r < 3; r++) {
                             SGI(i, j) = SGI(i, j) + NI(i, l) * epsilon[j][k][l] * InvGAMMAI(k, r) * xICf(r);
                             SGJ(i, j) = SGJ(i, j) + NJ(i, l) * epsilon[j][k][l] * InvGAMMAJ(k, r) * xJCf(r);
                         }

@@ -80,7 +80,7 @@ struct ConstraintBlock {
                     double gammaLB_)
         : delta0(delta0_), gamma(gamma_), gidI(gidI_), gidJ(gidJ_), globalIndexI(globalIndexI_),
           globalIndexJ(globalIndexJ_), oneSide(oneSide_), bilateral(bilateral_), kappa(kappa_), gammaLB(gammaLB_) {
-        for (int d = 0; d < 3; d++) {
+        for (long d = 0; d < 3; d++) {
             normI[d] = normI_[d];
             normJ[d] = normJ_[d];
             posI[d] = posI_[d];
@@ -92,15 +92,15 @@ struct ConstraintBlock {
     }
 
     void setStress(const Emat3 &stress_) {
-        for (int i = 0; i < 3; i++) {
-            for (int j = 0; j < 3; j++) {
+        for (long i = 0; i < 3; i++) {
+            for (long j = 0; j < 3; j++) {
                 stress[i * 3 + j] = stress_(i, j);
             }
         }
     }
 
     void setStress(const double *stress_) {
-        for (int i = 0; i < 9; i++) {
+        for (long i = 0; i < 9; i++) {
             stress[i] = stress_[i];
         }
     }
@@ -108,8 +108,8 @@ struct ConstraintBlock {
     const double *getStress() const { return stress; }
 
     void getStress(Emat3 &stress_) const {
-        for (int i = 0; i < 3; i++) {
-            for (int j = 0; j < 3; j++) {
+        for (long i = 0; i < 3; i++) {
+            for (long j = 0; j < 3; j++) {
                 stress_(i, j) = stress[i * 3 + j];
             }
         }
@@ -118,7 +118,7 @@ struct ConstraintBlock {
     void reverseIJ() {
         std::swap(gidI, gidJ);
         std::swap(globalIndexI, globalIndexJ);
-        for (int k = 0; k < 3; k++) {
+        for (long k = 0; k < 3; k++) {
             std::swap(normI[k], normJ[k]);
             std::swap(posI[k], posJ[k]);
             std::swap(labI[k], labJ[k]);

@@ -125,7 +125,7 @@ void CommMPI::exchangeAllToAllV(std::vector<int> &sendDestRank, std::vector<Data
     assert(sendCounts.size() == nProcs);
     assert(recvCounts.size() == nProcs);
 #pragma omp parallel for
-    for (int i = 0; i < nSendTotal; i++) {
+    for (long i = 0; i < nSendTotal; i++) {
         const int dest = sendDestRank[i];
         assert(dest >= 0 && dest < nProcs);
 #pragma omp atomic update
@@ -157,7 +157,7 @@ void CommMPI::exchangeAllToAllV(std::vector<int> &sendDestRank, std::vector<Data
     MPI_Alltoallv(sendData.data(), sendCounts.data(), sendDispls.data(), mpiDataType, //
                   recvData.data(), recvCounts.data(), recvDispls.data(), mpiDataType, MPI_COMM_WORLD);
 #pragma omp parallel for
-    for (int i = 0; i < nProcs; i++) {
+    for (long i = 0; i < nProcs; i++) {
         int lb = recvDispls[i];
         int ub = recvDispls[i + 1];
         std::fill(recvSrcRank.begin() + lb, recvSrcRank.begin() + ub, i);

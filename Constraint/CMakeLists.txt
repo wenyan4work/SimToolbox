@@ -15,9 +15,9 @@ add_test(NAME BCQPSolver COMMAND python BCQPSolver_verify.py)
 # copy the BCQPverify.py file to the build directory
 add_custom_command(
   OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/BCQPSolver_verify.py
-  COMMAND ${CMAKE_COMMAND} -E copy
-          ${CMAKE_CURRENT_SOURCE_DIR}/BCQPSolver_verify.py
-          ${CMAKE_CURRENT_BINARY_DIR}
+  COMMAND
+    ${CMAKE_COMMAND} -E copy ${CMAKE_CURRENT_SOURCE_DIR}/BCQPSolver_verify.py
+    ${CMAKE_CURRENT_BINARY_DIR}
   DEPENDS "${CMAKE_CURRENT_SOURCE_DIR}/BCQPSolver_verify.py")
 # Custom target for activate the custom command above
 add_custom_target(copy_BCQPSolver_verify

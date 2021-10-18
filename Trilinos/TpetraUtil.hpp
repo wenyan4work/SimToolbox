@@ -38,22 +38,38 @@
 // Preconditioner
 #include <Ifpack2_Factory.hpp>
 
-// Packages: Trilinos-wide next generation stack
-// Deprecation: Explicit instantiation of multiple different global ordinal types and multiple different local ordinal
-// types Mitigation: Use default global ordinal type long long and local ordinal type int, or specify to CMake -DTpetra
-// INST INT INT=ON to use global ordinal type int and local ordinal type int. Justification: Building with multiple
-// ordinal types increases build times and library sizes; all applications surveyed used only one global ordinal type
+#include <type_traits>
+
+// Trilinos-wide next generation stack
+// Deprecation: Explicit instantiation of multiple different global ordinal
+// types and multiple different local ordinal types Mitigation: Use default
+// global ordinal type long long and local ordinal type int, or specify to CMake
+// -DTpetra_INST_INT_INT=ON to use global ordinal type int and local ordinal
+// type int. Justification: Building with multiple ordinal types increases build
+// times and library sizes; all applications surveyed used only one global
+// ordinal type
 
 using TCOMM = Teuchos::Comm<int>; ///< default Teuchos::Comm type
 
-using TMAP = Tpetra::Map<>;                      ///< default Teuchos::Map type
-using LocalOrdinal = TMAP::local_ordinal_type;   ///< default local ordinal type
-using GlobalOrdinal = TMAP::global_ordinal_type; ///< default global ordinal type
+using TMAP = Tpetra::Map<>;            ///< default Teuchos::Map type
+using TLO = TMAP::local_ordinal_type;  ///< default local ordinal type
+using TGO = TMAP::global_ordinal_type; ///< default global ordinal type
 
-using TOP = Tpetra::Operator<double, LocalOrdinal, GlobalOrdinal>;    ///< default Tpetra::Operator type
-using TCMAT = Tpetra::CrsMatrix<double, LocalOrdinal, GlobalOrdinal>; ///< default Tpetra::CrsMatrix type
-using TMV = Tpetra::MultiVector<double, LocalOrdinal, GlobalOrdinal>; ///< default Tpetra::MultiVector type
-using TV = Tpetra::Vector<double, LocalOrdinal, GlobalOrdinal>;       ///< default to Tpetra::Vector type
+/**
+ * @brief ensure type in
+ *
+ */
+static_assert(std::is_same<TLO, int>::value, " TLO type error \n");
+static_assert(std::is_same<TGO, long long int>::value, " TGO type error \n");
+
+/**
+ * @brief use double, TLO, TGO for all Tpetra objects
+ *
+ */
+using TOP = Tpetra::Operator<double, TLO, TGO>;
+using TCMAT = Tpetra::CrsMatrix<double, TLO, TGO>;
+using TMV = Tpetra::MultiVector<double, TLO, TGO>;
+using TV = Tpetra::Vector<double, TLO, TGO>;
 
 /**
  * @brief inserting a specialization for Tpetra objects into Belos namespace
@@ -67,41 +83,45 @@ namespace Belos {
  */
 template <>
 class OperatorTraits<::TOP::scalar_type, ::TMV, ::TOP> {
-  public:
-    /**
-     * @brief Belos operator apply function, Y = Op X
-     *
-     * @param Op
-     * @param X
-     * @param Y
-     * @param trans
-     */
-    static void Apply(const ::TOP &Op, const ::TMV &X, ::TMV &Y, const ETrans trans = NOTRANS) {
-        Teuchos::ETransp teuchosTrans = Teuchos::NO_TRANS;
-        if (trans == NOTRANS) {
-            teuchosTrans = Teuchos::NO_TRANS;
-        } else if (trans == TRANS) {
-            teuchosTrans = Teuchos::TRANS;
-        } else if (trans == CONJTRANS) {
-            teuchosTrans = Teuchos::CONJ_TRANS;
-        } else {
-            TEUCHOS_TEST_FOR_EXCEPTION(true, std::invalid_argument,
-                                       "Belos::OperatorTraits::Apply: Invalid "
-                                       "'trans' value "
-                                           << trans << ".  Valid values are NOTRANS=" << NOTRANS << ", TRANS=" << TRANS
-                                           << ", and CONJTRANS=" << CONJTRANS << ".");
-        }
-        Op.apply(X, Y, teuchosTrans);
+public:
+  /**
+   * @brief Belos operator apply function, Y = Op X
+   *
+   * @param Op
+   * @param X
+   * @param Y
+   * @param trans
+   */
+  static void Apply(const ::TOP &Op, const ::TMV &X, ::TMV &Y,
+                    const ETrans trans = NOTRANS) {
+    Teuchos::ETransp teuchosTrans = Teuchos::NO_TRANS;
+    if (trans == NOTRANS) {
+      teuchosTrans = Teuchos::NO_TRANS;
+    } else if (trans == TRANS) {
+      teuchosTrans = Teuchos::TRANS;
+    } else if (trans == CONJTRANS) {
+      teuchosTrans = Teuchos::CONJ_TRANS;
+    } else {
+      TEUCHOS_TEST_FOR_EXCEPTION(true, std::invalid_argument,
+                                 "Belos::OperatorTraits::Apply: Invalid "
+                                 "'trans' value "
+                                     << trans << ".  Valid values are NOTRANS="
+                                     << NOTRANS << ", TRANS=" << TRANS
+                                     << ", and CONJTRANS=" << CONJTRANS << ".");
     }
+    Op.apply(X, Y, teuchosTrans);
+  }
 
-    /**
-     * @brief return if the operator has transpose apply
-     *
-     * @param Op
-     * @return true
-     * @return false
-     */
-    static bool HasApplyTranspose(const ::TOP &Op) { return Op.hasTransposeApply(); }
+  /**
+   * @brief return if the operator has transpose apply
+   *
+   * @param Op
+   * @return true
+   * @return false
+   */
+  static bool HasApplyTranspose(const ::TOP &Op) {
+    return Op.hasTransposeApply();
+  }
 };
 } // namespace Belos
 
@@ -144,7 +164,8 @@ Teuchos::RCP<const TCOMM> getMPIWORLDTCOMM();
  * @param commRcp
  * @return Teuchos::RCP<TMAP>
  */
-Teuchos::RCP<TMAP> getTMAPFromLocalSize(const size_t localSize, Teuchos::RCP<const TCOMM> &commRcp);
+Teuchos::RCP<TMAP> getTMAPFromLocalSize(const size_t localSize,
+                                        Teuchos::RCP<const TCOMM> &commRcp);
 
 /**
  * @brief get a TMAP from arbitrary global index on local
@@ -154,8 +175,10 @@ Teuchos::RCP<TMAP> getTMAPFromLocalSize(const size_t localSize, Teuchos::RCP<con
  * @param commRcp
  * @return Teuchos::RCP<TMAP>
  */
-Teuchos::RCP<TMAP> getTMAPFromGlobalIndexOnLocal(const std::vector<GlobalOrdinal> &gidOnLocal,
-                                                 const GlobalOrdinal globalSize, Teuchos::RCP<const TCOMM> &commRcp);
+Teuchos::RCP<TMAP>
+getTMAPFromGlobalIndexOnLocal(const std::vector<TGO> &gidOnLocal,
+                              const TGO globalSize,
+                              Teuchos::RCP<const TCOMM> &commRcp);
 
 /**
  * @brief create a map for vector with two blocks X=[X1;X2],
@@ -170,7 +193,9 @@ Teuchos::RCP<TMAP> getTMAPFromGlobalIndexOnLocal(const std::vector<GlobalOrdinal
  * @param map2
  * @return Teuchos::RCP<TMAP>
  */
-Teuchos::RCP<TMAP> getTMAPFromTwoBlockTMAP(const Teuchos::RCP<const TMAP> &map1, const Teuchos::RCP<const TMAP> &map2);
+Teuchos::RCP<TMAP>
+getTMAPFromTwoBlockTMAP(const Teuchos::RCP<const TMAP> &map1,
+                        const Teuchos::RCP<const TMAP> &map2);
 
 /**
  * @brief create a vector for two blocks X=[X1;X2]
@@ -179,15 +204,18 @@ Teuchos::RCP<TMAP> getTMAPFromTwoBlockTMAP(const Teuchos::RCP<const TMAP> &map1,
  * @param vec2
  * @return Teuchos::RCP<TV>
  */
-Teuchos::RCP<TV> getTVFromTwoBlockTV(const Teuchos::RCP<const TV> &vec1, const Teuchos::RCP<const TV> &vec2);
+Teuchos::RCP<TV> getTVFromTwoBlockTV(const Teuchos::RCP<const TV> &vec1,
+                                     const Teuchos::RCP<const TV> &vec2);
 
 /**
  * @brief contiguous TV from a local vector
  *
  * @param in
  * @param commRcp
- * @return Teuchos::RCP<TV> the local part of this TV will contain the same entries as given in the input vector
+ * @return Teuchos::RCP<TV> the local part of this TV will contain the same
+ * entries as given in the input vector
  */
-Teuchos::RCP<TV> getTVFromVector(const std::vector<double> &in, Teuchos::RCP<const TCOMM> &commRcp);
+Teuchos::RCP<TV> getTVFromVector(const std::vector<double> &in,
+                                 Teuchos::RCP<const TCOMM> &commRcp);
 
 #endif /* TPETRAUTIL_HPP_ */

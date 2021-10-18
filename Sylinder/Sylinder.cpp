@@ -15,14 +15,14 @@ Sylinder::Sylinder(const int &gid_, const double &radius_, const double &radiusC
     if (pos_ == nullptr) {
         Emap3(pos).setZero();
     } else {
-        for (int i = 0; i < 3; i++) {
+        for (long i = 0; i < 3; i++) {
             pos[i] = pos_[i];
         }
     }
     if (orientation_ == nullptr) {
         Emapq(orientation).setIdentity();
     } else {
-        for (int i = 0; i < 4; i++) {
+        for (long i = 0; i < 4; i++) {
             orientation[i] = orientation_[i];
         }
     }

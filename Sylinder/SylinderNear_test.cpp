@@ -14,9 +14,9 @@ void testEpsilon() {
                                               {{0, 0, -1}, {0, 0, 0}, {1, 0, 0}}, //
                                               {{0, 1, 0}, {-1, 0, 0}, {0, 0, 0}}};
     double epsilon[3][3][3];
-    for (int i = 0; i < 3; i++) {
-        for (int j = 0; j < 3; j++) {
-            for (int k = 0; k < 3; k++) {
+    for (long i = 0; i < 3; i++) {
+        for (long j = 0; j < 3; j++) {
+            for (long k = 0; k < 3; k++) {
                 epsilon[i][j][k] = 0.0;
             }
         }
@@ -28,9 +28,9 @@ void testEpsilon() {
     epsilon[2][1][0] = -1.0;
     epsilon[0][2][1] = -1.0;
 
-    for (int i = 0; i < 3; i++) {
-        for (int j = 0; j < 3; j++) {
-            for (int k = 0; k < 3; k++) {
+    for (long i = 0; i < 3; i++) {
+        for (long j = 0; j < 3; j++) {
+            for (long k = 0; k < 3; k++) {
                 if (epsilon[i][j][k] != epsilonConst[i][j][k]) {
                     printf("epsilonConst not correct\n");
                     std::exit(1);

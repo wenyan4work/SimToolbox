@@ -40,7 +40,9 @@ using Emat2 = Eigen::Matrix<double, 2, 2, Eigen::DontAlign>;
 using Emat3 = Eigen::Matrix<double, 3, 3, Eigen::DontAlign>;
 using Emat4 = Eigen::Matrix<double, 4, 4, Eigen::DontAlign>;
 using Emat6 = Eigen::Matrix<double, 6, 6, Eigen::DontAlign>;
-using EmatPsi = Eigen::Matrix<double, 4, 3, Eigen::DontAlign>; // psi mat for quaternion rotation
+using EmatPsi =
+    Eigen::Matrix<double, 4, 3,
+                  Eigen::DontAlign>; // psi mat for quaternion rotation
 
 // unaligned quaternion
 using Equatn = Eigen::Quaternion<double, Eigen::DontAlign>;
@@ -69,7 +71,8 @@ using ECmapq = Eigen::Map<const Eigen::Quaternion<double>, Eigen::Unaligned>;
 
 // dynamic size types
 using Evec = Eigen::VectorXd;
-using Emat = Eigen::Matrix<double, Eigen::Dynamic, Eigen::Dynamic>; // default to column major
+using Emat = Eigen::Matrix<double, Eigen::Dynamic,
+                           Eigen::Dynamic>; // default to column major
 using Espmat = Eigen::SparseMatrix<double>;
 
 /**
@@ -81,9 +84,9 @@ using Espmat = Eigen::SparseMatrix<double>;
  */
 template <typename T>
 void copySwap(T &a, T &b) {
-    T temp = b;
-    b = a;
-    a = b;
+  T temp = b;
+  b = a;
+  a = b;
 }
 
 #endif /* EIGENDEF_HPP_ */

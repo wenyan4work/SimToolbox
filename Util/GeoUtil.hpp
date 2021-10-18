@@ -25,13 +25,13 @@
  */
 template <class Real>
 inline void findPBCImage(const Real &lb, const Real &ub, Real &x) {
-    const Real L = ub - lb;
-    while (x >= ub) {
-        x -= L;
-    }
-    while (x < lb) {
-        x += L;
-    }
+  const Real L = ub - lb;
+  while (x >= ub) {
+    x -= L;
+  }
+  while (x < lb) {
+    x += L;
+  }
 }
 
 /**
@@ -49,14 +49,14 @@ inline void findPBCImage(const Real &lb, const Real &ub, Real &x) {
  */
 template <class Real>
 inline void findPBCImage(const Real &lb, const Real &ub, Real &x, Real &trg) {
-    findPBCImage(lb, ub, trg);
-    Real dist = x - trg;
-    findPBCImage(0.0, ub - lb, dist);
-    if (dist > (ub - lb) * 0.5) {
-        x = trg + dist - (ub - lb);
-    } else {
-        x = trg + dist;
-    }
+  findPBCImage(lb, ub, trg);
+  Real dist = x - trg;
+  findPBCImage(0.0, ub - lb, dist);
+  if (dist > (ub - lb) * 0.5) {
+    x = trg + dist - (ub - lb);
+  } else {
+    x = trg + dist;
+  }
 }
 
 /**
@@ -70,13 +70,14 @@ inline void findPBCImage(const Real &lb, const Real &ub, Real &x, Real &trg) {
  * @param y
  */
 template <class Real>
-inline void getRandPointInCircle(const Real &radius, const Real &U01a, const Real &U01b, //
+inline void getRandPointInCircle(const Real &radius, const Real &U01a,
+                                 const Real &U01b, //
                                  Real &x, Real &y) {
-    constexpr Real Pi = 3.14159265358979323846;
-    double theta = 2 * Pi * U01a;   /* angle is uniform */
-    double r = radius * sqrt(U01b); /* radius proportional to sqrt(U), U~U(0,1) */
-    x = r * cos(theta);
-    y = r * sin(theta);
+  constexpr Real Pi = 3.14159265358979323846;
+  double theta = 2 * Pi * U01a;   /* angle is uniform */
+  double r = radius * sqrt(U01b); /* radius proportional to sqrt(U), U~U(0,1) */
+  x = r * cos(theta);
+  y = r * sin(theta);
 }
 
 /**
@@ -89,10 +90,11 @@ inline void getRandPointInCircle(const Real &radius, const Real &U01a, const Rea
  * @param phi
  */
 template <class Real>
-inline void getRandPointAngleOnSphere(const Real &U01a, const Real &U01b, Real &theta, Real &phi) {
-    constexpr Real Pi = 3.14159265358979323846;
-    theta = 2 * Pi * U01a;
-    phi = acos(2 * U01b - 1.0);
+inline void getRandPointAngleOnSphere(const Real &U01a, const Real &U01b,
+                                      Real &theta, Real &phi) {
+  constexpr Real Pi = 3.14159265358979323846;
+  theta = 2 * Pi * U01a;
+  phi = acos(2 * U01b - 1.0);
 }
 
 /**
@@ -104,12 +106,13 @@ inline void getRandPointAngleOnSphere(const Real &U01a, const Real &U01b, Real &
  * @param pos
  */
 template <class Real>
-inline void getRandPointOnSphere(const Real &radius, const Real &U01a, const Real &U01b, Real pos[3]) {
-    Real theta, phi;
-    getRandPointAngleOnSphere(U01a, U01b, theta, phi);
-    pos[0] = cos(theta) * sin(phi) * radius;
-    pos[1] = sin(theta) * sin(phi) * radius;
-    pos[2] = cos(phi) * radius;
+inline void getRandPointOnSphere(const Real &radius, const Real &U01a,
+                                 const Real &U01b, Real pos[3]) {
+  Real theta, phi;
+  getRandPointAngleOnSphere(U01a, U01b, theta, phi);
+  pos[0] = cos(theta) * sin(phi) * radius;
+  pos[1] = sin(theta) * sin(phi) * radius;
+  pos[2] = cos(phi) * radius;
 }
 
 #endif

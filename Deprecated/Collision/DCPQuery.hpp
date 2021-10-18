@@ -239,7 +239,7 @@ Real DCPQuery<N, Real, Vector>::operator()(Vector const &P0, Vector const &P1, V
         sValue[1] = GetClampedRoot(mA, mF01, mF11);
 
         int classify[2];
-        for (int i = 0; i < 2; ++i) {
+        for (long i = 0; i < 2; ++i) {
             if (sValue[i] <= (Real)0) {
                 classify[i] = -1;
             } else if (sValue[i] >= (Real)1) {

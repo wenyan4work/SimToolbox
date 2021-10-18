@@ -18,7 +18,7 @@ bool ConstraintCollector::valid() const { return constraintPoolPtr->empty(); }
 
 void ConstraintCollector::clear() {
     assert(constraintPoolPtr);
-    for (int i = 0; i < constraintPoolPtr->size(); i++) {
+    for (long i = 0; i < constraintPoolPtr->size(); i++) {
         (*constraintPoolPtr)[i].clear();
     }
 
@@ -29,7 +29,7 @@ void ConstraintCollector::clear() {
 
 int ConstraintCollector::getLocalNumberOfConstraints() {
     int sum = 0;
-    for (int i = 0; i < constraintPoolPtr->size(); i++) {
+    for (long i = 0; i < constraintPoolPtr->size(); i++) {
         sum += (*constraintPoolPtr)[i].size();
     }
     return sum;
@@ -43,7 +43,7 @@ void ConstraintCollector::sumLocalConstraintStress(Emat3 &uniStress, Emat3 &biSt
     Emat3 uniStressTotal = Emat3::Zero();
 
 #pragma omp parallel for
-    for (int que = 0; que < poolSize; que++) {
+    for (long que = 0; que < poolSize; que++) {
         // reduction of stress, one que for each thread
 
         Emat3 uniStressSumQue = Emat3::Zero();
@@ -91,7 +91,7 @@ void ConstraintCollector::writePVTP(const std::string &folder, const std::string
     cellDataFields.emplace_back(1, IOHelper::IOTYPE::Float32, "kappa");
     cellDataFields.emplace_back(9, IOHelper::IOTYPE::Float32, "Stress");
 
-    for (int i = 0; i < nProcs; i++) {
+    for (long i = 0; i < nProcs; i++) {
         pieceNames.emplace_back(prefix + std::string("ConBlock_") + std::string("r") + std::to_string(i) + "_" +
                                 postfix + ".vtp");
     }
@@ -133,7 +133,7 @@ void ConstraintCollector::writeVTP(const std::string &folder, const std::string 
 
 #pragma omp parallel for
     // connectivity
-    for (int i = 0; i < cBlockNum; i++) {
+    for (long i = 0; i < cBlockNum; i++) {
         connectivity[2 * i] = 2 * i;         // index of point 0 in line
         connectivity[2 * i + 1] = 2 * i + 1; // index of point 1 in line
         offset[i] = 2 * i + 2;               // offset is the end of each line. in fortran indexing
@@ -141,10 +141,10 @@ void ConstraintCollector::writeVTP(const std::string &folder, const std::string 
 
 #pragma omp parallel for
     // data
-    for (int q = 0; q < cQueNum; q++) {
+    for (long q = 0; q < cQueNum; q++) {
         const int queSize = cQueSize[q];
         const int queIndex = cQueIndex[q];
-        for (int c = 0; c < queSize; c++) {
+        for (long c = 0; c < queSize; c++) {
             const int cIndex = queIndex + c;
             const auto &block = cPool[q][c];
             // point position
@@ -177,7 +177,7 @@ void ConstraintCollector::writeVTP(const std::string &folder, const std::string 
             delta0[cIndex] = block.delta0;
             gamma[cIndex] = block.gamma;
             kappa[cIndex] = block.kappa;
-            for (int kk = 0; kk < 9; kk++) {
+            for (long kk = 0; kk < 9; kk++) {
                 Stress[9 * cIndex + kk] = block.stress[kk];
             }
         }
@@ -265,10 +265,10 @@ int ConstraintCollector::buildConstraintMatrixVector(const Teuchos::RCP<const TM
 
     int rowPointerIndex = 0;
     int colIndexCount = 0;
-    for (int i = 0; i < cQueNum; i++) {
+    for (long i = 0; i < cQueNum; i++) {
         const auto &queue = cPool[i];
         const int jsize = queue.size();
-        for (int j = 0; j < jsize; j++) {
+        for (long j = 0; j < jsize; j++) {
             rowPointerIndex++;
             const int cBlockNNZ = (queue[j].oneSide ? 6 : 12);
             rowPointers[rowPointerIndex] = rowPointers[rowPointerIndex - 1] + cBlockNNZ;
@@ -288,14 +288,14 @@ int ConstraintCollector::buildConstraintMatrixVector(const Teuchos::RCP<const TM
     // multi-thread filling. nThreads = poolSize, each thread process a queue
     const int nThreads = cPool.size();
 #pragma omp parallel for num_threads(nThreads)
-    for (int threadId = 0; threadId < nThreads; threadId++) {
+    for (long threadId = 0; threadId < nThreads; threadId++) {
         // each thread process a queue
         const auto &cBlockQue = cPool[threadId];
         const int cBlockNum = cBlockQue.size();
         const int cBlockIndexBase = cQueSize[threadId];
         int kk = colIndexPool[threadId];
 
-        for (int j = 0; j < cBlockNum; j++) {
+        for (long j = 0; j < cBlockNum; j++) {
             // each 6nnz for an object: gx.ux+gy.uy+gz.uz+(gzpy-gypz)wx+(gxpz-gzpx)wy+(gypx-gxpy)wz
             // 6 nnz for I
             columnIndices[kk + 0] = 6 * cBlockQue[j].globalIndexI;
@@ -348,7 +348,7 @@ int ConstraintCollector::buildConstraintMatrixVector(const Teuchos::RCP<const TM
     const int mobMax = mobMapRcp->getMaxGlobalIndex();
     std::vector<int> colMapIndex(mobMax - mobMin + 1);
 #pragma omp parallel for
-    for (int i = mobMin; i <= mobMax; i++) {
+    for (long i = mobMin; i <= mobMax; i++) {
         colMapIndex[i - mobMin] = i;
     }
     // this is the list of the columns that have nnz entries
@@ -358,7 +358,7 @@ int ConstraintCollector::buildConstraintMatrixVector(const Teuchos::RCP<const TM
         spdlog::critical("colIndexNum error");
         std::exit(1);
     }
-    for (int i = 0; i < colIndexNum; i++) {
+    for (long i = 0; i < colIndexNum; i++) {
         if (columnIndices[i] < mobMin || columnIndices[i] > mobMax)
             colMapIndex.push_back(columnIndices[i]);
     }
@@ -375,7 +375,7 @@ int ConstraintCollector::buildConstraintMatrixVector(const Teuchos::RCP<const TM
     // convert columnIndices from global column index to local column index according to colMap
     auto &colmap = *colMapRcp;
 #pragma omp parallel for
-    for (int i = 0; i < colIndexNum; i++) {
+    for (long i = 0; i < colIndexNum; i++) {
         columnIndices[i] = colmap.getLocalElement(columnIndices[i]);
     }
 
@@ -403,11 +403,11 @@ int ConstraintCollector::buildConstraintMatrixVector(const Teuchos::RCP<const TM
     biFlagRcp->modify<Kokkos::HostSpace>();
 
 #pragma omp parallel for num_threads(cQueNum)
-    for (int que = 0; que < cQueNum; que++) {
+    for (long que = 0; que < cQueNum; que++) {
         const auto &cQue = cPool[que];
         const int cIndexBase = cQueIndex[que];
         const int queSize = cQue.size();
-        for (int j = 0; j < queSize; j++) {
+        for (long j = 0; j < queSize; j++) {
             const auto &block = cQue[j];
             const auto idx = cIndexBase + j;
             delta0(idx, 0) = block.delta0;
@@ -427,10 +427,10 @@ int ConstraintCollector::buildConIndex(std::vector<int> &cQueSize, std::vector<i
     const int cQueNum = cPool.size();
     cQueSize.resize(cQueNum);
     cQueIndex.resize(cQueNum + 1);
-    for (int i = 0; i < cQueNum; i++) {
+    for (long i = 0; i < cQueNum; i++) {
         cQueSize[i] = cPool[i].size();
     }
-    for (int i = 1; i < cQueNum + 1; i++) {
+    for (long i = 1; i < cQueNum + 1; i++) {
         cQueIndex[i] = cQueSize[i - 1] + cQueIndex[i - 1];
     }
     return 0;
@@ -447,11 +447,11 @@ int ConstraintCollector::writeBackGamma(const Teuchos::RCP<const TV> &gammaRcp) 
     auto gammaPtr = gammaRcp->getLocalView<Kokkos::HostSpace>();
 
 #pragma omp parallel for num_threads(cQueNum)
-    for (int i = 0; i < cQueNum; i++) {
+    for (long i = 0; i < cQueNum; i++) {
         const int cQueSize = cPool[i].size();
-        for (int j = 0; j < cQueSize; j++) {
+        for (long j = 0; j < cQueSize; j++) {
             cPool[i][j].gamma = gammaPtr(cQueIndex[i] + j, 0);
-            for (int k = 0; k < 9; k++) {
+            for (long k = 0; k < 9; k++) {
                 cPool[i][j].stress[k] *= cPool[i][j].gamma;
             }
         }

@@ -1,6 +1,6 @@
 #! /bin/bash
 
-export USER_LOCAL=$HOME/envs/t13_intint
+export USER_LOCAL=$HOME/envs/t13
 
 cmake \
   -D CMAKE_CXX_COMPILER=mpicxx \

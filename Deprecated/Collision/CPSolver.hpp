@@ -64,7 +64,7 @@ class CPMatOp : public TOP {
                                    "X and Y do not have the same Map.");
 #endif
         const int numVecs = X.getNumVectors();
-        for (int i = 0; i < numVecs; i++) {
+        for (long i = 0; i < numVecs; i++) {
             const Teuchos::RCP<const TV> XcolRcp = X.getVector(i);
             Teuchos::RCP<TV> YcolRcp = Y.getVectorNonConst(i);
             // step 1 force=Fc * Xcol

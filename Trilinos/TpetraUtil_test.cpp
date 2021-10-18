@@ -35,7 +35,7 @@ int main(int argc, char **argv) {
         auto &colmap = *colMapRcp;
         const int colIndexCount = gColIndexOnLocal.size();
 #pragma omp parallel for
-        for (int i = 0; i < colIndexCount; i++) {
+        for (long i = 0; i < colIndexCount; i++) {
             columnIndices[i] = colmap.getLocalElement(columnIndices[i]);
         }
 

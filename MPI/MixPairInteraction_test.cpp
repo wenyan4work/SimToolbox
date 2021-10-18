@@ -64,7 +64,7 @@ void initFromFile(PS::ParticleSystem<Particle> &sys, const std::string &csvName)
 
         const int nPar = data.size();
         sys.setNumberOfParticleLocal(nPar);
-        for (int i = 0; i < nPar; i++) {
+        for (long i = 0; i < nPar; i++) {
             sys[i] = data[i];
             sys[i].gid = i;
         }
@@ -108,7 +108,7 @@ class FindPair {
 
     void operator()(const MixEPI<EPT> *const trgPtr, const PS::S32 nTrg, //
                     const MixEPJ<EPS> *const srcPtr, const PS::S32 nSrc, Count *const mixForcePtr) {
-        for (int t = 0; t < nTrg; t++) {
+        for (long t = 0; t < nTrg; t++) {
             auto &trg = trgPtr[t];
             auto &force = mixForcePtr[t];
             force.clear();
@@ -119,7 +119,7 @@ class FindPair {
                 continue;
             }
 
-            for (int s = 0; s < nSrc; s++) {
+            for (long s = 0; s < nSrc; s++) {
                 auto &src = srcPtr[s];
                 if (!src.srcFlag) {
                     continue;
@@ -201,7 +201,7 @@ int main(int argc, char **argv) {
 
         std::vector<int> displ(nProcs + 1);
         std::fill(displ.begin(), displ.end(), 0);
-        for (int i = 1; i <= nProcs; i++) {
+        for (long i = 1; i <= nProcs; i++) {
             displ[i] = displ[i - 1] + nPairsRank[i - 1];
         }
         const int nPairsGlobal = displ.back();

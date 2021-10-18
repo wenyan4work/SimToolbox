@@ -49,8 +49,8 @@ BCQPSolver::BCQPSolver(int localSize, double diagonal) {
 
     // a random matrix B
     Teuchos::SerialDenseMatrix<int, double> BLocal(localSize, localSize, true); // zeroOut
-    for (int i = 0; i < localSize; i++) {
-        for (int j = 0; j < localSize; j++) {
+    for (long i = 0; i < localSize; i++) {
+        for (long j = 0; j < localSize; j++) {
             BLocal(i, j) = dis(gen);
         }
     }
@@ -58,7 +58,7 @@ BCQPSolver::BCQPSolver(int localSize, double diagonal) {
     Teuchos::SerialDenseMatrix<int, double> ALocal(localSize, localSize, true);
     Teuchos::SerialDenseMatrix<int, double> tempLocal(localSize, localSize, true);
     Teuchos::SerialDenseMatrix<int, double> DLocal(localSize, localSize, true);
-    for (int i = 0; i < localSize; i++) {
+    for (long i = 0; i < localSize; i++) {
         DLocal(i, i) = pow(10, dis(gen)); // D in [10^(-1),10]
     }
 
@@ -67,7 +67,7 @@ BCQPSolver::BCQPSolver(int localSize, double diagonal) {
     ALocal.multiply(Teuchos::TRANS, Teuchos::NO_TRANS, 1.0, BLocal, tempLocal, 0.0);    // A = B^T DB
 
     // extra additions to the diagonal entries of A
-    for (int i = 0; i < localSize; i++) {
+    for (long i = 0; i < localSize; i++) {
         ALocal(i, i) += diagonal;
     }
 
@@ -76,9 +76,9 @@ BCQPSolver::BCQPSolver(int localSize, double diagonal) {
     double droptol = 1e-7;
     Kokkos::View<size_t *> rowCount("rowCount", localSize);
     Kokkos::View<size_t *> rowPointers("rowPointers", localSize + 1);
-    for (int i = 0; i < localSize; i++) {
+    for (long i = 0; i < localSize; i++) {
         rowCount[i] = 0;
-        for (int j = 0; j < localSize; j++) {
+        for (long j = 0; j < localSize; j++) {
             if (fabs(ALocal(i, j)) > droptol) {
                 rowCount[i]++;
             }
@@ -86,14 +86,14 @@ BCQPSolver::BCQPSolver(int localSize, double diagonal) {
     }
 
     rowPointers[0] = 0;
-    for (int i = 1; i < localSize + 1; i++) {
+    for (long i = 1; i < localSize + 1; i++) {
         rowPointers[i] = rowPointers[i - 1] + rowCount[i - 1];
     }
     Kokkos::View<int *> columnIndices("columnIndices", rowPointers[localSize]);
     Kokkos::View<double *> values("values", rowPointers[localSize]);
     int p = 0;
-    for (int i = 0; i < localSize; i++) {
-        for (int j = 0; j < localSize; j++) {
+    for (long i = 0; i < localSize; i++) {
+        for (long j = 0; j < localSize; j++) {
             if (fabs(ALocal(i, j)) > droptol) {
                 columnIndices[p] = j;
                 values[p] = ALocal(i, j);
@@ -106,7 +106,7 @@ BCQPSolver::BCQPSolver(int localSize, double diagonal) {
     const int colIndexCount = rowPointers[localSize];
     std::vector<int> colMapIndex(colIndexCount);
 #pragma omp parallel for
-    for (int i = 0; i < colIndexCount; i++) {
+    for (long i = 0; i < colIndexCount; i++) {
         colMapIndex[i] = columnIndices[i] + myRank * localSize;
     }
 
@@ -440,7 +440,7 @@ void BCQPSolver::boundProjection(Teuchos::RCP<TV> &vecRcp) const {
                                "vec and lb do not have the same Map.");
     auto lbPtr = lbRcp->getLocalView<Kokkos::HostSpace>();
 #pragma omp parallel for
-    for (int i = 0; i < ibound; i++) {
+    for (long i = 0; i < ibound; i++) {
         const double temp = vecPtr(i, c);
         vecPtr(i, c) = std::max(temp, lbPtr(i, c));
     }
@@ -450,7 +450,7 @@ void BCQPSolver::boundProjection(Teuchos::RCP<TV> &vecRcp) const {
                                "vec and ub do not have the same Map.");
     auto ubPtr = ubRcp->getLocalView<Kokkos::HostSpace>();
 #pragma omp parallel for
-    for (int i = 0; i < ibound; i++) {
+    for (long i = 0; i < ibound; i++) {
         const double temp = vecPtr(i, c);
         vecPtr(i, c) = std::min(temp, ubPtr(i, c));
     }
@@ -473,7 +473,7 @@ double BCQPSolver::checkProjectionResidual(const Teuchos::RCP<const TV> &XRcp, c
     bool projectionError = false;
 // EQ 2.2 of Dai & Fletcher 2005
 #pragma omp parallel for
-    for (int i = 0; i < ibound; i++) {
+    for (long i = 0; i < ibound; i++) {
         if (xPtr(i, c) < lbPtr(i, c) + eps) {
             qPtr(i, c) = std::min(yPtr(i, c), 0.0);
         } else if (xPtr(i, c) > ubPtr(i, c) - eps) {
@@ -522,7 +522,7 @@ void BCQPSolver::generateRandomBounds() {
     vec2->modify<Kokkos::HostSpace>();
     const int ibound = vec1Ptr.extent(0);
 #pragma omp parallel for
-    for (int i = 0; i < ibound; i++) {
+    for (long i = 0; i < ibound; i++) {
         double a = vec1Ptr(i, 0);
         double b = vec2Ptr(i, 0);
         vec1Ptr(i, 0) = std::min(a, b);

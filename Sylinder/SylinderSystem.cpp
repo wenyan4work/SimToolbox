@@ -89,7 +89,7 @@ void SylinderSystem::initialize(const SylinderConfig &runConfig_, const std::str
         // 100 NON-B steps to resolve initial configuration collisions
         // no output
         spdlog::warn("Initial Collision Resolution Begin");
-        for (int i = 0; i < runConfig.initPreSteps; i++) {
+        for (long i = 0; i < runConfig.initPreSteps; i++) {
             prepareStep();
             calcVelocityNonCon();
             resolveConstraints();
@@ -237,7 +237,7 @@ void SylinderSystem::setInitialFromConfig() {
         {
             const int threadId = omp_get_thread_num();
 #pragma omp for
-            for (int i = 0; i < nSylinderLocal; i++) {
+            for (long i = 0; i < nSylinderLocal; i++) {
                 double length;
                 if (runConfig.sylinderLengthSigma > 0) {
                     do { // generate random length
@@ -247,7 +247,7 @@ void SylinderSystem::setInitialFromConfig() {
                     length = runConfig.sylinderLength;
                 }
                 double pos[3];
-                for (int k = 0; k < 3; k++) {
+                for (long k = 0; k < 3; k++) {
                     pos[k] = rngPoolPtr->getU01(threadId) * boxEdge[k] + runConfig.initBoxLow[k];
                 }
                 Equatn orientq;
@@ -278,7 +278,7 @@ void SylinderSystem::setInitialCircularCrossSection() {
     {
         const int threadId = omp_get_thread_num();
 #pragma omp for
-        for (int i = 0; i < nLocal; i++) {
+        for (long i = 0; i < nLocal; i++) {
             double y = sylinderContainer[i].pos[1];
             double z = sylinderContainer[i].pos[2];
             // replace y,z with position in the circle
@@ -295,7 +295,7 @@ void SylinderSystem::calcVolFrac() {
     double volLocal = 0;
     const int nLocal = sylinderContainer.getNumberOfParticleLocal();
 #pragma omp parallel for reduction(+ : volLocal)
-    for (int i = 0; i < nLocal; i++) {
+    for (long i = 0; i < nLocal; i++) {
         auto &sy = sylinderContainer[i];
         volLocal += 3.1415926535 * (0.25 * sy.length * pow(sy.radius * 2, 2) + pow(sy.radius * 2, 3) / 6);
     }
@@ -367,7 +367,7 @@ void SylinderSystem::setInitialFromFile(const std::string &filename) {
         const int nRead = sylinderReadFromFile.size();
         sylinderContainer.setNumberOfParticleLocal(nRead);
 #pragma omp parallel for
-        for (int i = 0; i < nRead; i++) {
+        for (long i = 0; i < nRead; i++) {
             sylinderContainer[i] = sylinderReadFromFile[i];
             sylinderContainer[i].clear();
         }
@@ -442,7 +442,7 @@ void SylinderSystem::setInitialFromVTKFile(const std::string &pvtpFileName) {
         spdlog::debug("Sylinder number in file {} ", sylinderNumberInFile);
 
 #pragma omp parallel for
-        for (int i = 0; i < sylinderNumberInFile; i++) {
+        for (long i = 0; i < sylinderNumberInFile; i++) {
             auto &sy = sylinderContainer[i];
             double leftEndpointPos[3] = {0, 0, 0};
             double rightEndpointPos[3] = {0, 0, 0};
@@ -601,7 +601,7 @@ void SylinderSystem::setDomainInfo() {
 
     PS::F64vec3 rootDomainLow;
     PS::F64vec3 rootDomainHigh;
-    for (int k = 0; k < 3; k++) {
+    for (long k = 0; k < 3; k++) {
         rootDomainLow[k] = runConfig.simBoxLow[k];
         rootDomainHigh[k] = runConfig.simBoxHigh[k];
     }
@@ -633,14 +633,14 @@ void SylinderSystem::calcMobMatrix() {
 
     Kokkos::View<size_t *> rowPointers("rowPointers", localSize + 1);
     rowPointers[0] = 0;
-    for (int i = 1; i <= localSize; i++) {
+    for (long i = 1; i <= localSize; i++) {
         rowPointers[i] = rowPointers[i - 1] + 3;
     }
     Kokkos::View<int *> columnIndices("columnIndices", rowPointers[localSize]);
     Kokkos::View<double *> values("values", rowPointers[localSize]);
 
 #pragma omp parallel for
-    for (int i = 0; i < nLocal; i++) {
+    for (long i = 0; i < nLocal; i++) {
         const auto &sy = sylinderContainer[i];
 
         // calculate the Mob Trans and MobRot
@@ -736,7 +736,7 @@ void SylinderSystem::calcVelocityNonCon() {
         mobilityOperatorRcp->apply(*forcePartNonBrownRcp, *velocityNonConRcp);
         if (runConfig.monolayer) {
 #pragma omp parallel for
-            for (int i = 0; i < nLocal; i++) {
+            for (long i = 0; i < nLocal; i++) {
                 velNCPtr(6 * i + 2, 0) = 0; // vz
                 velNCPtr(6 * i + 3, 0) = 0; // omegax
                 velNCPtr(6 * i + 4, 0) = 0; // omegay
@@ -745,7 +745,7 @@ void SylinderSystem::calcVelocityNonCon() {
         // write back to Sylinder members
         auto forcePtr = forcePartNonBrownRcp->getLocalView<Kokkos::HostSpace>();
 #pragma omp parallel for
-        for (int i = 0; i < nLocal; i++) {
+        for (long i = 0; i < nLocal; i++) {
             auto &sy = sylinderContainer[i];
             // torque
             sy.forceNonB[0] = forcePtr(6 * i + 0, 0);
@@ -761,7 +761,7 @@ void SylinderSystem::calcVelocityNonCon() {
         if (runConfig.monolayer) {
             auto velNBPtr = velocityPartNonBrownRcp->getLocalView<Kokkos::HostSpace>();
 #pragma omp parallel for
-            for (int i = 0; i < nLocal; i++) {
+            for (long i = 0; i < nLocal; i++) {
                 velNBPtr(6 * i + 2, 0) = 0; // vz
                 velNBPtr(6 * i + 3, 0) = 0; // omegax
                 velNBPtr(6 * i + 4, 0) = 0; // omegay
@@ -773,7 +773,7 @@ void SylinderSystem::calcVelocityNonCon() {
     // write back total non Brownian velocity
     // combine and sync the velNonB set in by setForceNonBrown() and setVelocityNonBrown()
 #pragma omp parallel for
-    for (int i = 0; i < nLocal; i++) {
+    for (long i = 0; i < nLocal; i++) {
         auto &sy = sylinderContainer[i];
         // velocity
         sy.velNonB[0] = velNCPtr(6 * i + 0, 0);
@@ -789,7 +789,7 @@ void SylinderSystem::calcVelocityNonCon() {
         if (runConfig.monolayer) {
             auto velBPtr = velocityBrownRcp->getLocalView<Kokkos::HostSpace>();
 #pragma omp parallel for
-            for (int i = 0; i < nLocal; i++) {
+            for (long i = 0; i < nLocal; i++) {
                 velBPtr(6 * i + 2, 0) = 0; // vz
                 velBPtr(6 * i + 3, 0) = 0; // omegax
                 velBPtr(6 * i + 4, 0) = 0; // omegay
@@ -802,9 +802,9 @@ void SylinderSystem::calcVelocityNonCon() {
 void SylinderSystem::sumForceVelocity() {
     const int nLocal = sylinderContainer.getNumberOfParticleLocal();
 #pragma omp parallel for
-    for (int i = 0; i < nLocal; i++) {
+    for (long i = 0; i < nLocal; i++) {
         auto &sy = sylinderContainer[i];
-        for (int k = 0; k < 3; k++) {
+        for (long k = 0; k < 3; k++) {
             sy.vel[k] = sy.velNonB[k] + sy.velBrown[k] + sy.velCol[k] + sy.velBi[k];
             sy.omega[k] = sy.omegaNonB[k] + sy.omegaBrown[k] + sy.omegaCol[k] + sy.omegaBi[k];
             sy.force[k] = sy.forceNonB[k] + sy.forceCol[k] + sy.forceBi[k];
@@ -819,7 +819,7 @@ void SylinderSystem::stepEuler() {
 
     if (!runConfig.sylinderFixed) {
 #pragma omp parallel for
-        for (int i = 0; i < nLocal; i++) {
+        for (long i = 0; i < nLocal; i++) {
             auto &sy = sylinderContainer[i];
             sy.stepEuler(dt);
         }
@@ -874,7 +874,7 @@ void SylinderSystem::updateSylinderMap() {
     // setup the globalIndex
     int globalIndexBase = sylinderMapRcp->getMinGlobalIndex(); // this is a contiguous map
 #pragma omp parallel for
-    for (int i = 0; i < nLocal; i++) {
+    for (long i = 0; i < nLocal; i++) {
         sylinderContainer[i].globalIndex = i + globalIndexBase;
     }
 }
@@ -895,7 +895,7 @@ void SylinderSystem::prepareStep() {
 
     const int nLocal = sylinderContainer.getNumberOfParticleLocal();
 #pragma omp parallel for
-    for (int i = 0; i < nLocal; i++) {
+    for (long i = 0; i < nLocal; i++) {
         auto &sy = sylinderContainer[i];
         sy.clear();
         sy.radiusCollision = sylinderContainer[i].radius * runConfig.sylinderDiameterColRatio;
@@ -907,7 +907,7 @@ void SylinderSystem::prepareStep() {
     if (runConfig.monolayer) {
         const double monoZ = (runConfig.simBoxHigh[2] + runConfig.simBoxLow[2]) / 2;
 #pragma omp parallel for
-        for (int i = 0; i < nLocal; i++) {
+        for (long i = 0; i < nLocal; i++) {
             auto &sy = sylinderContainer[i];
             sy.pos[2] = monoZ;
             Evec3 drt = Emapq(sy.orientation) * Evec3(0, 0, 1);
@@ -986,7 +986,7 @@ void SylinderSystem::saveForceVelocityConstraints() {
     TEUCHOS_ASSERT(velBiPtr.extent(1) == 1);
 
 #pragma omp parallel for
-    for (int i = 0; i < sylinderLocalNumber; i++) {
+    for (long i = 0; i < sylinderLocalNumber; i++) {
         auto &sy = sylinderContainer[i];
         sy.velCol[0] = velUniPtr(6 * i + 0, 0);
         sy.velCol[1] = velUniPtr(6 * i + 1, 0);
@@ -1029,7 +1029,7 @@ void SylinderSystem::calcVelocityBrown() {
     {
         const int threadId = omp_get_thread_num();
 #pragma omp for
-        for (int i = 0; i < nLocal; i++) {
+        for (long i = 0; i < nLocal; i++) {
             auto &sy = sylinderContainer[i];
             // constants
             double dragPara = 0;
@@ -1078,7 +1078,7 @@ void SylinderSystem::calcVelocityBrown() {
     TEUCHOS_ASSERT(velocityPtr.extent(1) == 1);
 
 #pragma omp parallel for
-    for (int i = 0; i < nLocal; i++) {
+    for (long i = 0; i < nLocal; i++) {
         const auto &sy = sylinderContainer[i];
         velocityPtr(6 * i, 0) = sy.velBrown[0];
         velocityPtr(6 * i + 1, 0) = sy.velBrown[1];
@@ -1101,7 +1101,7 @@ void SylinderSystem::collectBoundaryCollision() {
             const int threadId = omp_get_thread_num();
             auto &que = (*collisionPoolPtr)[threadId];
 #pragma omp for
-            for (int i = 0; i < nLocal; i++) {
+            for (long i = 0; i < nLocal; i++) {
                 const auto &sy = sylinderContainer[i];
                 const Evec3 center = ECmap3(sy.pos);
 
@@ -1161,7 +1161,7 @@ void SylinderSystem::collectPairCollision() {
 std::pair<int, int> SylinderSystem::getMaxGid() {
     int maxGidLocal = 0;
     const int nLocal = sylinderContainer.getNumberOfParticleLocal();
-    for (int i = 0; i < nLocal; i++) {
+    for (long i = 0; i < nLocal; i++) {
         maxGidLocal = std::max(maxGidLocal, sylinderContainer[i].gid);
     }
 
@@ -1180,7 +1180,7 @@ void SylinderSystem::calcBoundingBox(double localLow[3], double localHigh[3], do
     double hx, hy, hz;
     hx = hy = hz = std::numeric_limits<double>::min();
 
-    for (int i = 0; i < nLocal; i++) {
+    for (long i = 0; i < nLocal; i++) {
         const auto &sy = sylinderContainer[i];
         const Evec3 direction = ECmapq(sy.orientation) * Evec3(0, 0, 1);
         Evec3 pm = ECmap3(sy.pos) - (sy.length * 0.5) * direction;
@@ -1200,7 +1200,7 @@ void SylinderSystem::calcBoundingBox(double localLow[3], double localHigh[3], do
     localHigh[1] = hy;
     localHigh[2] = hz;
 
-    for (int k = 0; k < 3; k++) {
+    for (long k = 0; k < 3; k++) {
         globalLow[k] = localLow[k];
         globalHigh[k] = localHigh[k];
     }
@@ -1215,7 +1215,7 @@ void SylinderSystem::updateSylinderRank() {
     const int nLocal = sylinderContainer.getNumberOfParticleLocal();
     const int rank = commRcp->getRank();
 #pragma omp parallel for
-    for (int i = 0; i < nLocal; i++) {
+    for (long i = 0; i < nLocal; i++) {
         sylinderContainer[i].rank = rank;
     }
 }
@@ -1239,8 +1239,8 @@ void SylinderSystem::calcConStress() {
     double biStressLocal[9];
     double uniStressGlobal[9];
     double biStressGlobal[9];
-    for (int i = 0; i < 3; i++) {
-        for (int j = 0; j < 3; j++) {
+    for (long i = 0; i < 3; i++) {
+        for (long j = 0; j < 3; j++) {
             uniStressLocal[i * 3 + j] = sumUniStress(i, j);
             uniStressGlobal[i * 3 + j] = 0;
             biStressLocal[i * 3 + j] = sumBiStress(i, j);
@@ -1273,7 +1273,7 @@ void SylinderSystem::calcOrderParameter() {
     const int nLocal = sylinderContainer.getNumberOfParticleLocal();
 
 #pragma omp parallel for reduction(+ : px, py, pz, Qxx, Qxy, Qxz, Qyx, Qyy, Qyz, Qzx, Qzy, Qzz)
-    for (int i = 0; i < nLocal; i++) {
+    for (long i = 0; i < nLocal; i++) {
         const auto &sy = sylinderContainer[i];
         const Evec3 direction = ECmapq(sy.orientation) * Evec3(0, 0, 1);
         px += direction.x();
@@ -1296,7 +1296,7 @@ void SylinderSystem::calcOrderParameter() {
     double pQ[12] = {px, py, pz, Qxx, Qxy, Qxz, Qyx, Qyy, Qyz, Qzx, Qzy, Qzz};
     MPI_Allreduce(MPI_IN_PLACE, pQ, 12, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
 
-    for (int i = 0; i < 12; i++) {
+    for (long i = 0; i < 12; i++) {
         pQ[i] *= (1.0 / nGlobal);
     }
 
@@ -1340,7 +1340,7 @@ std::vector<int> SylinderSystem::addNewSylinder(const std::vector<Sylinder> &new
                  newGidRecv.data(), newCountLocal, MPI_INT, 0, MPI_COMM_WORLD);
 
     // set new gid
-    for (int i = 0; i < newCountLocal; i++) {
+    for (long i = 0; i < newCountLocal; i++) {
         Sylinder sy = newSylinder[i];
         sy.gid = newGidRecv[i];
         sylinderContainer.addOneParticle(sy);
@@ -1373,7 +1373,7 @@ void SylinderSystem::buildSylinderNearDataDirectory() {
     sylinderNearDataDirectory.gidOnLocal.resize(nLocal);
     sylinderNearDataDirectory.dataOnLocal.resize(nLocal);
 #pragma omp parallel for
-    for (int i = 0; i < nLocal; i++) {
+    for (long i = 0; i < nLocal; i++) {
         sylinderNearDataDirectory.gidOnLocal[i] = sylinderContainer[i].gid;
         sylinderNearDataDirectory.dataOnLocal[i].copyFromFP(sylinderContainer[i]);
     }
@@ -1403,7 +1403,7 @@ void SylinderSystem::collectLinkBilateral() {
 
     // loop over all sylinders
     // if linkMap[sy.gid] not empty, find info for all next
-    for (int i = 0; i < nLocal; i++) {
+    for (long i = 0; i < nLocal; i++) {
         const auto &sy = sylinderContainer[i];
         const auto &range = linkMap.equal_range(sy.gid);
         int count = 0;
@@ -1421,18 +1421,18 @@ void SylinderSystem::collectLinkBilateral() {
         const int threadId = omp_get_thread_num();
         auto &conQue = conPool[threadId];
 #pragma omp for
-        for (int i = 0; i < nLocal; i++) {
+        for (long i = 0; i < nLocal; i++) {
             const auto &syI = sylinderContainer[i]; // sylinder
             const int lb = gidDisp[i];
             const int ub = gidDisp[i + 1];
 
-            for (int j = lb; j < ub; j++) {
+            for (long j = lb; j < ub; j++) {
                 const auto &syJ = sylinderNearDataDirectoryPtr->dataToFind[j]; // sylinderNear
 
                 const Evec3 &centerI = ECmap3(syI.pos);
                 Evec3 centerJ = ECmap3(syJ.pos);
                 // apply PBC on centerJ
-                for (int k = 0; k < 3; k++) {
+                for (long k = 0; k < 3; k++) {
                     if (!runConfig.simBoxPBC[k])
                         continue;
                     double trg = centerI[k];

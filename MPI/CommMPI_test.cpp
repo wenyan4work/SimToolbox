@@ -35,7 +35,7 @@ void testAllToAllV() {
     const int recvSize = recvRank.size();
     assert(recvRank.size() == recvData.size());
 
-    for (int i = 0; i < recvSize; i++) {
+    for (long i = 0; i < recvSize; i++) {
         if (recvData[i].destRank != rank)
             printf("recv rank error \n");
         if (recvData[i].fromRank != recvRank[i])

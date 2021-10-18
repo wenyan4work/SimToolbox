@@ -254,7 +254,7 @@ class Sylinder {
         cellDataFields.emplace_back(3, IOHelper::IOTYPE::Float32, "xnorm");
         cellDataFields.emplace_back(3, IOHelper::IOTYPE::Float32, "znorm");
 
-        for (int i = 0; i < nProcs; i++) {
+        for (long i = 0; i < nProcs; i++) {
             pieceNames.emplace_back(std::string("Sylinder_") + std::string("r") + std::to_string(i) + "_" + postfix +
                                     ".vtp");
         }
@@ -333,7 +333,7 @@ class Sylinder {
         std::vector<float> znorm(3 * sylinderNumber);
 
 #pragma omp parallel for
-        for (int i = 0; i < sylinderNumber; i++) {
+        for (long i = 0; i < sylinderNumber; i++) {
             const auto &sy = sylinder[i];
             // point and point data
             Evec3 direction = ECmapq(sy.orientation) * Evec3(0, 0, 1);
@@ -365,7 +365,7 @@ class Sylinder {
 
             Evec3 nx = ECmapq(sy.orientation) * Evec3(1, 0, 0);
             Evec3 nz = ECmapq(sy.orientation) * Evec3(0, 0, 1);
-            for (int j = 0; j < 3; j++) {
+            for (long j = 0; j < 3; j++) {
                 vel[3 * i + j] = sy.vel[j];
                 omega[3 * i + j] = sy.omega[j];
                 velCol[3 * i + j] = sy.velCol[j];

@@ -52,7 +52,7 @@ class ZDD {
      *
      * @param nEst estimate of buffer list size
      */
-    ZDD(int nEst) {
+    ZDD(GID_TYPE nEst) {
         MPI_Comm_rank(MPI_COMM_WORLD, &myRank);
         MPI_Comm_size(MPI_COMM_WORLD, &rankSize);
 

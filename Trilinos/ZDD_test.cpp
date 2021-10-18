@@ -1,4 +1,5 @@
 // #define ZDDDEBUG
+#include "SimToolboxConfig.h"
 #include "ZDD.hpp"
 
 #include <random>
@@ -6,7 +7,7 @@
 #include <mpi.h>
 
 struct data {
-    int gid;
+    GlobalID gid;
     double pos[3] = {0, 0, 0};
 };
 
@@ -18,7 +19,6 @@ int main(int argc, char **argv) {
     MPI_Comm_size(MPI_COMM_WORLD, &nprocs);
 
     Logger::setup_mpi_spdlog();
-
     {
         ZDD<data> doubleDataDirectory(100);
 
@@ -27,7 +27,7 @@ int main(int argc, char **argv) {
 
         doubleDataDirectory.gidOnLocal.resize(nLocal);
         doubleDataDirectory.dataOnLocal.resize(nLocal);
-        for (int i = 0; i < nLocal; i++) {
+        for (long i = 0; i < nLocal; i++) {
             auto gid = rank * nLocal + i;
             doubleDataDirectory.gidOnLocal[i] = gid;
             doubleDataDirectory.dataOnLocal[i].gid = gid;
@@ -38,12 +38,13 @@ int main(int argc, char **argv) {
         doubleDataDirectory.buildIndex();
 
         // each rank find some data
-        // some gids are invalid(negative), the code should still run, just return default data
+        // some gids are invalid(negative), the code should still run, just return
+        // default data
         const size_t nFind = 20;
         doubleDataDirectory.gidToFind.resize(nFind);
 
         // invalid gid for the first half
-        for (int i = 0; i < nFind / 2; i++) {
+        for (LocalID i = 0; i < nFind / 2; i++) {
             doubleDataDirectory.gidToFind[i] = -i;
         }
         // valid random gid for the second half
@@ -53,11 +54,11 @@ int main(int argc, char **argv) {
         std::mt19937 gen(rank); // Standard mersenne_twister_engine seeded with rank
         std::uniform_int_distribution<> dis(gidMin, gidMax);
 
-        for (int i = nFind / 2; i < nFind; i++) {
+        for (LocalID i = nFind / 2; i < nFind; i++) {
             doubleDataDirectory.gidToFind[i] = dis(gen);
         }
         doubleDataDirectory.find();
-        for (int i = 0; i < nFind; i++) {
+        for (LocalID i = 0; i < nFind; i++) {
             auto want = doubleDataDirectory.gidToFind[i];
             auto get = doubleDataDirectory.dataToFind[i].gid;
 #ifdef ZDDDEBUG
