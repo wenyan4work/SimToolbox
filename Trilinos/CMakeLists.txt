@@ -16,12 +16,11 @@ endfunction()
 exetest(TMAP)
 exetest(TCMAT)
 exetest(SubView)
-exetest(ZDD)
 
 #########################################################################
 add_executable(Belos_test Belos_test.cpp TpetraUtil.cpp)
 target_include_directories(
-  Belos_test PRIVATE ${PROJECT_SOURCE_DIR} ${Trilinos_INCLUDE_DIRS}
+  Belos_test PRIVATE ${CMAKE_SOURCE_DIR} ${Trilinos_INCLUDE_DIRS}
                      ${Trilinos_TPL_INCLUDE_DIRS})
 target_link_libraries(Belos_test ${Trilinos_LIBRARIES}
                       ${Trilinos_TPL_LIBRARIES} OpenMP::OpenMP_CXX MPI::MPI_CXX)

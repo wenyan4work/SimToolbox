@@ -1,4 +1,3 @@
-// #define ZDDDEBUG
 #include "ZDD.hpp"
 
 #include <random>
