@@ -7,8 +7,9 @@ function(exetest exename)
     ${exename}_test PRIVATE ${CMAKE_SOURCE_DIR} ${Trilinos_INCLUDE_DIRS}
                             ${TRNG_INCLUDE_DIR})
   target_link_libraries(
-    ${exename}_test PRIVATE ${Trilinos_LIBRARIES} ${Trilinos_TPL_LIBRARIES}
-                            ${TRNG_LIBRARY} OpenMP::OpenMP_CXX MPI::MPI_CXX)
+    ${exename}_test
+    PRIVATE ${Trilinos_LIBRARIES} ${Trilinos_TPL_LIBRARIES} spdlog::spdlog
+            ${TRNG_LIBRARY} OpenMP::OpenMP_CXX MPI::MPI_CXX)
   add_test(NAME ${exename} COMMAND mpirun -n 4 ${exename}_test)
 endfunction()
 

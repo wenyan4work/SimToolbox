@@ -11,10 +11,10 @@
 #ifndef LOGGER_HPP_
 #define LOGGER_HPP_
 
-#include "extern/spdlog/cfg/env.h"
-#include "extern/spdlog/sinks/null_sink.h"
-#include "extern/spdlog/sinks/stdout_sinks.h"
-#include "extern/spdlog/spdlog.h"
+#include "spdlog/cfg/env.h"
+#include "spdlog/sinks/null_sink.h"
+#include "spdlog/sinks/stdout_sinks.h"
+#include "spdlog/spdlog.h"
 
 #include <memory>
 
