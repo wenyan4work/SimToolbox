@@ -1,7 +1,7 @@
 #include "CommMPI.hpp"
-#include "Util/TRngPool.hpp"
+#include "Util/Logger.hpp"
 
-#include <cstdio>
+#include <random>
 
 #include <mpi.h>
 #include <omp.h>
@@ -17,18 +17,18 @@ void testAllToAllV() {
   const int rank = commMpi.getRank();
   const int nProcs = commMpi.getSize();
 
-  const int length = 100000;
+  const auto length = 100000LL;
   std::vector<int> sendRank(length);
   std::vector<Data> sendData(length);
   std::vector<int> recvRank;
   std::vector<Data> recvData;
 
-  TRngPool rngPool(length);
+  auto gen = std::mt19937(rank);
+  auto dis = std::uniform_int_distribution<>(0, nProcs - 1);
 
 #pragma omp parallel for
-  for (size_t i = 0; i < length; i++) {
-    sendRank[i] = static_cast<int>(rngPool.getU01() * 10 * nProcs) %
-                  nProcs; // rng in [0,nProcs)
+  for (long i = 0; i < length; i++) {
+    sendRank[i] = dis(gen);
     sendData[i].fromRank = rank;
     sendData[i].destRank = sendRank[i];
   }
@@ -37,15 +37,18 @@ void testAllToAllV() {
   assert(recvRank.size() == recvData.size());
 
   for (long i = 0; i < recvSize; i++) {
+    spdlog::info("dest {}, from {}", recvData[i].destRank,
+                 recvData[i].fromRank);
     if (recvData[i].destRank != rank)
-      printf("recv rank error \n");
+      spdlog::error("recv rank error");
     if (recvData[i].fromRank != recvRank[i])
-      printf("send rank error \n");
+      spdlog::error("send rank error");
   }
 }
 
 int main(int argc, char **argv) {
   MPI_Init(&argc, &argv);
+  Logger::setup_mpi_spdlog();
   testAllToAllV();
   MPI_Finalize();
   return 0;
