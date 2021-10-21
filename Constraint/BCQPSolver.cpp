@@ -487,30 +487,30 @@ void BCQPSolver::generateRandomBounds() {
 void BCQPSolver::generateRandomOperator(const int localSize,
                                         const double diagonal) {
 
-  // generate a local random matrix
-  std::mt19937 gen(commRcp->getRank());
-  std::uniform_real_distribution<> dis(-1, 1); // U(-1,1)
-
   // L = B^T D B
   Kokkos::View<double **> B("B", localSize, localSize);
   Kokkos::View<double **> D("D", localSize, localSize);
   Kokkos::View<double **> L("L", localSize, localSize);
   Kokkos::View<double **> temp("temp", localSize, localSize);
 
-#pragma omp parallel for
-  for (int i = 0; i < localSize; i++) {
-    for (int j = 0; j < localSize; j++) {
-      // B is random square
-      B(i, j) = dis(gen);
-      D(i, j) = 0;
-      L(i, j) = 0;
+#pragma omp parallel
+  {
+    std::mt19937 gen(commRcp->getRank() + omp_get_thread_num());
+    std::uniform_real_distribution<> dis(-1, 1); // U(-1,1)
+#pragma omp for
+    for (int i = 0; i < localSize; i++) {
+      for (int j = 0; j < localSize; j++) {
+        // B is random square
+        B(i, j) = dis(gen);
+        D(i, j) = 0;
+        L(i, j) = 0;
+      }
     }
-  }
-
-#pragma omp parallel for
-  for (int i = 0; i < localSize; i++) {
-    // D is diagonal
-    D(i, i) = pow(10, dis(gen)); // D in [10^(-1),10]
+#pragma omp for
+    for (int i = 0; i < localSize; i++) {
+      // D is diagonal
+      D(i, i) = pow(10, dis(gen)); // D in [10^(-1),10]
+    }
   }
 
   // temp = B^T D
