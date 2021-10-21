@@ -1,26 +1,19 @@
-import scipy.optimize as so
 import numpy as np
-import scipy as sp
 import scipy.io as sio
+import scipy.optimize as so
 import os
 import sys
 import matplotlib.pyplot as plt
+import argparse as agp
 
-localSize = 200
+localSize = 500
 diagAdd = 0
 maxIte = localSize
 
-if len(sys.argv) > 1:
-    localSize = sys.argv[1]
-if len(sys.argv) > 2:
-    diagAdd = sys.argv[2]
-if len(sys.argv) > 3:
-    maxIte = sys.argv[3]
 
-print('mpirun -n 2 --map-by numa ./BCQPSolver_test ' +
-      str(localSize)+' '+str(diagAdd)+' > ./testLog')
-os.system('mpirun -n 2 --map-by numa ./BCQPSolver_test ' +
-          str(localSize)+' '+str(diagAdd)+' > ./testLog')
+cmd = 'export OMP_NUM_THREADS=2 && mpirun -n 4 ./BCQPSolver_test {} {} > ./testLog'.format(
+    localSize, diagAdd)
+os.system(cmd)
 
 
 Amat = sio.mmread('Amat_TCMAT.mtx')

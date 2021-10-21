@@ -14,16 +14,13 @@ int main(int argc, char **argv) {
     const int rank = commRcp->getRank();
     const int nProcs = commRcp->getSize();
 
-    using LO = TMAP::local_ordinal_type;
-    using GO = TMAP::global_ordinal_type;
-
     // create a sparse matrix with colMap and rowMap
     // CrsMat : nProcs x 2 * nProcs
     // row map: 1 row per rank
     // col map: 2 per rank
-    std::vector<GO> gRowIndexOnLocal = {commRcp->getRank()};
-    std::vector<GO> gColIndexOnLocal = {1 + commRcp->getRank(),
-                                        3 + commRcp->getRank()};
+    std::vector<TGO> gRowIndexOnLocal = {commRcp->getRank()};
+    std::vector<TGO> gColIndexOnLocal = {1 + commRcp->getRank(),
+                                         3 + commRcp->getRank()};
 
     auto rowMapRcp = getTMAPFromLocalSize(gRowIndexOnLocal.size(), commRcp);
     auto colMapRcp = getTMAPFromGlobalIndexOnLocal(gColIndexOnLocal, //
@@ -32,13 +29,11 @@ int main(int argc, char **argv) {
     // entries
     // const Kokkos::View< row_offset_type * > & 	rowPointers,
     // const Kokkos::View< LocalOrdinal * > & 	columnIndices,
-    using row_offset_type =
-        TCMAT::local_matrix_type::row_map_type::non_const_value_type;
-    Kokkos::View<row_offset_type *> rowPointers("rowPointers",
-                                                gRowIndexOnLocal.size() + 1);
+    Kokkos::View<TLRO *> rowPointers("rowPointers",
+                                     gRowIndexOnLocal.size() + 1);
     rowPointers[0] = 0;
     rowPointers[1] = rowPointers[0] + gColIndexOnLocal.size();
-    Kokkos::View<LO *> columnIndices("columnIndices", rowPointers[1]);
+    Kokkos::View<TLO *> columnIndices("columnIndices", rowPointers[1]);
     Kokkos::View<double *> values("values", rowPointers[1]);
     for (long i = 0; i < gColIndexOnLocal.size(); i++) {
       columnIndices[i] = i; // local index

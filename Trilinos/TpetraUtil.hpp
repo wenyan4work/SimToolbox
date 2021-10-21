@@ -15,7 +15,6 @@
 // Teuchos utility
 #include <Teuchos_ArrayViewDecl.hpp>
 #include <Teuchos_GlobalMPISession.hpp>
-#include <Teuchos_SerialDenseMatrix.hpp>
 #include <Teuchos_TimeMonitor.hpp>
 #include <Teuchos_VerboseObject.hpp>
 #include <Teuchos_oblackholestream.hpp>
@@ -38,6 +37,9 @@
 
 // Preconditioner
 #include <Ifpack2_Factory.hpp>
+
+// Kokkos
+#include <Kokkos_Core.hpp>
 
 #include <type_traits>
 
@@ -71,6 +73,9 @@ using TOP = Tpetra::Operator<double, TLO, TGO>;
 using TCMAT = Tpetra::CrsMatrix<double, TLO, TGO>;
 using TMV = Tpetra::MultiVector<double, TLO, TGO>;
 using TV = Tpetra::Vector<double, TLO, TGO>;
+
+// TCMAT local matrix row offset type
+using TLRO = TCMAT::local_matrix_type::row_map_type::non_const_value_type;
 
 /**
  * @brief inserting a specialization for Tpetra objects into Belos namespace
@@ -136,7 +141,7 @@ template <class T>
 void describe(const T &obj) {
   Teuchos::RCP<Teuchos::FancyOStream> out =
       Teuchos::VerboseObjectBase::getDefaultOStream();
-  obj->describe(*out, Teuchos::EVerbosityLevel::VERB_MEDIUM);
+  obj.describe(*out, Teuchos::EVerbosityLevel::VERB_MEDIUM);
 }
 
 /**

@@ -9,7 +9,7 @@ void genLinearProblem(Teuchos::RCP<TCMAT> &ARcp, Teuchos::RCP<TV> &xGuessRcp,
   Tpetra::MatrixMarket::Reader<TCMAT> mmReader;
   ARcp = mmReader.readSparseFile("A_TCMAT.mtx", commRcp);
 
-  describe(ARcp);
+  describe(*ARcp);
 
   // b, x
   auto xmap = ARcp->getDomainMap();
