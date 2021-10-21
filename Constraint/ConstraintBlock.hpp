@@ -2,8 +2,8 @@
  * @file ConstraintBlock.hpp
  * @author Wen Yan (wenyan4work@gmail.com)
  * @brief
- * @version 0.1
- * @date 2019-11-04
+ * @version 1.0
+ * @date 2021-10-21
  *
  * @copyright Copyright (c) 2019
  *
@@ -11,13 +11,7 @@
 #ifndef CONSTRAINTBLOCK_HPP_
 #define CONSTRAINTBLOCK_HPP_
 
-#include "Util/EigenDef.hpp"
-#include "Util/IOHelper.hpp"
-
-#include <algorithm>
-#include <cmath>
 #include <deque>
-#include <type_traits>
 #include <vector>
 
 constexpr long GEO_INVALID_INDEX = -1;
@@ -34,26 +28,27 @@ constexpr double GEO_DEFAULT_NEIGHBOR = 2.0;
  */
 struct ConstraintBlock {
 public:
-  double delta0 = 0;  ///< constraint initial value
-  double gamma = 0;   ///< force magnitude, could be an initial guess
-  double gammaLB = 0; ///< lower bound of gamma for unilateral constraints
-  int gidI = GEO_INVALID_INDEX;         ///< unique global ID of particle I
-  int gidJ = GEO_INVALID_INDEX;         ///< unique global ID of particle J
-  int globalIndexI = GEO_INVALID_INDEX; ///< global index of particle I
-  int globalIndexJ = GEO_INVALID_INDEX; ///< global index of particle J
-  bool oneSide = false;   ///< flag for one side constraint. body J does not
-                          ///< appear in mobility matrix
-  bool bilateral = false; ///< if this is a bilateral constraint or not
-  double kappa = 0;       ///< spring constant. =0 means no spring
+  double delta0 = 0;
+  double gamma = 0;
+  double gammaLB = 0;
+
+  long gidI = GEO_INVALID_INDEX;         ///< unique global ID of particle I
+  long gidJ = GEO_INVALID_INDEX;         ///< unique global ID of particle J
+  long globalIndexI = GEO_INVALID_INDEX; ///< global index of particle I
+  long globalIndexJ = GEO_INVALID_INDEX; ///< global index of particle J
+
+  bool oneSide = false;
+  bool bilateral = false;
+
+  double kappa = 0; ///< spring constant. =0 means no spring
+
   double normI[3] = {0, 0, 0};
-  double normJ[3] = {0, 0, 0}; ///< surface norm vector at the location of
-                               ///< constraints (minimal separation).
+  double normJ[3] = {0, 0, 0};
   double posI[3] = {0, 0, 0};
-  double posJ[3] = {0, 0,
-                    0}; ///< the relative constraint position on bodies I and J.
+  double posJ[3] = {0, 0, 0};
   double labI[3] = {0, 0, 0};
-  double labJ[3] = {
-      0, 0, 0}; ///< the labframe location of collision points endI and endJ
+  double labJ[3] = {0, 0, 0};
+
   double stress[9] = {0, 0, 0, 0, 0, 0, 0, 0, 0};
   ///< stress 3x3 matrix (row-major) for unit constraint force gamma
 
@@ -62,38 +57,48 @@ public:
    *
    */
   ConstraintBlock() = default;
+  ~ConstraintBlock() = default;
+
+  ConstraintBlock(const ConstraintBlock &other) = default;
+  ConstraintBlock(ConstraintBlock &&other) = default;
+  ConstraintBlock &operator=(const ConstraintBlock &other) = default;
+  ConstraintBlock &operator=(ConstraintBlock &&other) = default;
 
   /**
    * @brief Construct a new ConstraintBlock object
    *
    * @param delta0_ current value of the constraint function
-   * @param gamma_
+   * @param gamma_ force magnitude, could be an initial guess
    * @param gidI_
    * @param gidJ_
    * @param globalIndexI_
    * @param globalIndexJ_
-   * @param normI_
+   * @param normI_ surface norm vector at the location of constraints.
    * @param normJ_
-   * @param posI_
+   * @param posI_ the constraint position on bodies I and J relative to CoM
    * @param posJ_
-   * @param labI_
+   * @param labI_ the labframe location of collision points
    * @param labJ_
-   * @param oneSide_ flag for one side constarint
+   * @param oneSide_ flag for one side constarint, body J does not appear in
+   * mobility matrix
    * @param bilateral_ flag for bilateral constraint
    * @param kappa_ flag for kappa of bilateral constraint
    * @param gammaLB_ lower bound of gamma for unilateral constraints
    */
-  ConstraintBlock(double delta0_, double gamma_, int gidI_, int gidJ_,
-                  int globalIndexI_, int globalIndexJ_, const double normI_[3],
-                  const double normJ_[3], const double posI_[3],
-                  const double posJ_[3], const double labI_[3],
-                  const double labJ_[3], bool oneSide_, bool bilateral_,
-                  double kappa_, double gammaLB_)
+  ConstraintBlock(double delta0_, double gamma_,          //
+                  long gidI_, long gidJ_,                 //
+                  long globalIndexI_, long globalIndexJ_, //
+                  const double normI_[3], const double normJ_[3],
+                  const double posI_[3], const double posJ_[3],
+                  const double labI_[3], const double labJ_[3], //
+                  bool oneSide_, bool bilateral_, double kappa_,
+                  double gammaLB_)
       : delta0(delta0_), gamma(gamma_), gidI(gidI_), gidJ(gidJ_),
         globalIndexI(globalIndexI_), globalIndexJ(globalIndexJ_),
         oneSide(oneSide_), bilateral(bilateral_), kappa(kappa_),
         gammaLB(gammaLB_) {
-    for (long d = 0; d < 3; d++) {
+
+    for (int d = 0; d < 3; d++) {
       normI[d] = normI_[d];
       normJ[d] = normJ_[d];
       posI[d] = posI_[d];
@@ -101,37 +106,20 @@ public:
       labI[d] = labI_[d];
       labJ[d] = labJ_[d];
     }
-    std::fill(stress, stress + 9, 0);
-  }
 
-  void setStress(const Emat3 &stress_) {
-    for (long i = 0; i < 3; i++) {
-      for (long j = 0; j < 3; j++) {
-        stress[i * 3 + j] = stress_(i, j);
-      }
-    }
+    std::fill(stress, stress + 9, 0.0);
   }
 
   void setStress(const double *stress_) {
-    for (long i = 0; i < 9; i++) {
-      stress[i] = stress_[i];
-    }
+    std::copy(stress_, stress_ + 9, stress);
   }
 
   const double *getStress() const { return stress; }
 
-  void getStress(Emat3 &stress_) const {
-    for (long i = 0; i < 3; i++) {
-      for (long j = 0; j < 3; j++) {
-        stress_(i, j) = stress[i * 3 + j];
-      }
-    }
-  }
-
   void reverseIJ() {
     std::swap(gidI, gidJ);
     std::swap(globalIndexI, globalIndexJ);
-    for (long k = 0; k < 3; k++) {
+    for (int k = 0; k < 3; k++) {
       std::swap(normI[k], normJ[k]);
       std::swap(posI[k], posJ[k]);
       std::swap(labI[k], labJ[k]);
@@ -142,11 +130,9 @@ public:
 static_assert(std::is_trivially_copyable<ConstraintBlock>::value, "");
 static_assert(std::is_default_constructible<ConstraintBlock>::value, "");
 
-using ConstraintBlockQue =
-    std::deque<ConstraintBlock>; ///< a queue contains blocks collected by one
-                                 ///< thread
-using ConstraintBlockPool =
-    std::vector<ConstraintBlockQue>; ///< a pool contains queues on different
-                                     ///< threads
+///< a queue contains blocks collected by one thread
+using ConstraintBlockQue = std::deque<ConstraintBlock>;
+///< a pool contains queues on different threads
+using ConstraintBlockPool = std::deque<ConstraintBlockQue>;
 
 #endif

@@ -34,6 +34,7 @@ public:
   enum class IOTYPE {
     UInt8,
     Int32,
+    Int64,
     Float32,
     Float64
   }; ///< VTK XML binary data type
@@ -53,6 +54,8 @@ public:
       name = "UInt8";
     } else if (type == IOTYPE::Int32) {
       name = "Int32";
+    } else if (type == IOTYPE::Int64) {
+      name = "Int64";
     } else if (type == IOTYPE::Float32) {
       name = "Float32";
     } else if (type == IOTYPE::Float64) {
@@ -307,8 +310,10 @@ public:
                                    std::ofstream &file) {
     // set type name
     std::string vtktype;
-    if (std::is_same<T, int>::value) {
+    if (std::is_same<T, int32_t>::value) {
       vtktype = "Int32";
+    } else if (std::is_same<T, int64_t>::value) {
+      vtktype = "Int64";
     } else if (std::is_same<T, float>::value) {
       vtktype = "Float32";
     } else if (std::is_same<T, double>::value) {
