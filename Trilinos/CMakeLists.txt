@@ -17,6 +17,7 @@ endfunction()
 exetest(TMAP)
 exetest(TCMAT)
 exetest(SubView)
+exetest(Kokkos)
 
 #########################################################################
 add_executable(Belos_test Belos_test.cpp TpetraUtil.cpp)
