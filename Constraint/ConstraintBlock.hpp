@@ -11,7 +11,12 @@
 #ifndef CONSTRAINTBLOCK_HPP_
 #define CONSTRAINTBLOCK_HPP_
 
+#include "Util/IOHelper.hpp"
+
+#include <msgpack.hpp>
+
 #include <deque>
+#include <string>
 #include <vector>
 
 constexpr long GEO_INVALID_INDEX = -1;
@@ -31,16 +36,14 @@ public:
   double delta0 = 0;
   double gamma = 0;
   double gammaLB = 0;
+  bool oneSide = false;
+  bool bilateral = false;
+  double kappa = 0; ///< spring constant. =0 means no spring
 
   long gidI = GEO_INVALID_INDEX;         ///< unique global ID of particle I
   long gidJ = GEO_INVALID_INDEX;         ///< unique global ID of particle J
   long globalIndexI = GEO_INVALID_INDEX; ///< global index of particle I
   long globalIndexJ = GEO_INVALID_INDEX; ///< global index of particle J
-
-  bool oneSide = false;
-  bool bilateral = false;
-
-  double kappa = 0; ///< spring constant. =0 means no spring
 
   double normI[3] = {0, 0, 0};
   double normJ[3] = {0, 0, 0};
@@ -134,5 +137,72 @@ static_assert(std::is_default_constructible<ConstraintBlock>::value, "");
 using ConstraintBlockQue = std::deque<ConstraintBlock>;
 ///< a pool contains queues on different threads
 using ConstraintBlockPool = std::deque<ConstraintBlockQue>;
+
+namespace msgpack {
+MSGPACK_API_VERSION_NAMESPACE(MSGPACK_DEFAULT_API_NS) {
+  namespace adaptor {
+
+  template <>
+  struct pack<ConstraintBlockPool> {
+    template <typename Stream>
+    packer<Stream> &operator()(msgpack::packer<Stream> &o,
+                               ConstraintBlockPool const &cPool) const {
+      int blkN = 0;
+      for (auto &que : cPool) {
+        blkN += que.size();
+      }
+
+      // packing array of struct as mapped struct of array.
+      o.pack_map(17);
+
+      auto pack_variable = [&](const std::string &m_name,
+                               const auto ConstraintBlock::*m_ptr) {
+        o.pack(m_name);
+        o.pack_array(blkN);
+        for (const auto &que : cPool) {
+          for (const auto &blk : que) {
+            o.pack(blk.*m_ptr);
+          }
+        }
+      };
+
+      pack_variable("delta0", &ConstraintBlock::delta0);
+      pack_variable("gamma", &ConstraintBlock::gamma);
+      pack_variable("gammaLB", &ConstraintBlock::gammaLB);
+      pack_variable("oneSide", &ConstraintBlock::oneSide);
+      pack_variable("bilateral", &ConstraintBlock::bilateral);
+      pack_variable("kappa", &ConstraintBlock::kappa);
+      pack_variable("gidI", &ConstraintBlock::gidI);
+      pack_variable("gidJ", &ConstraintBlock::gidJ);
+      pack_variable("globalIndexI", &ConstraintBlock::globalIndexI);
+      pack_variable("globalIndexJ", &ConstraintBlock::globalIndexJ);
+      pack_variable("normI", &ConstraintBlock::normI);
+      pack_variable("normJ", &ConstraintBlock::normJ);
+      pack_variable("posI", &ConstraintBlock::posI);
+      pack_variable("posJ", &ConstraintBlock::posJ);
+      pack_variable("labI", &ConstraintBlock::labI);
+      pack_variable("labJ", &ConstraintBlock::labJ);
+      pack_variable("stress", &ConstraintBlock::stress);
+
+      return o;
+    }
+  };
+
+  } // namespace adaptor
+} // MSGPACK_API_VERSION_NAMESPACE(MSGPACK_DEFAULT_API_NS)
+} // namespace msgpack
+
+void writeConstraintBlockPool(const std::string &filename,
+                              const ConstraintBlockPool &cbp,
+                              bool overwrite = false) {
+  std::ofstream ofs;
+  if (IOHelper::fileExist(filename) and !overwrite) {
+    ofs.open(filename, std::ios_base::app);
+  } else {
+    ofs.open(filename);
+  }
+  msgpack::pack(ofs, cbp);
+  return;
+}
 
 #endif

@@ -21,3 +21,10 @@ add_custom_command(
 add_custom_target(copy_BCQPSolver_verify
                   DEPENDS ${CMAKE_CURRENT_BINARY_DIR}/BCQPSolver_verify.py)
 add_dependencies(BCQPSolver_test copy_BCQPSolver_verify)
+
+
+add_executable(ConstraintBlock_test ConstraintBlock_test.cpp)
+target_include_directories(ConstraintBlock_test PRIVATE ${CMAKE_SOURCE_DIR})
+target_link_libraries(ConstraintBlock_test PRIVATE msgpackc-cxx
+                          OpenMP::OpenMP_CXX MPI::MPI_CXX)
+add_test(NAME ConstraintBlock COMMAND ConstraintBlock_test)
