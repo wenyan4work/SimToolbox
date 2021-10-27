@@ -141,7 +141,7 @@ template <class T>
 void describe(const T &obj) {
   Teuchos::RCP<Teuchos::FancyOStream> out =
       Teuchos::VerboseObjectBase::getDefaultOStream();
-  obj.describe(*out, Teuchos::EVerbosityLevel::VERB_MEDIUM);
+  obj.describe(*out, Teuchos::EVerbosityLevel::VERB_HIGH);
 }
 
 /**

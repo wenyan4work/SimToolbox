@@ -36,9 +36,9 @@ public:
   double delta0 = 0;
   double gamma = 0;
   double gammaLB = 0;
+  double kappa = 0; ///< spring constant. =0 means no spring
   bool oneSide = false;
   bool bilateral = false;
-  double kappa = 0; ///< spring constant. =0 means no spring
 
   long gidI = GEO_INVALID_INDEX;         ///< unique global ID of particle I
   long gidJ = GEO_INVALID_INDEX;         ///< unique global ID of particle J
@@ -146,7 +146,7 @@ MSGPACK_API_VERSION_NAMESPACE(MSGPACK_DEFAULT_API_NS) {
   struct pack<ConstraintBlockPool> {
     template <typename Stream>
     packer<Stream> &operator()(msgpack::packer<Stream> &o,
-                               ConstraintBlockPool const &cPool) const {
+                               const ConstraintBlockPool &cPool) const {
       int blkN = 0;
       for (auto &que : cPool) {
         blkN += que.size();
@@ -191,18 +191,5 @@ MSGPACK_API_VERSION_NAMESPACE(MSGPACK_DEFAULT_API_NS) {
   } // namespace adaptor
 } // MSGPACK_API_VERSION_NAMESPACE(MSGPACK_DEFAULT_API_NS)
 } // namespace msgpack
-
-void writeConstraintBlockPool(const std::string &filename,
-                              const ConstraintBlockPool &cbp,
-                              bool overwrite = false) {
-  std::ofstream ofs;
-  if (IOHelper::fileExist(filename) and !overwrite) {
-    ofs.open(filename, std::ios_base::app);
-  } else {
-    ofs.open(filename);
-  }
-  msgpack::pack(ofs, cbp);
-  return;
-}
 
 #endif

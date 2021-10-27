@@ -80,40 +80,6 @@ public:
                                 bool withOneSide = false) const;
 
   /**
-   * @brief write VTK XML PVTP Header file from rank 0
-   *
-   * the files will be written as folder/prefixConBlock_rX_postfix.vtp
-   * @param folder
-   * @param prefix
-   * @param postfix
-   * @param nProcs
-   */
-  void writePVTP(const std::string &folder, const std::string &prefix,
-                 const std::string &postfix, const int nProcs) const;
-
-  /**
-   * @brief write VTK XML binary base64 VTP data file from every MPI rank
-   *
-   * files are written as
-   * folder + '/' + prefix + ("ColBlock_") + "r" + (rank) + ("_") + postfix +
-   * (".vtp")
-   *
-   * Procedure for dumping constraint blocks in the system:
-   * Each block writes a polyline with two (connected) points.
-   * Points are labeled with float -1 and 1
-   * Constraint data fields are written as point and cell data
-   * Rank 0 writes the parallel header , then each rank write its own serial vtp
-   * file
-   *
-   * @param folder
-   * @param prefix
-   * @param postfix
-   * @param rank
-   */
-  void writeVTP(const std::string &folder, const std::string &prefix,
-                const std::string &postfix, int rank) const;
-
-  /**
    * @brief dump the blocks to screen for debugging
    *
    */
@@ -146,6 +112,15 @@ public:
    * @return int error code (TODO:)
    */
   int writeBackGamma(const Teuchos::RCP<const TV> &gammaRcp);
+
+  /**
+   * @brief write data in msgpack format
+   *
+   * @param filename
+   * @param overwrite
+   */
+  void writeConstraintBlockPool(const std::string &filename,
+                                bool overwrite = false) const;
 };
 
 #endif
