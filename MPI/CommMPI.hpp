@@ -14,7 +14,6 @@
 #include "Util/SortUtil.hpp"
 
 #include <numeric>
-#include <type_traits>
 #include <vector>
 
 #include <mpi.h>
