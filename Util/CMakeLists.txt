@@ -1,6 +1,3 @@
-# Example of how to compile and link target_compile_options
-# target_include_directories target_link_libraries
-
 function(exetest exename)
   add_executable(${exename}_test ${exename}_test.cpp)
   target_include_directories(${exename}_test PRIVATE ${CMAKE_SOURCE_DIR}

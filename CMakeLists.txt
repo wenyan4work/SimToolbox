@@ -7,6 +7,7 @@ set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} "${CMAKE_SOURCE_DIR}/cmake/")
 
 # Get Trilinos as one entity
 find_package(Trilinos REQUIRED)
+find_package(ArborX REQUIRED)
 # clean up the too-long list
 list(REMOVE_DUPLICATES Trilinos_INCLUDE_DIRS)
 list(REMOVE_DUPLICATES Trilinos_TPL_INCLUDE_DIRS)
