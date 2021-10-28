@@ -33,27 +33,26 @@ constexpr double GEO_DEFAULT_NEIGHBOR = 2.0;
  */
 struct ConstraintBlock {
 public:
-  double delta0 = 0;
-  double gamma = 0;
-  double gammaLB = 0;
-  double kappa = 0; ///< spring constant. =0 means no spring
-  bool oneSide = false;
-  bool bilateral = false;
+  double delta0 = 0;      ///< current value of the constraint function
+  double gamma = 0;       ///< force magnitude, could be an initial guess
+  double gammaLB = 0;     ///< lower bound of gamma in solver
+  double kappa = 0;       ///< spring constant. <=0 means no spring
+  bool oneSide = false;   ///< true means J appears in mobility matrix
+  bool bilateral = false; ///< true means a bilateral constraint
 
-  long gidI = GEO_INVALID_INDEX;         ///< unique global ID of particle I
-  long gidJ = GEO_INVALID_INDEX;         ///< unique global ID of particle J
-  long globalIndexI = GEO_INVALID_INDEX; ///< global index of particle I
-  long globalIndexJ = GEO_INVALID_INDEX; ///< global index of particle J
+  long gidI = GEO_INVALID_INDEX;         ///< unique global ID of I
+  long gidJ = GEO_INVALID_INDEX;         ///< unique global ID of J
+  long globalIndexI = GEO_INVALID_INDEX; ///< global index of I in mobility
+  long globalIndexJ = GEO_INVALID_INDEX; ///< global index of J in mobility
 
-  double normI[3] = {0, 0, 0};
-  double normJ[3] = {0, 0, 0};
-  double posI[3] = {0, 0, 0};
-  double posJ[3] = {0, 0, 0};
-  double labI[3] = {0, 0, 0};
-  double labJ[3] = {0, 0, 0};
+  double normI[3] = {0, 0, 0}; ///< F on I = gamma * normI
+  double normJ[3] = {0, 0, 0}; ///< F on J = gamma * normJ
+  double posI[3] = {0, 0, 0};  ///< F position relative to center of mass of I
+  double posJ[3] = {0, 0, 0};  ///< F position relative to center of mass of J
+  double labI[3] = {0, 0, 0};  ///< F position in lab frame on I
+  double labJ[3] = {0, 0, 0};  ///< F position in lab frame on J
 
-  double stress[9] = {0, 0, 0, 0, 0, 0, 0, 0, 0};
-  ///< stress 3x3 matrix (row-major) for unit constraint force gamma
+  double stress[9] = {0, 0, 0, 0, 0, 0, 0, 0, 0}; ///< row-major stress tensor
 
   /**
    * @brief Construct a new empty collision block
@@ -68,25 +67,24 @@ public:
   ConstraintBlock &operator=(ConstraintBlock &&other) = default;
 
   /**
-   * @brief Construct a new ConstraintBlock object
+   * @brief Construct a new Constraint Block object
    *
-   * @param delta0_ current value of the constraint function
-   * @param gamma_ force magnitude, could be an initial guess
+   * @param delta0_
+   * @param gamma_
    * @param gidI_
    * @param gidJ_
    * @param globalIndexI_
    * @param globalIndexJ_
-   * @param normI_ surface norm vector at the location of constraints.
+   * @param normI_
    * @param normJ_
-   * @param posI_ the constraint position on bodies I and J relative to CoM
+   * @param posI_
    * @param posJ_
-   * @param labI_ the labframe location of collision points
+   * @param labI_
    * @param labJ_
-   * @param oneSide_ flag for one side constarint, body J does not appear in
-   * mobility matrix
-   * @param bilateral_ flag for bilateral constraint
-   * @param kappa_ flag for kappa of bilateral constraint
-   * @param gammaLB_ lower bound of gamma for unilateral constraints
+   * @param oneSide_
+   * @param bilateral_
+   * @param kappa_
+   * @param gammaLB_
    */
   ConstraintBlock(double delta0_, double gamma_,          //
                   long gidI_, long gidJ_,                 //
@@ -94,8 +92,8 @@ public:
                   const double normI_[3], const double normJ_[3],
                   const double posI_[3], const double posJ_[3],
                   const double labI_[3], const double labJ_[3], //
-                  bool oneSide_, bool bilateral_, double kappa_,
-                  double gammaLB_)
+                  bool oneSide_, bool bilateral_, double kappa_ = 0,
+                  double gammaLB_ = 0)
       : delta0(delta0_), gamma(gamma_), gidI(gidI_), gidJ(gidJ_),
         globalIndexI(globalIndexI_), globalIndexJ(globalIndexJ_),
         oneSide(oneSide_), bilateral(bilateral_), kappa(kappa_),
@@ -133,17 +131,37 @@ public:
 static_assert(std::is_trivially_copyable<ConstraintBlock>::value, "");
 static_assert(std::is_default_constructible<ConstraintBlock>::value, "");
 
-///< a queue contains blocks collected by one thread
+/**
+ * @brief a queue contains blocks collected by one thread
+ *
+ */
 using ConstraintBlockQue = std::deque<ConstraintBlock>;
-///< a pool contains queues on different threads
+
+/**
+ * @brief  a pool contains queues on different threads
+ *
+ */
 using ConstraintBlockPool = std::deque<ConstraintBlockQue>;
 
 namespace msgpack {
 MSGPACK_API_VERSION_NAMESPACE(MSGPACK_DEFAULT_API_NS) {
   namespace adaptor {
 
+  /**
+   * @brief full specialization of msgpack::pack
+   *
+   * @tparam
+   */
   template <>
   struct pack<ConstraintBlockPool> {
+    /**
+     * @brief
+     *
+     * @tparam Stream
+     * @param o destination of data to be saved
+     * @param cPool data to be saved
+     * @return packer<Stream>&
+     */
     template <typename Stream>
     packer<Stream> &operator()(msgpack::packer<Stream> &o,
                                const ConstraintBlockPool &cPool) const {
@@ -152,9 +170,12 @@ MSGPACK_API_VERSION_NAMESPACE(MSGPACK_DEFAULT_API_NS) {
         blkN += que.size();
       }
 
-      // packing array of struct as mapped struct of array.
-      o.pack_map(17);
+      o.pack_map(17); // pack to a map with 17 arrays
 
+      /**
+       * @brief pack every data member as a contiguous array in the map
+       *
+       */
       auto pack_variable = [&](const std::string &m_name,
                                const auto ConstraintBlock::*m_ptr) {
         o.pack(m_name);

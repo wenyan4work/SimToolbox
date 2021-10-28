@@ -69,8 +69,18 @@ public:
     ubRcp = ubRcp_;
   };
 
+  /**
+   * @brief Get the Lower Bound object
+   *
+   * @return Teuchos::RCP<TV>
+   */
   Teuchos::RCP<TV> getLowerBound() { return lbRcp; }
 
+  /**
+   * @brief Get the Upper Bound object
+   *
+   * @return Teuchos::RCP<TV>
+   */
   Teuchos::RCP<TV> getUpperBound() { return ubRcp; }
 
   /**
@@ -120,8 +130,8 @@ private:
   Teuchos::RCP<const TCOMM> commRcp; ///< Teuchos::MpiComm
   Teuchos::RCP<TV> lbRcp;            ///< lower bound
   Teuchos::RCP<TV> ubRcp;            ///< upper bound
-  bool lbSet = false;
-  bool ubSet = false;
+  bool lbSet = false;                ///< if lb has been set
+  bool ubSet = false;                ///< if ub has been set
 
   /**
    * @brief ensure the map of ARcp, bRcp, mapRcp, lbRcp, ubRcp are compatible
@@ -164,8 +174,8 @@ private:
   /**
    * @brief generate random operator ARcp for test purposes
    *
-   * @param localSize
-   * @param diagonal
+   * @param localSize local diagonal block size of each mpi rank
+   * @param diagonal extra values added to the diagonal to improve conditioning
    */
   void generateRandomOperator(const int localSize, const double diagonal = 0.0);
 };

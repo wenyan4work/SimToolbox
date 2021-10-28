@@ -13,10 +13,6 @@
 
 #include "Trilinos/TpetraUtil.hpp"
 
-#include <array>
-#include <deque>
-#include <vector>
-
 /**
  * @brief Constraint Operator is a block matrix assembled from four blocks:
  *    [Du^T M Du       Du^T M Db           ]
@@ -31,8 +27,7 @@ public:
    * @brief Construct a new ConstraintOperator object
    *
    * @param mobOp
-   * @param uniDuMat
-   * @param biDbMat
+   * @param DMatTransRcp
    * @param invKappaDiagMat
    */
   ConstraintOperator(Teuchos::RCP<TOP> &mobOp_,
@@ -49,7 +44,8 @@ public:
    * @param beta
    */
   void
-  apply(const TMV &X, TMV &Y, Teuchos::ETransp mode = Teuchos::NO_TRANS,
+  apply(const TMV &X, TMV &Y, //
+        Teuchos::ETransp mode = Teuchos::NO_TRANS,
         scalar_type alpha = Teuchos::ScalarTraits<scalar_type>::one(),
         scalar_type beta = Teuchos::ScalarTraits<scalar_type>::zero()) const;
 
@@ -76,7 +72,16 @@ public:
    */
   bool hasTransposeApply() const { return false; }
 
+  /**
+   * @brief enable timer
+   *
+   */
   void enableTimer();
+
+  /**
+   * @brief disable timer
+   *
+   */
   void disableTimer();
 
   Teuchos::RCP<TV> getForce() { return forceRcp; }
@@ -84,18 +89,18 @@ public:
   Teuchos::RCP<TCMAT> getDMat() { return DMatRcp; }
 
 private:
-  // comm
   Teuchos::RCP<const TCOMM> commRcp; ///< the mpi communicator
-  // constant operators
-  Teuchos::RCP<TOP> mobOpRcp; ///< mobility matrix
-  Teuchos::RCP<TCMAT> DMatTransRcp;
-  Teuchos::RCP<TCMAT> DMatRcp;
-  Teuchos::RCP<TV> invKappa; ///< 1/h K^{-1} diagonal matrix
 
-  Teuchos::RCP<const TMAP>
-      mobMapRcp; ///< map for mobility matrix. 6 DOF per obj
-  Teuchos::RCP<const TMAP>
-      gammaMapRcp; ///< map for combined vector [gammau; gammab]^T
+  // constant operators
+  Teuchos::RCP<TOP> mobOpRcp;       ///< mobility matrix
+  Teuchos::RCP<TCMAT> DMatTransRcp; ///< D^T
+  Teuchos::RCP<TCMAT> DMatRcp;      ///< D
+  Teuchos::RCP<TV> invKappa;        ///< 1/h K^{-1} diagonal entries
+
+  Teuchos::RCP<const TMAP> mobMapRcp;   ///< map for mobility matrix.
+                                        ///< 6 DOF per obj
+  Teuchos::RCP<const TMAP> gammaMapRcp; ///< map for combined vector
+                                        ///< gamma = [gammau; gammab]^T
 
   Teuchos::RCP<TV> forceRcp; ///< force = D gamma
   Teuchos::RCP<TV> velRcp;   ///< vel = M force

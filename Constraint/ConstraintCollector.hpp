@@ -36,22 +36,12 @@ public:
   std::shared_ptr<ConstraintBlockPool> constraintPoolPtr;
 
   ConstraintCollector();
+  ~ConstraintCollector() = default;
 
-  /**
-   * @brief Default copy
-   *
-   * @param obj
-   */
   ConstraintCollector(const ConstraintCollector &obj) = default;
   ConstraintCollector(ConstraintCollector &&obj) = default;
   ConstraintCollector &operator=(const ConstraintCollector &obj) = default;
   ConstraintCollector &operator=(ConstraintCollector &&obj) = default;
-
-  /**
-   * @brief Destroy the ConstraintCollector object
-   *
-   */
-  ~ConstraintCollector() = default;
 
   /**
    * @brief clear the blocks and get an empty collision pool
@@ -103,6 +93,11 @@ public:
                                   Teuchos::RCP<TV> &biFlagRcp,               //
                                   Teuchos::RCP<TV> &gammaGuessRcp) const;
 
+  /**
+   * @brief build the offset for each ConstarintBlockQue
+   *
+   * @return std::vector<int>
+   */
   std::vector<int> buildConQueOffset() const;
 
   /**
