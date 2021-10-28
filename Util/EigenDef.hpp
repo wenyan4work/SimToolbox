@@ -40,12 +40,6 @@ using Emat2 = Eigen::Matrix<double, 2, 2, Eigen::DontAlign>;
 using Emat3 = Eigen::Matrix<double, 3, 3, Eigen::DontAlign>;
 using Emat4 = Eigen::Matrix<double, 4, 4, Eigen::DontAlign>;
 using Emat6 = Eigen::Matrix<double, 6, 6, Eigen::DontAlign>;
-using EmatPsi =
-    Eigen::Matrix<double, 4, 3,
-                  Eigen::DontAlign>; // psi mat for quaternion rotation
-
-// unaligned quaternion
-using Equatn = Eigen::Quaternion<double, Eigen::DontAlign>;
 
 // aligned fixed size vectors
 using EAvec2 = Eigen::Vector2d;
@@ -58,10 +52,12 @@ using EAmat2 = Eigen::Matrix2d;
 using EAmat3 = Eigen::Matrix3d;
 using EAmat4 = Eigen::Matrix4d;
 using EAmat6 = Eigen::Matrix<double, 6, 6>;
-using EAmatPsi = Eigen::Matrix<double, 4, 3, Eigen::DontAlign>;
 
-// aligned quaternion
+// quaternion types
 using EAquatn = Eigen::Quaterniond;
+using Equatn = Eigen::Quaternion<double, Eigen::DontAlign>;
+using EmatPsi = Eigen::Matrix<double, 4, 3, Eigen::DontAlign>;
+using EAmatPsi = Eigen::Matrix<double, 4, 3>;
 
 // map from raw pointer to fixed size type
 using Emap3 = Eigen::Map<Evec3, Eigen::Unaligned>;
@@ -71,22 +67,21 @@ using ECmapq = Eigen::Map<const Eigen::Quaternion<double>, Eigen::Unaligned>;
 
 // dynamic size types
 using Evec = Eigen::VectorXd;
-using Emat = Eigen::Matrix<double, Eigen::Dynamic,
-                           Eigen::Dynamic>; // default to column major
+using Emat = Eigen::Matrix<double, Eigen::Dynamic, Eigen::Dynamic>;
 using Espmat = Eigen::SparseMatrix<double>;
 
-/**
- * @brief swap by copy
- *
- * @tparam T
- * @param a
- * @param b
- */
-template <typename T>
-void copySwap(T &a, T &b) {
-  T temp = b;
-  b = a;
-  a = b;
-}
+// /**
+//  * @brief swap by copy
+//  *
+//  * @tparam T
+//  * @param a
+//  * @param b
+//  */
+// template <typename T>
+// void copySwap(T &a, T &b) {
+//   T temp = b;
+//   b = a;
+//   a = b;
+// }
 
 #endif /* EIGENDEF_HPP_ */

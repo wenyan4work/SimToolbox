@@ -51,8 +51,8 @@ public:
    * @param u2 \f$U[0,1)\f$ random number
    * @param u3 \f$U[0,1)\f$ random number
    */
-  static void setUnitRandomEquatn(Equatn &q, const double &u1, const double &u2,
-                                  const double &u3) {
+  static void setUnitRandomEquatn(Equatn &q, const double u1, const double u2,
+                                  const double u3) {
     // a random unit quaternion following a uniform distribution law on SO(3)
     // from three U[0,1] random numbers
     constexpr double pi = 3.14159265358979323846;
@@ -76,7 +76,7 @@ public:
    * @param omega angular velocity
    * @param dt time interval
    */
-  static void rotateEquatn(Equatn &q, const Evec3 &omega, const double &dt) {
+  static void rotateEquatn(Equatn &q, const Evec3 &omega, const double dt) {
     const double w = omega.norm();
     if (w < std::numeric_limits<float>::epsilon()) {
       return;
@@ -116,7 +116,7 @@ public:
 
   static void getPsiMatFromEquatn(const Equatn &q, EmatPsi &psi) {
     const double s = q.w();
-    const EAvec3 p(q.x(), q.y(), q.z());
+    const Evec3 p(q.x(), q.y(), q.z());
     psi.block<1, 3>(0, 0) = 0.5 * (-p.transpose());
     psi(1, 0) = 0.5 * s;
     psi(1, 1) = 0.5 * p[2];
