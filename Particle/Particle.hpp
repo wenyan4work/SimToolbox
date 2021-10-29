@@ -34,6 +34,7 @@ struct Link {
  * force  = forceConU + forceConB + forceNonCon.
  * there is no Brownian force.
  */
+template <class ShapeData>
 struct Particle {
   long gid = -1;         ///< unique global id
   long globalIndex = -1; ///< unique and sequentially ordered from rank 0
@@ -66,6 +67,8 @@ struct Particle {
   double forceConB[6] = {0, 0, 0, 0, 0, 0};   ///< bilateral constraint
   double forceNonCon[6] = {0, 0, 0, 0, 0, 0}; ///<  sum of non-Brown and non-Con
 
+  ShapeData data;
+
   /**
    * @brief define msgpack serialization format
    *
@@ -73,10 +76,10 @@ struct Particle {
   MSGPACK_DEFINE(gid, globalIndex, group, rank, isImmovable, //
                  pos, orientation,                           //
                  vel, velConU, velConB, velNonCon, velBrown, //
-                 force, forceConU, forceConB, forceNonCon);
+                 force, forceConU, forceConB, forceNonCon, data);
 
   Particle() = default;
-  virtual ~Particle() = default;
+  ~Particle() = default;
 
   Particle(const Particle &) = default;
   Particle(Particle &&) = default;
@@ -102,7 +105,9 @@ struct Particle {
    *
    * @return EMat6 mobility matrix 6x6
    */
-  virtual Emat6 calcMobMat() const { return Emat6::Identity(); };
+  Emat6 getMobMat() const {
+    return isImmovable ? std::move(Emat6::Zero()) : std::move(data.getMobMat());
+  };
 
   /**
    * @brief Get AABB for neighbor search
@@ -110,22 +115,21 @@ struct Particle {
    * @return std::pair<std::array<double,3>, std::array<double,3>>
    * boxLow,boxHigh
    */
-  virtual std::pair<std::array<double, 3>, std::array<double, 3>>
-  getBox() const {
-    using Point = std::array<double, 3>;
-    return std::make_pair(Point{pos[0], pos[1], pos[2]},
-                          Point{pos[0], pos[1], pos[2]});
+  std::pair<std::array<double, 3>, std::array<double, 3>> getBox() const {
+    return std::move(data.getBox(pos, orientation));
   };
 
-  virtual void echo() const {
+  void echo() const {
+    printf("-----------------------------------------------");
     printf("gid %d, globalIndex %d, pos %g, %g, %g\n", //
            gid, globalIndex,                           //
            pos[0], pos[1], pos[2]);
+    printf("orient %g, %g, %g, %g\n", //
+           orientation[0], orientation[1], orientation[2], orientation[3]);
     printf("vel %g, %g, %g; omega %g, %g, %g\n", //
            vel[0], vel[1], vel[2],               //
            vel[3], vel[4], vel[5]);
-    printf("orient %g, %g, %g, %g\n", //
-           orientation[0], orientation[1], orientation[2], orientation[3]);
+    data.echo();
   }
 };
 

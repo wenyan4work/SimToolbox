@@ -4,13 +4,37 @@
 #include <random>
 #include <vector>
 
+struct Sph {
+  double radius = 5;
+  MSGPACK_DEFINE(radius);
+
+  void echo() const { printf("radius %g\n", radius); }
+
+  Emat6 getMobMat() const { return Emat6::Identity(); };
+
+  /**
+   * @brief Get AABB for neighbor search
+   *
+   * @return std::pair<std::array<double,3>, std::array<double,3>>
+   * boxLow,boxHigh
+   */
+  std::pair<std::array<double, 3>, std::array<double, 3>>
+  getBox(const double pos[3], const double orientation[4]) const {
+    using Point = std::array<double, 3>;
+    return std::make_pair<Point, Point>(
+        Point{pos[0] - radius, pos[1] - radius, pos[2] - radius}, //
+        Point{pos[0] + radius, pos[1] + radius, pos[2] + radius});
+  };
+};
+
 int main() {
-  using ParPtr = std::shared_ptr<Particle>;
+  using Par = Particle<Sph>;
+  using ParPtr = std::shared_ptr<Par>;
 
   std::vector<ParPtr> particles;
   constexpr int npar = 100;
   for (int i = 0; i < npar; i++) {
-    particles.emplace_back(std::make_shared<Particle>());
+    particles.emplace_back(std::make_shared<Par>());
   }
 
   std::mt19937 gen(0);
@@ -40,7 +64,7 @@ int main() {
     while (off < len) {
       auto result = msgpack::unpack(sbuf.data(), len, off);
       particles_verify.emplace_back(
-          std::make_shared<Particle>(result.get().as<Particle>()));
+          std::make_shared<Par>(result.get().as<Par>()));
     }
     if (particles.size() != particles_verify.size()) {
       printf("Error size\n");
