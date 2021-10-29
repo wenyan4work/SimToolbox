@@ -1,35 +1,14 @@
 #include "Particle.hpp"
+#include "Sphere.hpp"
+#include "Sylinder.hpp"
 
 #include <iostream>
 #include <memory>
 #include <random>
 #include <vector>
 
-struct Sph {
-  double radius = 5;
-  MSGPACK_DEFINE(radius);
-
-  void echo() const { printf("radius %g\n", radius); }
-
-  Emat6 getMobMat() const { return Emat6::Identity() / radius; };
-
-  /**
-   * @brief Get AABB for neighbor search
-   *
-   * @return std::pair<std::array<double,3>, std::array<double,3>>
-   * boxLow,boxHigh
-   */
-  std::pair<std::array<double, 3>, std::array<double, 3>>
-  getBox(const double pos[3], const double orientation[4]) const {
-    using Point = std::array<double, 3>;
-    return std::make_pair<Point, Point>(
-        Point{pos[0] - radius, pos[1] - radius, pos[2] - radius}, //
-        Point{pos[0] + radius, pos[1] + radius, pos[2] + radius});
-  };
-};
-
-int main() {
-  using Par = Particle<Sph>;
+template <class Par>
+void testPackUnpack() {
 
   std::vector<Par> particles;
   constexpr int npar = 100;
@@ -82,6 +61,32 @@ int main() {
       }
     }
   }
+}
+
+void testMultiContainer() {
+  //   template <class... ParType>
+  //   using MultiTypeContainer = std::tuple<std::vector<ParType>...>;
+
+  using MyContainer = MultiTypeContainer<Sylinder, Sphere>;
+  MyContainer myContainer;
+
+  std::get<0>(myContainer.particles).resize(20);
+  std::get<1>(myContainer.particles).resize(40);
+
+  const auto &offset = myContainer.buildOffset();
+  for (auto &v : offset) {
+    printf("%d\n", v);
+  }
+  printf("Total number particles: %d\n", offset.back());
+
+  return;
+}
+
+int main() {
+  //   testPackUnpack<Sylinder>();
+  //   testPackUnpack<Sphere>();
+
+  testMultiContainer();
 
   return 0;
 }

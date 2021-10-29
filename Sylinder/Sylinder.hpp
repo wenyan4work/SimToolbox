@@ -26,7 +26,7 @@
  * @brief Sphero-cylinder class
  *
  */
-class Sylinder : public Particle {
+class Sylinder {
 public:
   double radius;          ///< radius
   double radiusCollision; ///< radius for collision resolution
@@ -112,30 +112,6 @@ public:
    * @param dt
    */
   void stepEuler(double dt);
-
-  /**
-   * @brief return position
-   *
-   * necessary interface for InteractionManager.hpp
-   * @return const double*
-   */
-  const double *Coord() const { return pos; }
-
-  /**
-   * @brief return search radius
-   *
-   * necessary interface for InteractionManager.hpp
-   * @return double
-   */
-  double Rad() const { return radiusCollision * 4 + lengthCollision; }
-
-  /**
-   * @brief Get the Gid
-   *
-   * necessary interface for FDPS FullParticle class
-   * @return int
-   */
-  int getGid() const { return gid; }
 };
 
 #endif

@@ -18,6 +18,8 @@
 #include <array>
 #include <utility>
 
+constexpr double Pi = 3.14159265358979323846;
+
 /**
  * @brief specify the link of sylinders
  *
@@ -106,7 +108,8 @@ struct Particle {
    * @return EMat6 mobility matrix 6x6
    */
   Emat6 getMobMat() const {
-    return isImmovable ? std::move(Emat6::Zero()) : std::move(data.getMobMat());
+    return isImmovable ? std::move(Emat6::Zero())
+                       : std::move(data.getMobMat(orientation));
   };
 
   /**
@@ -134,6 +137,40 @@ struct Particle {
            vel[0], vel[1], vel[2],               //
            vel[3], vel[4], vel[5]);
     data.echo();
+  }
+};
+
+template <std::size_t I = 0, typename FuncT, typename... Tp>
+inline typename std::enable_if<I == sizeof...(Tp), void>::type //
+for_each(std::tuple<Tp...> &, FuncT) // Unused arguments are given no names.
+{}
+
+template <std::size_t I = 0, typename FuncT, typename... Tp>
+    inline typename std::enable_if < I<sizeof...(Tp), void>::type //
+                                     for_each(std::tuple<Tp...> &t, FuncT f) {
+  f(std::get<I>(t));
+  for_each<I + 1, FuncT, Tp...>(t, f);
+}
+
+/**
+ * @brief Container for multiple types of particles
+ *
+ * @tparam ParType
+ */
+template <class... ParType>
+struct MultiTypeContainer {
+  std::tuple<std::vector<ParType>...> particles;
+
+  std::vector<int> buildOffset() {
+    std::vector<int> offset(1, 0);
+    // iterate over particle types
+
+    auto getsize = [&](const auto &container) {
+      offset.push_back(container.size() + offset.back());
+    };
+
+    for_each(particles, getsize);
+    return offset;
   }
 };
 
