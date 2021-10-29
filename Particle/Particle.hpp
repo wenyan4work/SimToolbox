@@ -120,7 +120,7 @@ struct Particle {
   };
 
   void echo() const {
-    printf("-----------------------------------------------");
+    printf("-----------------------------------------------\n");
     printf("gid %d, globalIndex %d, pos %g, %g, %g\n", //
            gid, globalIndex,                           //
            pos[0], pos[1], pos[2]);
