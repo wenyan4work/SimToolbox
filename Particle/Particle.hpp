@@ -119,6 +119,10 @@ struct Particle {
     return std::move(data.getBox(pos, orientation));
   };
 
+  /**
+   * @brief display
+   *
+   */
   void echo() const {
     printf("-----------------------------------------------\n");
     printf("gid %d, globalIndex %d, pos %g, %g, %g\n", //

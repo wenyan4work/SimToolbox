@@ -1,5 +1,6 @@
 #include "Particle.hpp"
 
+#include <iostream>
 #include <memory>
 #include <random>
 #include <vector>
@@ -10,7 +11,7 @@ struct Sph {
 
   void echo() const { printf("radius %g\n", radius); }
 
-  Emat6 getMobMat() const { return Emat6::Identity(); };
+  Emat6 getMobMat() const { return Emat6::Identity() / radius; };
 
   /**
    * @brief Get AABB for neighbor search
@@ -45,6 +46,7 @@ int main() {
     p.globalIndex = udis(gen);
     p.rank = 0;
     p.group = udis(gen);
+    p.isImmovable = false;
   }
 
   // pack
@@ -73,6 +75,7 @@ int main() {
       const auto &pv = particles_verify[i];
       p.echo();
       pv.echo();
+      std::cout << pv.getMobMat() << std::endl;
       if ((p.gid != pv.gid) || (p.globalIndex != pv.globalIndex) ||
           (p.group != pv.group) || (p.rank != pv.rank)) {
         printf("Error data\n");
