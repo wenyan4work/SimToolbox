@@ -16,29 +16,24 @@
 
 #include <cmath>
 
-// WARNING: use w,x,y,z of a quaternion, do not use [0,1,2,3], since the mapping
-// order is different in eigen and in most papers. eigen: w->[3], for scalar.
-// x,y,z->[0,1,2] for vector
-
-// https://eigen.tuxfamily.org/dox/group__TutorialGeometry.html
-
-// Equatn: This class represents a quaternion $ w+xi+yj+zk $
-
-// eigen builtin routine : FromTwoVectors(a,b)
-// the built rotation represent a rotation sending the line of direction a to
-// the line of direction b, both lines passing through the origin. Note that the
-// two input vectors do not have to be normalized, and do not need to have the
-// same norm.
-
-// Concatenation of two transformations
-// gen1 * gen2; Apply the transformation to a vector
-// vec2 = gen1 * vec1; Get the inverse of the transformation
-// gen2 = gen1.inverse(); Spherical interpolation  (Rotation2D and Quaternion
-// only)
-
 /**
  * @brief an abstract class with a few static member functions
  *
+ * WARNING: use w,x,y,z of a quaternion, do not use [0,1,2,3], since the mapping
+ * order is different in eigen and in most papers.
+ * eigen: w->[3], for scalar. x,y,z->[0,1,2] for vector
+ * https://eigen.tuxfamily.org/dox/group__TutorialGeometry.html
+ * Equatn: This class represents a quaternion $ w+xi+yj+zk $
+ *
+ * Eigen builtin routine : FromTwoVectors(a,b)
+ * the built rotation represent a rotation sending the line of direction a to
+ * the line of direction b, both lines passing through the origin. Note that the
+ * two input vectors do not have to be normalized, and do not need to have the
+ * same norm.
+ *
+ * Concatenation of two transformations gen1 * gen2;
+ * Apply the transformation to a vector vec2 = gen1 * vec1;
+ * Get the inverse of the transformation gen2 = gen1.inverse();
  */
 class EquatnHelper {
 public:

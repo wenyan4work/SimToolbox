@@ -6,6 +6,8 @@
  * @date 2016-10-27
  *
  * Do not use auto with Eigen
+ * Eigen defaults to column-major storage.
+ * Mat(i,j) is not affected by row major or column major storage format
  *
  * @copyright Copyright (c) 2018
  *
@@ -19,15 +21,6 @@
 #include <Eigen/Cholesky>
 #include <Eigen/Dense>
 #include <Eigen/Sparse>
-
-/*
- * Do not use auto with Eigen
- *
- * Eigen defaults to column-major storage.
- * Mat(i,j) is not affected by row major or column major storage format
- * */
-
-constexpr double Pi = 3.141592653589793238462643383279;
 
 // unaligned fixed size vectors
 using Evec2 = Eigen::Matrix<double, 2, 1, Eigen::DontAlign>;

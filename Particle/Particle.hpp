@@ -13,7 +13,9 @@
 
 #include "Util/EigenDef.hpp"
 
-#include <type_traits>
+#include <msgpack.hpp>
+
+#include <array>
 #include <utility>
 
 /**
@@ -64,12 +66,21 @@ struct Particle {
   double forceConB[6] = {0, 0, 0, 0, 0, 0};   ///< bilateral constraint
   double forceNonCon[6] = {0, 0, 0, 0, 0, 0}; ///<  sum of non-Brown and non-Con
 
+  /**
+   * @brief define msgpack serialization format
+   *
+   */
+  MSGPACK_DEFINE(gid, globalIndex, group, rank, isImmovable, //
+                 pos, orientation,                           //
+                 vel, velConU, velConB, velNonCon, velBrown, //
+                 force, forceConU, forceConB, forceNonCon);
+
   Particle() = default;
   virtual ~Particle() = default;
 
   Particle(const Particle &) = default;
   Particle(Particle &&) = default;
-  Particle &operator=(Const Particle &) = default;
+  Particle &operator=(const Particle &) = default;
   Particle &operator=(Particle &&) = default;
 
   /**
@@ -91,17 +102,31 @@ struct Particle {
    *
    * @return EMat6 mobility matrix 6x6
    */
-  virtual EMat6 calcMobMat() const = 0;
+  virtual Emat6 calcMobMat() const { return Emat6::Identity(); };
 
   /**
    * @brief Get AABB for neighbor search
    *
-   * @return std::pair<double *, double *> double boxLow[3], double boxHigh[3]
+   * @return std::pair<std::array<double,3>, std::array<double,3>>
+   * boxLow,boxHigh
    */
-  virtual std::pair<double *, double *> getBox() const = 0;
-};
+  virtual std::pair<std::array<double, 3>, std::array<double, 3>>
+  getBox() const {
+    using Point = std::array<double, 3>;
+    return std::make_pair(Point{pos[0], pos[1], pos[2]},
+                          Point{pos[0], pos[1], pos[2]});
+  };
 
-static_assert(std::is_trivially_copyable<Particle>::value, "");
-static_assert(std::is_default_constructible<Particle>::value, "");
+  virtual void echo() const {
+    printf("gid %d, globalIndex %d, pos %g, %g, %g\n", //
+           gid, globalIndex,                           //
+           pos[0], pos[1], pos[2]);
+    printf("vel %g, %g, %g; omega %g, %g, %g\n", //
+           vel[0], vel[1], vel[2],               //
+           vel[3], vel[4], vel[5]);
+    printf("orient %g, %g, %g, %g\n", //
+           orientation[0], orientation[1], orientation[2], orientation[3]);
+  }
+};
 
 #endif
