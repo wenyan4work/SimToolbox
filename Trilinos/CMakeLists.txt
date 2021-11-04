@@ -1,7 +1,9 @@
 function(exetest exename)
   add_executable(${exename}_test ${exename}_test.cpp TpetraUtil.cpp)
   target_include_directories(
-    ${exename}_test PRIVATE ${CMAKE_SOURCE_DIR} ${Trilinos_INCLUDE_DIRS}
+    ${exename}_test PRIVATE ${CMAKE_SOURCE_DIR} 
+    ${Trilinos_INCLUDE_DIRS}
+    ${Trilinos_TPL_INCLUDE_DIRS}
                             ${TRNG_INCLUDE_DIR})
   target_link_libraries(
     ${exename}_test
