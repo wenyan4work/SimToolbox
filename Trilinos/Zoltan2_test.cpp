@@ -11,7 +11,7 @@
 #include <vector>
 
 void testPartition() {
-  auto commRcp = getMPIWORLDTCOMM();
+  auto commRcp = Tpetra::getDefaultComm();
   const int rank = commRcp->getRank();
   const int nprocs = commRcp->getSize();
 

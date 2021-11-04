@@ -46,7 +46,7 @@ void SylinderSystem::initialize(const SylinderConfig &runConfig_, const std::str
     TEUCHOS_ASSERT(mpiflag);
 
     Logger::set_level(runConfig.logLevel);
-    commRcp = getMPIWORLDTCOMM();
+    commRcp = Tpetra::getDefaultComm();
 
     showOnScreenRank0();
 
@@ -125,7 +125,7 @@ void SylinderSystem::reinitialize(const SylinderConfig &runConfig_, const std::s
     TEUCHOS_ASSERT(mpiflag);
 
     Logger::set_level(runConfig.logLevel);
-    commRcp = getMPIWORLDTCOMM();
+    commRcp = Tpetra::getDefaultComm();
 
     showOnScreenRank0();
 

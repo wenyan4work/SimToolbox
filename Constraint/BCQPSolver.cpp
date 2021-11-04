@@ -19,7 +19,7 @@ BCQPSolver::BCQPSolver(const Teuchos::RCP<const TOP> &A_,
 
 BCQPSolver::BCQPSolver(int localSize, double diagonal) {
   // set up comm
-  commRcp = getMPIWORLDTCOMM();
+  commRcp = Tpetra::getDefaultComm();
   mapRcp = getTMAPFromLocalSize(localSize, commRcp);
 
   generateRandomOperator(localSize, diagonal);

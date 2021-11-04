@@ -5,7 +5,7 @@
 
 void test() {
   const int localSize = 2;
-  auto commRcp = getMPIWORLDTCOMM();
+  auto commRcp = Tpetra::getDefaultComm();
   {
     // uniform, contiguous map
     auto map1 = getTMAPFromLocalSize(localSize, commRcp);

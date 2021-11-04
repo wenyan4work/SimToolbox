@@ -10,7 +10,7 @@ void test() {
    * vec  = [0,1,1,...,0,0,1,1,1,1,...]
    */
 
-  auto commRcp = getMPIWORLDTCOMM();
+  auto commRcp = Tpetra::getDefaultComm();
   const int rank = commRcp->getRank();
   const int nprocs = commRcp->getSize();
   const int localSize1 = 1 * (rank + 1);
