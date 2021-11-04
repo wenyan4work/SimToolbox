@@ -170,13 +170,6 @@ void dumpTV(const Teuchos::RCP<const TV> &A, std::string filename);
 void dumpTMAP(const Teuchos::RCP<const TMAP> &map, std::string filename);
 
 /**
- * @brief the default TCOMM corresponding to MPI_COMM_WORLD
- *
- * @return Teuchos::RCP<const TCOMM>
- */
-Teuchos::RCP<const TCOMM> getMPIWORLDTCOMM();
-
-/**
  * @brief return a contiguous TMAP from local Size
  *
  * @param localSize

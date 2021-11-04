@@ -36,10 +36,6 @@ void dumpTMAP(const Teuchos::RCP<const TMAP> &map, std::string filename) {
   writer.writeMapFile(filename, *map);
 }
 
-Teuchos::RCP<const TCOMM> getMPIWORLDTCOMM() {
-  return Teuchos::rcp(new Teuchos::MpiComm<int>(MPI_COMM_WORLD));
-}
-
 Teuchos::RCP<TMAP> getTMAPFromLocalSize(const size_t localSize,
                                         Teuchos::RCP<const TCOMM> &commRcp) {
   return Teuchos::rcp(

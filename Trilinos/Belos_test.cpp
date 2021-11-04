@@ -4,7 +4,7 @@
 void genLinearProblem(Teuchos::RCP<TCMAT> &ARcp, Teuchos::RCP<TV> &xGuessRcp,
                       Teuchos::RCP<TV> &xTrueRcp, Teuchos::RCP<TV> &bRcp) {
   // Ax=b
-  auto commRcp = getMPIWORLDTCOMM();
+  auto commRcp = Tpetra::getDefaultComm();
   // A read from MatrixMarket mtx file
   Tpetra::MatrixMarket::Reader<TCMAT> mmReader;
   ARcp = mmReader.readSparseFile("A_TCMAT.mtx", commRcp);

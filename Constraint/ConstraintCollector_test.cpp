@@ -60,7 +60,7 @@ ConstraintBlockPool genConBlkPool(const TMAP &mobMap) {
 }
 
 void testBuildMatrix() {
-  auto commRcp = getMPIWORLDTCOMM();
+  auto commRcp = Tpetra::getDefaultComm();
 
   std::mt19937_64 gen(commRcp->getRank());
   const auto lclParNum = gen() % lclMaxParNum;
