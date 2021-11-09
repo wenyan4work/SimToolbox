@@ -13,8 +13,16 @@
 
 #include "ArborX.hpp"
 
+#include <Tpetra_Map.hpp>
+#include <Zoltan2_BasicVectorAdapter.hpp>
+#include <Zoltan2_InputTraits.hpp>
+#include <Zoltan2_PartitioningProblem.hpp>
+#include <Zoltan2_PartitioningSolution.hpp>
+#include <Zoltan2_XpetraMultiVectorAdapter.hpp>
+
 #include <algorithm>
 #include <array>
+#include <map>
 #include <mpi.h>
 #include <numeric>
 #include <omp.h>
@@ -23,7 +31,12 @@
 namespace ArborX {
 
 /**
- * @brief
+ * @brief Method to access box object
+ *
+ * For creating the bounding volume hierarchy given a Boxes object, we
+ * need to define the memory space, how to get the total number of objects,
+ * and how to access a specific box. Since there are corresponding functions in
+ * the Boxes class, we just resort to them.
  *
  * @tparam Boxes
  * @tparam DeviceType
@@ -43,7 +56,13 @@ struct AccessTraits<Boxes<DeviceType, ObjIter>, PrimitivesTag> {
 };
 
 /**
- * @brief
+ * @brief Method to access box object for query
+ *
+ * For performing the queries given a Boxes object, we need to define memory
+ * space, how to get the total number of queries, and what the query with index
+ * i should look like. Since we are using self-intersection (which boxes
+ * intersect with the given one), the functions here very much look like the
+ * ones in ArborX::AccessTraits<Boxes<DeviceType, ObjIter>, PrimitivesTag>.
  *
  * @tparam Boxes
  * @tparam DeviceType
@@ -66,13 +85,26 @@ struct AccessTraits<Boxes<DeviceType, ObjIter>, PredicatesTag> {
 
 namespace srim {
 
+/**
+ * @defgroup Parameters Variables And Typedefs
+ *  @{
+ */
+
 constexpr double eps = 1e-5;
 
 using Box = ArborX::Box;
 using Point = ArborX::Point;
 using Sphere = ArborX::Sphere;
-using id_array = std::array<int, 2>;
+using IdArray = std::array<int, 2>; ///< The ID of each object is consist of
+                                    ///< local_id and rank_id
+/**
+ *  @}
+ */
 
+/**
+ * @defgroup Functions Functions
+ * @{
+ */
 /**
  * @brief create a new mpi type for data exchange
  *
@@ -90,7 +122,9 @@ inline MPI_Datatype createMPIStructType() {
   }
   return type;
 };
-
+/**
+ * @}
+ */
 /**
  * @brief interface between obj Iterator and ArborX
  *
@@ -100,6 +134,18 @@ inline MPI_Datatype createMPIStructType() {
 template <typename DeviceType, typename ObjIter>
 class Boxes {
 public:
+  /**
+   * @brief Construct a new Boxes object
+   *
+   * @param execution_space
+   * @param objIter
+   * The basic assumption here is that objects in objIter
+   * have a getBox method, which returns the lower bound and upper bound
+   * of the box of each object as pair of two array.
+   * And it will be used to create a box object.
+   * @param N
+   * The total number of objects in objIter
+   */
   Boxes(typename DeviceType::execution_space const &execution_space,
         const ObjIter &objIter, const int N) {
     _boxes = Kokkos::View<ArborX::Box *, typename DeviceType::memory_space>(
@@ -107,26 +153,43 @@ public:
 #pragma omp parallel for
     for (int i = 0; i < N; ++i) {
       const auto &box = objIter[i].getBox();
-      ArborX::Point p_lower{
+      Point p_lower{
           {box.first[0] - eps, box.first[1] - eps, box.first[2] - eps}};
-      ArborX::Point p_upper{
+      Point p_upper{
           {box.second[0] + eps, box.second[1] + eps, box.second[2] + eps}};
       _boxes[i] = {p_lower, p_upper};
     }
   }
 
-  // Return the number of boxes.
+  /**
+   * @brief Return the number of boxes.
+   *
+   * @return KOKKOS_FUNCTION
+   */
   KOKKOS_FUNCTION int size() const { return _boxes.size(); }
 
-  // Return the box with index i.
+  /**
+   * @brief return the box with index i.
+   *
+   * @param i
+   * @return KOKKOS_FUNCTION const&
+   */
   KOKKOS_FUNCTION const ArborX::Box &get_box(int i) const { return _boxes(i); }
 
-  Kokkos::View<ArborX::Box *, typename DeviceType::memory_space> _boxes;
+  Kokkos::View<ArborX::Box *, typename DeviceType::memory_space>
+      _boxes; ///< Container that hold all boxes
 };
 
 /**
- * @brief
+ * @addtogroup Functions Scatter Functions
+ *  @{
+ */
+
+/**
+ * @brief Each process directly send the objects to all process that need the
+ * object.
  *
+ * @tparam ObjContainer
  * @tparam ObjType
  * @param in_vec
  * @param out_vec
@@ -198,9 +261,9 @@ void forwardScatter(const ObjContainer &in_vec, ObjContainer &out_vec,
                 out_vec.data(), recv_size.data(), rdsp.data(), mpiDataType,
                 comm_);
 }
-
+/** @}*/
 /**
- * @brief
+ * @brief jdkhsajkhdjkashjdhasjdhkashkdaskjdjkj
  *
  * @tparam ObjType
  * @param in_vec
@@ -337,8 +400,8 @@ public:
 
     // make sure we don't require a point multiple times from one process
     int in_vec_size = offset.size() - 1;
-    std::vector<id_array> in_id(N);
-    std::vector<id_array> out_id;
+    std::vector<IdArray> in_id(N);
+    std::vector<IdArray> out_id;
     // fill the id
     for (int i = 0; i < N; ++i) {
       in_id[i][0] = i;
@@ -393,8 +456,8 @@ public:
         }
       }
     }
-    reverseScatter<std::vector<id_array>, id_array>(in_id, out_id, in_offsets,
-                                                    in_sources);
+    reverseScatter<std::vector<IdArray>, IdArray>(in_id, out_id, in_offsets,
+                                                  in_sources);
 
     // use lower_bound to find the index.
     // the out_id are guaranteed to be sorted.
@@ -402,7 +465,7 @@ public:
     // if no error while forward scatter, we will always find a index.
     nb_indices.resize(indices.size());
 
-    auto id_comparator = [](const id_array &x, const id_array &y) {
+    auto id_comparator = [](const IdArray &x, const IdArray &y) {
       return x[1] == y[1] ? (x[0] < y[0]) : (x[1] < y[1]);
     };
 
@@ -410,10 +473,9 @@ public:
     for (int i = 0; i < indices.size(); ++i) {
       int j = shift_map_offset[indices(i)[1]] + indices(i)[0];
       nb_indices[i][3] =
-          std::lower_bound(
-              out_id.begin(), out_id.end(),
-              std::array<int, 2>{shift_map_all[j][3], indices(i)[1]},
-              id_comparator) -
+          std::lower_bound(out_id.begin(), out_id.end(),
+                           IdArray{shift_map_all[j][3], indices(i)[1]},
+                           id_comparator) -
           out_id.begin();
 
       // in case we have an scatter error
@@ -612,7 +674,7 @@ public:
       imposePBC(boxes(i), i);
     }
     // query
-    Kokkos::View<std::array<int, 2> *, MemorySpace> indices("indices", 0);
+    Kokkos::View<IdArray *, MemorySpace> indices("indices", 0);
     Kokkos::View<int *, MemorySpace> offsets("offsets", 0);
     bvh.query(execution_space, query_boxes, indices, offsets);
     return std::make_pair(offsets, indices);
@@ -624,6 +686,181 @@ public:
                        const std::vector<ShiftMap> &shiftMap) const {
     return DataTransporter(query, N, shiftMap);
   };
+};
+
+class Partition {
+private:
+  typedef Tpetra::Map<>::node_type znode_t;
+  typedef double zscalar_t;
+  typedef Tpetra::Map<>::local_ordinal_type zlno_t;
+  typedef Tpetra::Map<>::global_ordinal_type zgno_t;
+  typedef Tpetra::MultiVector<zscalar_t, zlno_t, zgno_t, znode_t> tMVector_t;
+  typedef Zoltan2::XpetraMultiVectorAdapter<tMVector_t> inputAdapter_t;
+  typedef Zoltan2::EvaluatePartition<inputAdapter_t> quality_t;
+
+  std::array<double, 3> pbcBox{-1, -1, -1};
+  Teuchos::RCP<Teuchos::ParameterList> params;
+  std::vector<Zoltan2::coordinateModelPartBox> partBoxes;
+
+public:
+  /**
+   * @brief Construct a new Partition object
+   *
+   */
+  Partition() {
+    params =
+        Teuchos::RCP<Teuchos::ParameterList>(new Teuchos::ParameterList, true);
+  }
+
+  const std::string imbalance_tolerance = "imbalance_tolerance";
+  const std::string rectilinear = "rectilinear";
+  void setPBCBox(const std::array<double, 3> &pbcBox_) { pbcBox = pbcBox_; }
+
+  double imposePBC(double lb, double ub, double boundary) const {
+    // apply pbc on center of box, fit in [0,boundary)
+    double center = (lb + ub) / 2;
+    if (boundary > 0) {
+      while (center < 0) {
+        center += boundary;
+      }
+      while (center >= boundary) {
+        center -= boundary;
+      }
+    }
+    return center;
+  }
+
+  /**
+   * @brief Set the Param object
+   *
+   * @tparam T
+   * @param param_name
+   * @param param_value
+   */
+  template <class T>
+  void setParam(std::string param_name, T param_value) {
+    params->set(param_name, param_value);
+  }
+
+  template <class ObjIter>
+  auto MJ(const ObjIter &objIter, const std::vector<double> & weight_vec = {}) {
+    assert(weight_vec.size() % objIter.size() == 0);
+    // types
+    using Teuchos::RCP;
+    using Teuchos::rcp;
+
+    // MPI
+    Teuchos::RCP<const Teuchos::Comm<int>> comm = Tpetra::getDefaultComm();
+    MPI_Comm comm_ = MPI_COMM_WORLD;
+    int comm_rank = comm->getRank();
+    int comm_size = comm->getSize();
+
+    // set up coords, weights and other params
+    int coord_dim = 3;
+    int numWeightsPerCoord = weight_vec.size() / objIter.size(); 
+    zlno_t numLocalPoints = objIter.size();
+    int N = objIter.size();       // N is the count of real points
+    std::vector<int> node_count(comm_size);
+    MPI_Allgather(&N, 1, MPI_INT, node_count.data(), 1, MPI_INT, comm_);
+    zgno_t numGlobalPoints =
+        std::accumulate(node_count.begin(), node_count.end(), 0);
+    zscalar_t **coords = new zscalar_t *[coord_dim];
+    for (int i = 0; i < coord_dim; ++i) {
+      coords[i] = new zscalar_t[numLocalPoints];
+    }
+    for (int i = 0; i < N; ++i) {
+      const auto &box = objIter[i].getBox();
+      for (int j = 0; j < coord_dim; ++j) {
+        // calculate the center of box as coordinate
+        coords[j][i] = imposePBC(box.first[j], box.second[j], pbcBox[j]);
+      }
+    }
+
+    zscalar_t **weight = NULL;
+    if (numWeightsPerCoord) {
+      weight = new zscalar_t *[numWeightsPerCoord];
+      for (int i = 0; i < numWeightsPerCoord; ++i) {
+        weight[i] = new zscalar_t[numLocalPoints];
+        for (int j = 0; j < N; ++j) {
+          weight[i][j] = weight_vec[i * numLocalPoints + j];
+        }
+      }
+    }
+    // Run 1st test with MV which always runs UVM on
+    RCP<Tpetra::Map<zlno_t, zgno_t, znode_t>> mp =
+        rcp(new Tpetra::Map<zlno_t, zgno_t, znode_t>(numGlobalPoints,
+                                                     numLocalPoints, 0, comm));
+    Teuchos::Array<Teuchos::ArrayView<const zscalar_t>> coordView(coord_dim);
+    for (int i = 0; i < coord_dim; i++) {
+      if (numLocalPoints > 0) {
+        Teuchos::ArrayView<const zscalar_t> a(coords[i], numLocalPoints);
+        coordView[i] = a;
+      } else {
+        Teuchos::ArrayView<const zscalar_t> a;
+        coordView[i] = a;
+      }
+    }
+    RCP<tMVector_t> tmVector = RCP<tMVector_t>(
+        new tMVector_t(mp, coordView.view(0, coord_dim), coord_dim));
+    std::vector<const zscalar_t *> weights;
+    if (numWeightsPerCoord) {
+      for (int i = 0; i < numWeightsPerCoord; ++i) {
+        weights.push_back(weight[i]);
+      }
+    }
+    std::vector<int> stride;
+    // inputAdapter_t ia(coordsConst);
+    inputAdapter_t *ia = new inputAdapter_t(tmVector, weights, stride);
+
+    params->set("timer_output_stream", "std::cout");
+    params->set("algorithm", "multijagged");
+    params->set("mj_keep_part_boxes", true);
+
+    Zoltan2::PartitioningProblem<inputAdapter_t> *problem;
+    problem = new Zoltan2::PartitioningProblem<inputAdapter_t>(
+        ia, params.getRawPtr(), comm);
+    problem->solve();
+    if(numWeightsPerCoord){
+        for(int i = 0; i < numWeightsPerCoord; ++i) {
+          delete [] weight[i];
+        }
+        delete [] weight;
+    }
+    for(int i = 0; i < coord_dim; ++i) {
+      delete [] coords[i];
+    }
+    delete [] coords;
+    
+    auto solution = problem->getSolution();
+    delete problem;
+    delete ia;
+    return solution;
+  }
+
+  template <template<class, class> class ObjIter, class Objtype, class A, class Solution>
+  void applyPartition(const ObjIter<Objtype, A> &in_vec, ObjIter<Objtype, A> &out_vec,
+                      const Solution &solution) {
+    Teuchos::RCP<const Teuchos::Comm<int>> comm = Tpetra::getDefaultComm();
+    MPI_Comm comm_ = MPI_COMM_WORLD;
+    int comm_rank = comm->getRank();
+    int comm_size = comm->getSize();
+    int in_vec_size = in_vec.size();
+    int dim = 3;
+    std::vector<int> destination(in_vec_size);
+    std::vector<int> offset(in_vec_size+1);
+    offset[0] = 0;
+    for (int i = 0; i < in_vec_size; ++i) {
+      zscalar_t *coord = new zscalar_t[dim];
+      const auto &box = in_vec[i].getBox();
+      for (int j = 0; j < dim; ++j) {
+        coord[j] = imposePBC(box.first[j], box.second[j], pbcBox[j]);
+      }
+      int part = solution.pointAssign(dim, coord);
+      destination[i] = part;
+      offset[i+1] = i;
+    }
+    forwardScatter<ObjIter<Objtype, A>, Objtype>(in_vec, out_vec, offset, destination);
+  }
 };
 
 } // namespace srim
