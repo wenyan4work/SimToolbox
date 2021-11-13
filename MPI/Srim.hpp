@@ -522,8 +522,8 @@ private:
   // necessary private data to maintain status
   int rank = 0;
   int nProcs = 1;
-  double pbcMax;
-  std::array<double, 3> pbcBox;
+  double pbcMax = -1;
+  std::array<double, 3> pbcBox{-1, -1, -1};
   std::vector<std::array<int, 3>> directions{
       {1, 0, 0},   {0, 1, 0},   {0, 0, 1},   {-1, 0, 0},  {0, -1, 0},
       {0, 0, -1},  {1, 1, 0},   {1, 0, 1},   {0, 1, 1},   {-1, -1, 0},
@@ -712,8 +712,6 @@ public:
         Teuchos::RCP<Teuchos::ParameterList>(new Teuchos::ParameterList, true);
   }
 
-  const std::string imbalance_tolerance = "imbalance_tolerance";
-  const std::string rectilinear = "rectilinear";
   void setPBCBox(const std::array<double, 3> &pbcBox_) { pbcBox = pbcBox_; }
 
   double imposePBC(double lb, double ub, double boundary) const {
@@ -743,8 +741,8 @@ public:
   }
 
   template <class ObjIter>
-  auto MJ(const ObjIter &objIter, const std::vector<double> & weight_vec = {}) {
-    assert(weight_vec.size() % objIter.size() == 0);
+  auto MJ(const ObjIter &objIter, const std::vector<double> &weight_vec = {}) {
+    assert(weight_vec.size() == objIter.size() || weight_vec.size() == 0);
     // types
     using Teuchos::RCP;
     using Teuchos::rcp;
@@ -757,9 +755,9 @@ public:
 
     // set up coords, weights and other params
     int coord_dim = 3;
-    int numWeightsPerCoord = weight_vec.size() / objIter.size(); 
+    int numWeightsPerCoord = (weight_vec.size() > 0);
     zlno_t numLocalPoints = objIter.size();
-    int N = objIter.size();       // N is the count of real points
+    int N = objIter.size(); // N is the count of real points
     std::vector<int> node_count(comm_size);
     MPI_Allgather(&N, 1, MPI_INT, node_count.data(), 1, MPI_INT, comm_);
     zgno_t numGlobalPoints =
@@ -768,7 +766,9 @@ public:
     for (int i = 0; i < coord_dim; ++i) {
       coords[i] = new zscalar_t[numLocalPoints];
     }
-    for (int i = 0; i < N; ++i) {
+
+#pragma omp parallel for
+    for (int i = 0; i < numLocalPoints; ++i) {
       const auto &box = objIter[i].getBox();
       for (int j = 0; j < coord_dim; ++j) {
         // calculate the center of box as coordinate
@@ -779,11 +779,10 @@ public:
     zscalar_t **weight = NULL;
     if (numWeightsPerCoord) {
       weight = new zscalar_t *[numWeightsPerCoord];
-      for (int i = 0; i < numWeightsPerCoord; ++i) {
-        weight[i] = new zscalar_t[numLocalPoints];
-        for (int j = 0; j < N; ++j) {
-          weight[i][j] = weight_vec[i * numLocalPoints + j];
-        }
+      weight[0] = new zscalar_t[numLocalPoints];
+#pragma omp parallel for
+      for (int j = 0; j < numLocalPoints; ++j) {
+        weight[0][j] = weight_vec[j];
       }
     }
     // Run 1st test with MV which always runs UVM on
@@ -820,26 +819,27 @@ public:
     problem = new Zoltan2::PartitioningProblem<inputAdapter_t>(
         ia, params.getRawPtr(), comm);
     problem->solve();
-    if(numWeightsPerCoord){
-        for(int i = 0; i < numWeightsPerCoord; ++i) {
-          delete [] weight[i];
-        }
-        delete [] weight;
+    if (numWeightsPerCoord) {
+      for (int i = 0; i < numWeightsPerCoord; ++i) {
+        delete[] weight[i];
+      }
+      delete[] weight;
     }
-    for(int i = 0; i < coord_dim; ++i) {
-      delete [] coords[i];
+    for (int i = 0; i < coord_dim; ++i) {
+      delete[] coords[i];
     }
-    delete [] coords;
-    
+    delete[] coords;
+
     auto solution = problem->getSolution();
     delete problem;
     delete ia;
     return solution;
   }
 
-  template <template<class, class> class ObjIter, class Objtype, class A, class Solution>
-  void applyPartition(const ObjIter<Objtype, A> &in_vec, ObjIter<Objtype, A> &out_vec,
-                      const Solution &solution) {
+  template <template <class, class> class ObjIter, class Objtype, class A,
+            class Solution>
+  void applyPartition(const ObjIter<Objtype, A> &in_vec,
+                      ObjIter<Objtype, A> &out_vec, const Solution &solution) {
     Teuchos::RCP<const Teuchos::Comm<int>> comm = Tpetra::getDefaultComm();
     MPI_Comm comm_ = MPI_COMM_WORLD;
     int comm_rank = comm->getRank();
@@ -847,8 +847,7 @@ public:
     int in_vec_size = in_vec.size();
     int dim = 3;
     std::vector<int> destination(in_vec_size);
-    std::vector<int> offset(in_vec_size+1);
-    offset[0] = 0;
+    std::vector<int> offset(in_vec_size + 1);
     for (int i = 0; i < in_vec_size; ++i) {
       zscalar_t *coord = new zscalar_t[dim];
       const auto &box = in_vec[i].getBox();
@@ -857,9 +856,12 @@ public:
       }
       int part = solution.pointAssign(dim, coord);
       destination[i] = part;
-      offset[i+1] = i;
+      offset[i] = i;
+      delete coord;
     }
-    forwardScatter<ObjIter<Objtype, A>, Objtype>(in_vec, out_vec, offset, destination);
+    offset[in_vec_size] = in_vec_size;
+    forwardScatter<ObjIter<Objtype, A>, Objtype>(in_vec, out_vec, offset,
+                                                 destination);
   }
 };
 
