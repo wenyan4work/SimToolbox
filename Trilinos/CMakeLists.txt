@@ -7,7 +7,7 @@ function(exetest exename)
                             ${TRNG_INCLUDE_DIR})
   target_link_libraries(
     ${exename}_test
-    PRIVATE ${Trilinos_LIBRARIES} ${Trilinos_TPL_LIBRARIES} spdlog::spdlog
+    PRIVATE ${Trilinos_LIBRARIES} ${Trilinos_TPL_LIBRARIES} spdlog::spdlog_header_only
             ${TRNG_LIBRARY} OpenMP::OpenMP_CXX MPI::MPI_CXX)
   add_test(NAME ${exename} COMMAND mpirun -n 4 ${exename}_test)
 endfunction()
