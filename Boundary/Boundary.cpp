@@ -1,6 +1,7 @@
 #include "Boundary.hpp"
 #include "Util/EigenDef.hpp"
 
+#include <iostream>
 #include <limits>
 
 /************************************************************
@@ -12,12 +13,6 @@ SphereShell::SphereShell(double center_[3], double radius_, bool inside_) {
   std::copy(center_, center_ + 3, center);
   radius = radius_;
   inside = inside_;
-}
-
-void SphereShell::initialize(const YAML::Node &config) {
-  readConfig(config, VARNAME(center), center, 3, "");
-  readConfig(config, VARNAME(radius), radius, "");
-  readConfig(config, VARNAME(inside), inside, "");
 }
 
 void SphereShell::project(const double query[3], double project[3],
@@ -97,7 +92,7 @@ Wall::Wall(double center_[3], double norm_[3]) {
   Emap3(norm).normalize();
 }
 
-void Wall::initialize(const YAML::Node &config) {
+void Wall::initialize(const toml::value &config) {
   readConfig(config, VARNAME(center), center, 3, "");
   readConfig(config, VARNAME(norm), norm, 3, "");
   Emap3(norm).normalize();
@@ -169,7 +164,7 @@ Tube::Tube(double center_[3], double axis_[3], double radius_, bool inside_) {
   Emap3(axis).normalize();
 }
 
-void Tube::initialize(const YAML::Node &config) {
+void Tube::initialize(const toml::value &config) {
   readConfig(config, VARNAME(center), center, 3, "");
   readConfig(config, VARNAME(axis), axis, 3, "");
   readConfig(config, VARNAME(inside), inside, "");

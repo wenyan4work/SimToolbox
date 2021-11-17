@@ -1,14 +1,11 @@
 function(exetest exename)
   add_executable(${exename}_test ${exename}_test.cpp TpetraUtil.cpp)
   target_include_directories(
-    ${exename}_test PRIVATE ${CMAKE_SOURCE_DIR} 
-    ${Trilinos_INCLUDE_DIRS}
-    ${Trilinos_TPL_INCLUDE_DIRS}
-                            ${TRNG_INCLUDE_DIR})
+    ${exename}_test PRIVATE ${CMAKE_SOURCE_DIR} ${Trilinos_INCLUDE_DIRS}
+                            ${Trilinos_TPL_INCLUDE_DIRS} ${EXT_INCLUDE})
   target_link_libraries(
-    ${exename}_test
-    PRIVATE ${Trilinos_LIBRARIES} ${Trilinos_TPL_LIBRARIES} spdlog::spdlog_header_only
-            ${TRNG_LIBRARY} OpenMP::OpenMP_CXX MPI::MPI_CXX)
+    ${exename}_test PRIVATE ${Trilinos_LIBRARIES} ${Trilinos_TPL_LIBRARIES}
+                            trng4 OpenMP::OpenMP_CXX MPI::MPI_CXX)
   add_test(NAME ${exename} COMMAND mpirun -n 4 ${exename}_test)
 endfunction()
 
@@ -23,7 +20,7 @@ exetest(Zoltan2)
 add_executable(Belos_test Belos_test.cpp TpetraUtil.cpp)
 target_include_directories(
   Belos_test PRIVATE ${CMAKE_SOURCE_DIR} ${Trilinos_INCLUDE_DIRS}
-                     ${Trilinos_TPL_INCLUDE_DIRS})
+                     ${Trilinos_TPL_INCLUDE_DIRS} ${EXT_INCLUDE})
 target_link_libraries(Belos_test ${Trilinos_LIBRARIES}
                       ${Trilinos_TPL_LIBRARIES} OpenMP::OpenMP_CXX MPI::MPI_CXX)
 

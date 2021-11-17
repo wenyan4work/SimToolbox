@@ -1,7 +1,7 @@
 #ifndef BOUNDARY_HPP_
 #define BOUNDARY_HPP_
 
-#include "Util/YamlHelper.hpp"
+#include "Util/TomlHelper.hpp"
 
 /**
  * @brief interface to all boundary types
@@ -18,7 +18,7 @@ public:
    *
    * @param config
    */
-  virtual void initialize(const YAML::Node &config) = 0;
+  virtual void initialize(const toml::value &config) = 0;
 
   /**
    * @brief find the projection of query point on the boundary
@@ -51,10 +51,10 @@ public:
 
 class SphereShell final : public Boundary {
 public:
-  SphereShell(const YAML::Node &config) { initialize(config); };
+  SphereShell(const toml::value &config) { initialize(config); };
   SphereShell(double center_[3], double radius_, bool inside_);
   ~SphereShell() = default;
-  virtual void initialize(const YAML::Node &config);
+  virtual void initialize(const toml::value &config);
   virtual void project(const double query[3], double project[3],
                        double delta[3]) const;
   virtual bool check(const double query[3], const double project[3],
@@ -69,10 +69,10 @@ private:
 
 class Wall final : public Boundary {
 public:
-  Wall(const YAML::Node &config) { initialize(config); };
+  Wall(const toml::value &config) { initialize(config); };
   Wall(double center_[3], double norm_[3]);
   ~Wall() = default;
-  void initialize(const YAML::Node &config);
+  void initialize(const toml::value &config);
   virtual void project(const double query[3], double project[3],
                        double delta[3]) const;
   virtual bool check(const double query[3], const double project[3],
@@ -86,10 +86,10 @@ private:
 
 class Tube final : public Boundary {
 public:
-  Tube(const YAML::Node &config) { initialize(config); };
+  Tube(const toml::value &config) { initialize(config); };
   Tube(double center_[3], double axis_[3], double radius_, bool inside_);
   ~Tube() = default;
-  void initialize(const YAML::Node &config);
+  void initialize(const toml::value &config);
   virtual void project(const double query[3], double project[3],
                        double delta[3]) const;
   virtual bool check(const double query[3], const double project[3],
