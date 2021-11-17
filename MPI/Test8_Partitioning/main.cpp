@@ -35,6 +35,7 @@ struct ParB {
   }
 };
 
+// generates random pars
 template <class Par, class Dist>
 void par_rand(std::vector<Par> &pars, double r, Dist &dist, std::mt19937 &gen,
               int start_id) {
@@ -86,12 +87,8 @@ auto partitioning(const std::vector<ParA> &sysA, const std::vector<ParB> &sysB,
   }
   std::vector<ParA> new_sysA;
   std::vector<ParB> new_sysB;
-  part.applyPartition(sysB, new_sysB, solution);
-  part.applyPartition(sysA, new_sysA, solution);
-  std::cout << "Rank " << comm_rank << " CountB " << new_sysB.size()
-            << std::endl;
-  std::cout << "Rank " << comm_rank << " CountA " << new_sysA.size()
-            << std::endl;
+  part.applyPartition<std::vector<ParB>, ParB>(sysB, new_sysB, solution);
+  part.applyPartition<std::vector<ParA>, ParA>(sysA, new_sysA, solution);
 
   // check the bounding box of each thread, make sure they are not overlapping
   std::vector<ParA> bounding_box(1);
@@ -164,7 +161,7 @@ auto query_tree(const std::vector<ParA> &sysA, const std::vector<ParB> &sysB,
       pairs[j][4] = nb_indices[j][2];
     }
   }
-  // send all pars and query result to process 0 and compare to brute force.
+  // send all pars and query result to process 0
   std::vector<ParA> sysA_all;
   std::vector<ParB> sysB_all;
   std::vector<std::array<int, 5>> pairs_all;
@@ -178,12 +175,16 @@ auto query_tree(const std::vector<ParA> &sysA, const std::vector<ParB> &sysB,
 void test_check(const std::vector<ParA> &sysA, const std::vector<ParB> &sysB,
                 double r, std::array<double, 3> pbcBox, int comm_rank,
                 int comm_size) {
+  // run partitioning algorithm and get partitioned sysA and sysB
   const auto &partitioned_pars = partitioning(sysA, sysB, pbcBox, comm_rank);
   const auto &new_sysA = partitioned_pars.first;
   const auto &new_sysB = partitioned_pars.second;
 
+  // query the original particles.
   const auto &pairs_all =
       query_tree(sysA, sysB, r, pbcBox, comm_rank, comm_size);
+  
+  // query the partitioned particles.
   const auto &new_pairs_all =
       query_tree(new_sysA, new_sysB, r, pbcBox, comm_rank, comm_size);
   // compare result with and without partitioning, and see if the pair list
@@ -208,6 +209,7 @@ void test_check(const std::vector<ParA> &sysA, const std::vector<ParB> &sysB,
 void testUniform(int parA_count, int parB_count, double r, double low,
                  double high, std::array<double, 3> &pbcBox, int comm_rank,
                  int comm_size) {
+  // Generate sysA and sysB
   std::uniform_real_distribution<double> dist(low, high);
   std::mt19937 gen(comm_rank);
   std::vector<ParA> sysA(parA_count);
@@ -215,13 +217,14 @@ void testUniform(int parA_count, int parB_count, double r, double low,
   par_rand(sysA, r, dist, gen, parA_count * comm_rank);
   par_rand(sysB, r, dist, gen, parB_count * comm_rank);
   std::cout << "Random Generates complete!" << std::endl;
-
+  // test
   test_check(sysA, sysB, r, pbcBox, comm_rank, comm_size);
 }
 
 void testNonUniform(int parA_count, int parB_count, double r, double m,
                     double s, std::array<double, 3> &pbcBox, int comm_rank,
                     int comm_size) {
+  // Generate sysA and sysB
   std::lognormal_distribution<double> distA(m, s);
   std::normal_distribution<double> distB(m, s);
   std::mt19937 gen(comm_rank);
@@ -230,13 +233,14 @@ void testNonUniform(int parA_count, int parB_count, double r, double m,
   par_rand(sysA, r, distA, gen, parA_count * comm_rank);
   par_rand(sysB, r, distB, gen, parB_count * comm_rank);
   std::cout << "Random Generates complete!" << std::endl;
-
+  // test
   test_check(sysA, sysB, r, pbcBox, comm_rank, comm_size);
 }
 
 void testNonUniformMPI(int parA_count, int parB_count, double r, double m,
                        double s, std::array<double, 3> &pbcBox, int comm_rank,
                        int comm_size) {
+  // Generate sysA and sysB
   if (comm_rank == 0) {
     parA_count = 0;
   } else if (comm_rank == 1) {
@@ -256,12 +260,13 @@ void testNonUniformMPI(int parA_count, int parB_count, double r, double m,
   par_rand(sysA, r, distA, gen, parA_count * comm_rank * 2);
   par_rand(sysB, r, distB, gen, parB_count * comm_rank * 2);
   std::cout << "Random Generates complete!" << std::endl;
-
+  // test
   test_check(sysA, sysB, r, pbcBox, comm_rank, comm_size);
 }
 
 void testSmall(double r, double m, double s, std::array<double, 3> &pbcBox,
                int comm_rank, int comm_size) {
+  // Generate sysA and sysB
   int parA_count = comm_rank % 2;
   int parB_count = 1 - parA_count;
 
@@ -273,7 +278,7 @@ void testSmall(double r, double m, double s, std::array<double, 3> &pbcBox,
   par_rand(sysA, r, distA, gen, comm_rank);
   par_rand(sysB, r, distB, gen, comm_rank);
   std::cout << "Random Generates complete!" << std::endl;
-
+  // test
   test_check(sysA, sysB, r, pbcBox, comm_rank, comm_size);
 }
 

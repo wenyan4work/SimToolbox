@@ -38,6 +38,7 @@ struct ParB {
   }
 };
 
+// generates random pars
 template <class Par, class Dist>
 void par_rand(std::vector<Par> &pars, double r, Dist &dist, std::mt19937 &gen,
               int start_id) {
@@ -117,6 +118,8 @@ void test_check(const std::vector<ParA> &sysA, const std::vector<ParB> &sysB,
     using MemorySpace = typename ExecutionSpace::memory_space;
     using DeviceType = Kokkos::Device<ExecutionSpace, MemorySpace>;
     ExecutionSpace execution_space;
+
+    // query with bruteforce method
     srim::Boxes<DeviceType, std::vector<ParA>> pts_boxes(
         execution_space, sysA_all, sysA_all.size());
     srim::Boxes<DeviceType, std::vector<ParB>> query_boxes(
@@ -126,6 +129,8 @@ void test_check(const std::vector<ParA> &sysA, const std::vector<ParB> &sysB,
     Kokkos::View<int *, MemorySpace> bf_offsets("offsets", 0);
     bf.query(execution_space, query_boxes, bf_indices, bf_offsets);
     std::vector<std::array<int, 2>> pairs_bf(bf_indices.size());
+    
+    // expand result to full list with gid
     for (int i = 0; i < sysB_all.size(); ++i) {
       int lb = bf_offsets(i);
       int ub = bf_offsets(i + 1);
@@ -134,6 +139,8 @@ void test_check(const std::vector<ParA> &sysA, const std::vector<ParB> &sysB,
         pairs_bf[j][1] = sysA_all[bf_indices(j)].gid;
       }
     }
+
+    // sort and compare, this makes sure the result is correct.
     sort(pairs_all.begin(), pairs_all.end());
     sort(pairs_bf.begin(), pairs_bf.end());
     if (!(pairs_all.size() == pairs_bf.size() &&
@@ -147,6 +154,7 @@ void test_check(const std::vector<ParA> &sysA, const std::vector<ParB> &sysB,
 
 void testUniform(int parA_count, int parB_count, double r, double low,
                  double high, int comm_rank, int comm_size) {
+  // Generate sysA and sysB
   std::uniform_real_distribution<double> dist(low, high);
   std::mt19937 gen(comm_rank);
   std::vector<ParA> sysA(parA_count);
@@ -154,12 +162,13 @@ void testUniform(int parA_count, int parB_count, double r, double low,
   par_rand(sysA, r, dist, gen, parA_count * comm_rank);
   par_rand(sysB, r, dist, gen, parB_count * comm_rank);
   std::cout << "Random Generates complete!" << std::endl;
-
+  // test
   test_check(sysA, sysB, r, comm_rank, comm_size);
 }
 
 void testNonUniform(int parA_count, int parB_count, double r, double m,
                     double s, int comm_rank, int comm_size) {
+  // Generate sysA and sysB
   std::lognormal_distribution<double> distA(m, s);
   std::normal_distribution<double> distB(m, s);
   std::mt19937 gen(comm_rank);
@@ -168,12 +177,13 @@ void testNonUniform(int parA_count, int parB_count, double r, double m,
   par_rand(sysA, r, distA, gen, parA_count * comm_rank);
   par_rand(sysB, r, distB, gen, parB_count * comm_rank);
   std::cout << "Random Generates complete!" << std::endl;
-
+  // test
   test_check(sysA, sysB, r, comm_rank, comm_size);
 }
 
 void testNonUniformMPI(int parA_count, int parB_count, double r, double m,
                        double s, int comm_rank, int comm_size) {
+  // Generate sysA and sysB
   if (comm_rank == 0) {
     parA_count = 0;
   } else if (comm_rank == 1) {
@@ -193,11 +203,12 @@ void testNonUniformMPI(int parA_count, int parB_count, double r, double m,
   par_rand(sysA, r, distA, gen, parA_count * comm_rank * 2);
   par_rand(sysB, r, distB, gen, parB_count * comm_rank * 2);
   std::cout << "Random Generates complete!" << std::endl;
-
+  // test
   test_check(sysA, sysB, r, comm_rank, comm_size);
 }
 
 void testSmall(double r, double m, double s, int comm_rank, int comm_size) {
+  // Generate sysA and sysB
   int parA_count = comm_rank % 2;
   int parB_count = 1 - parA_count;
 
@@ -209,7 +220,7 @@ void testSmall(double r, double m, double s, int comm_rank, int comm_size) {
   par_rand(sysA, r, distA, gen, comm_rank);
   par_rand(sysB, r, distB, gen, comm_rank);
   std::cout << "Random Generates complete!" << std::endl;
-
+  // test
   test_check(sysA, sysB, r, comm_rank, comm_size);
 }
 
