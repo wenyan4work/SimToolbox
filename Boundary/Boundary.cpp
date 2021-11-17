@@ -15,6 +15,12 @@ SphereShell::SphereShell(double center_[3], double radius_, bool inside_) {
   inside = inside_;
 }
 
+void SphereShell::initialize(const toml::value &config) {
+  readConfig(config, VARNAME(center), center, 3);
+  readConfig(config, VARNAME(inside), inside);
+  readConfig(config, VARNAME(radius), radius);
+}
+
 void SphereShell::project(const double query[3], double project[3],
                           double delta[3]) const {
   Evec3 Query = ECmap3(query) - ECmap3(center); // center to query
@@ -93,8 +99,8 @@ Wall::Wall(double center_[3], double norm_[3]) {
 }
 
 void Wall::initialize(const toml::value &config) {
-  readConfig(config, VARNAME(center), center, 3, "");
-  readConfig(config, VARNAME(norm), norm, 3, "");
+  readConfig(config, VARNAME(center), center, 3);
+  readConfig(config, VARNAME(norm), norm, 3);
   Emap3(norm).normalize();
 }
 
@@ -165,10 +171,10 @@ Tube::Tube(double center_[3], double axis_[3], double radius_, bool inside_) {
 }
 
 void Tube::initialize(const toml::value &config) {
-  readConfig(config, VARNAME(center), center, 3, "");
-  readConfig(config, VARNAME(axis), axis, 3, "");
-  readConfig(config, VARNAME(inside), inside, "");
-  readConfig(config, VARNAME(radius), radius, "");
+  readConfig(config, VARNAME(center), center, 3);
+  readConfig(config, VARNAME(axis), axis, 3);
+  readConfig(config, VARNAME(inside), inside);
+  readConfig(config, VARNAME(radius), radius);
   Emap3(axis).normalize();
 }
 
