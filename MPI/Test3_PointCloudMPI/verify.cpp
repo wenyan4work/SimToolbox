@@ -29,7 +29,7 @@ public:
     int n = content_size;
     _boxes = Kokkos::View<ArborX::Box *, typename DeviceType::memory_space>(
         Kokkos::view_alloc(Kokkos::WithoutInitializing, "boxes"), n);
-// auto boxes_host = Kokkos::create_mirror_view(_boxes);
+
 #pragma omp parallel for
     for (int i = 0; i < content_size * data_size; i += data_size) {
       if (is_tree) { // for tree, no radius
@@ -46,7 +46,6 @@ public:
         _boxes[i / data_size] = {p_lower, p_upper};
       }
     }
-    // Kokkos::deep_copy(execution_space, _boxes, boxes_host);
   }
 
   // Return the number of boxes.
@@ -152,17 +151,12 @@ get_neighbor(float *query_data, int query_data_count, float *pts_data,
       std::cout << "query time " << difference.count() << std::endl;
     }
 
-    // TODO: remove copy and parallelize this for-loop by openmp
-    auto offsets_host =
-        Kokkos::create_mirror_view_and_copy(Kokkos::HostSpace{}, offsets);
-    auto indices_host =
-        Kokkos::create_mirror_view_and_copy(Kokkos::HostSpace{}, indices);
-
+    // TODO: parallelize this for-loop by openmp
     for (int i = 0; i < query_data_count; ++i) {
-      int start = offsets_host(i);
-      int end = offsets_host(i + 1);
+      int start = offsets(i);
+      int end = offsets(i + 1);
       for (int j = start; j < end; ++j) {
-        std::array<int, 2> indice = indices_host(j);
+        std::array<int, 2> indice = indices(j);
         int k = indice[0];
         // calculate the real index
         int real_i = i + query_data_count * comm_rank;

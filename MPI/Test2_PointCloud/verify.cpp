@@ -23,13 +23,12 @@ public:
     int n = content.size();
     _boxes = Kokkos::View<ArborX::Box *, typename DeviceType::memory_space>(
         Kokkos::view_alloc(Kokkos::WithoutInitializing, "boxes"), n);
-    auto boxes_host = Kokkos::create_mirror_view(_boxes);
 
     for (int i = 0; i < content.size(); ++i) {
       if (is_tree) { // for tree, no radius
         ArborX::Point p_lower{{content[i][x], content[i][y], content[i][z]}};
         ArborX::Point p_upper{{content[i][x], content[i][y], content[i][z]}};
-        boxes_host[i] = {p_lower, p_upper};
+        _boxes[i] = {p_lower, p_upper};
       } else { // for query, with redius
         ArborX::Point p_lower{{content[i][x] - content[i][r] - eps,
                                content[i][y] - content[i][r] - eps,
@@ -37,10 +36,9 @@ public:
         ArborX::Point p_upper{{content[i][x] + content[i][r] + eps,
                                content[i][y] + content[i][r] + eps,
                                content[i][z] + content[i][r] + eps}};
-        boxes_host[i] = {p_lower, p_upper};
+        _boxes[i] = {p_lower, p_upper};
       }
     }
-    Kokkos::deep_copy(execution_space, _boxes, boxes_host);
   }
 
   // Return the number of boxes.
@@ -130,15 +128,11 @@ get_neighbor(std::vector<std::vector<float>> query_data,
     ArborX::query(tree, execution_space, query_boxes, indices, offsets);
     std::cout << "Queries done." << '\n';
 
-    auto offsets_host =
-        Kokkos::create_mirror_view_and_copy(Kokkos::HostSpace{}, offsets);
-    auto indices_host =
-        Kokkos::create_mirror_view_and_copy(Kokkos::HostSpace{}, indices);
     for (int i = 0; i < query_data.size(); ++i) {
-      int start = offsets_host(i);
-      int end = offsets_host(i + 1);
+      int start = offsets(i);
+      int end = offsets(i + 1);
       for (int j = start; j < end; ++j) {
-        int k = indices_host(j);
+        int k = indices(j);
         if (sqrt(pow(query_data[i][x] - pts_data[k][x], 2) +
                  pow(query_data[i][y] - pts_data[k][y], 2) +
                  pow(query_data[i][z] - pts_data[k][z], 2)) <=

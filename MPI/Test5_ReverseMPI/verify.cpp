@@ -13,6 +13,8 @@ struct TestNode {
   int id;
   double weight;
   int property[100];
+
+  // overload == for comparing two nodes
   bool operator==(const TestNode &node) const {
     for (int i = 0; i < 100; ++i) {
       if (property[i] != node.property[i]) {
@@ -25,6 +27,7 @@ struct TestNode {
   }
 };
 
+// generate random node
 TestNode randNode() {
   TestNode node;
   node.x = ((float)rand()) / ((float)RAND_MAX);
