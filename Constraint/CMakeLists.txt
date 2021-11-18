@@ -31,7 +31,7 @@ add_executable(BCQPSolver_test BCQPSolver_test.cpp BCQPSolver.cpp
                                ${CMAKE_SOURCE_DIR}/Trilinos/TpetraUtil.cpp)
 target_include_directories(
   BCQPSolver_test PRIVATE ${CMAKE_SOURCE_DIR} ${Trilinos_INCLUDE_DIRS}
-                          ${Trilinos_TPL_INCLUDE_DIRS})
+                          ${Trilinos_TPL_INCLUDE_DIRS} ${EXT_INCLUDE})
 target_link_libraries(
   BCQPSolver_test PRIVATE ${Trilinos_LIBRARIES} ${Trilinos_TPL_LIBRARIES}
                           OpenMP::OpenMP_CXX MPI::MPI_CXX)

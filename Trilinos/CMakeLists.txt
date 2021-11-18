@@ -6,6 +6,10 @@ function(exetest exename)
   target_link_libraries(
     ${exename}_test PRIVATE ${Trilinos_LIBRARIES} ${Trilinos_TPL_LIBRARIES}
                             trng4 OpenMP::OpenMP_CXX MPI::MPI_CXX)
+  if(ipo_support)
+    set_property(TARGET ${exename}_test PROPERTY INTERPROCEDURAL_OPTIMIZATION
+                                                 TRUE)
+  endif()
   add_test(NAME ${exename} COMMAND mpirun -n 4 ${exename}_test)
 endfunction()
 
