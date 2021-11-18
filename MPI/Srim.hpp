@@ -11,16 +11,19 @@
 #ifndef SRIM_HPP_
 #define SRIM_HPP_
 
-#include "ArborX.hpp"
+#include "Trilinos/TpetraUtil.hpp"
 
+#include <ArborX.hpp>
+#include <Zoltan2_BasicVectorAdapter.hpp>
 #include <Zoltan2_PartitioningProblem.hpp>
-#include <Zoltan2_XpetraMultiVectorAdapter.hpp>
+// #include <Zoltan2_XpetraMultiVectorAdapter.hpp>
 
 #include <array>
-#include <mpi.h>
 #include <numeric>
-#include <omp.h>
 #include <vector>
+
+#include <mpi.h>
+#include <omp.h>
 
 /**
  * @brief Contains methods to access box object
@@ -765,18 +768,15 @@ public:
  */
 class Partition {
 private:
-  typedef Tpetra::Map<>::node_type znode_t;
-  typedef double zscalar_t;
-  typedef Tpetra::Map<>::local_ordinal_type zlno_t;
-  typedef Tpetra::Map<>::global_ordinal_type zgno_t;
-  typedef Tpetra::MultiVector<zscalar_t, zlno_t, zgno_t, znode_t> tMVector_t;
-  typedef Zoltan2::XpetraMultiVectorAdapter<tMVector_t> inputAdapter_t;
-
   std::array<double, 3> pbcBox{-1, -1, -1}; // The periodic boundaries
                                             // in 3 dimension, default value -1,
                                             // value <=0 means no boundary.
-  Teuchos::RCP<Teuchos::ParameterList>
-      params; // The parameter for multi-jagged.
+
+  /**
+   * @brief parameter list for partition method
+   *
+   */
+  Teuchos::RCP<Teuchos::ParameterList> params;
 
 public:
   /**
@@ -837,99 +837,67 @@ public:
    *
    * @tparam ObjIter
    * @param objIter A container such as vector and contains objects.
-   * @param weight_vec 1D weight vector, it should have the same length as the
+   * @param weights 1D weight vector, it should have the same length as the
    * objIter. By default, there is no weight.
    * @return auto The solution of the partitioning problem.
    */
   template <class ObjIter>
-  auto MJ(const ObjIter &objIter, const std::vector<double> &weight_vec = {}) {
-    assert(weight_vec.size() == objIter.size() || weight_vec.size() == 0);
+  auto MJ(const ObjIter &objIter, const std::vector<double> &weights = {}) {
+    TEUCHOS_ASSERT(weights.size() == objIter.size() || weights.size() == 0);
+
     // types
     using Teuchos::RCP;
     using Teuchos::rcp;
 
     // MPI
-    Teuchos::RCP<const Teuchos::Comm<int>> comm = Tpetra::getDefaultComm();
-    MPI_Comm comm_ = MPI_COMM_WORLD;
+    auto comm = Tpetra::getDefaultComm();
     int comm_rank = comm->getRank();
     int comm_size = comm->getSize();
 
     // set up coords, weights and other params
     int coord_dim = 3;
-    int numWeightsPerCoord = (weight_vec.size() > 0);
-    zlno_t numLocalPoints = objIter.size();
-    int N = objIter.size(); // N is the same is numLocalPoints
+    TLO numLocalPoints = objIter.size();
+    auto pointMapRcp = getTMAPFromLocalSize(numLocalPoints, comm);
 
-    std::vector<int> node_count(comm_size);
-    MPI_Allgather(&N, 1, MPI_INT, node_count.data(), 1, MPI_INT, comm_);
-    zgno_t numGlobalPoints =
-        std::accumulate(node_count.begin(), node_count.end(), 0);
+    using ZTypes = Zoltan2::BasicUserTypes<double, TLO, TGO>;
+    using inputAdapter_t = Zoltan2::BasicVectorAdapter<ZTypes>;
 
-    zscalar_t **coords = new zscalar_t *[coord_dim];
-    for (int i = 0; i < coord_dim; ++i) {
-      coords[i] = new zscalar_t[numLocalPoints];
-    }
+    std::vector<double> coords(3 * numLocalPoints);
+    std::vector<TGO> globalIds(numLocalPoints);
+    auto minGlobalId = pointMapRcp->getMinGlobalIndex();
 
 #pragma omp parallel for
     for (int i = 0; i < numLocalPoints; ++i) {
       const auto &box = objIter[i].getBox();
       for (int j = 0; j < coord_dim; ++j) {
         // calculate the center of box as coordinate
-        coords[j][i] = imposePBC(box.first[j], box.second[j], pbcBox[j]);
+        coords[3 * i + j] = imposePBC(box.first[j], box.second[j], pbcBox[j]);
       }
-    }
-
-    zscalar_t *weight = NULL;
-    if (numWeightsPerCoord) {
-      weight = new zscalar_t[numLocalPoints];
-#pragma omp parallel for
-      for (int j = 0; j < numLocalPoints; ++j) {
-        weight[j] = weight_vec[j];
-      }
+      globalIds[i] = minGlobalId + i;
     }
 
     // setup the problem
-    RCP<Tpetra::Map<zlno_t, zgno_t, znode_t>> mp =
-        rcp(new Tpetra::Map<zlno_t, zgno_t, znode_t>(numGlobalPoints,
-                                                     numLocalPoints, 0, comm));
-    Teuchos::Array<Teuchos::ArrayView<const zscalar_t>> coordView(coord_dim);
-    for (int i = 0; i < coord_dim; i++) {
-      if (numLocalPoints > 0) {
-        Teuchos::ArrayView<const zscalar_t> a(coords[i], numLocalPoints);
-        coordView[i] = a;
-      } else {
-        Teuchos::ArrayView<const zscalar_t> a;
-        coordView[i] = a;
-      }
+    inputAdapter_t *ia = nullptr;
+    if (weights.size() != 0) {
+      TEUCHOS_ASSERT(weights.size() == numLocalPoints);
+      ia = new inputAdapter_t(numLocalPoints, globalIds.data(), coords.data(),
+                              coords.data() + 1, coords.data() + 2, 3, 3, 3,
+                              true, weights.data(), 1);
+    } else {
+      ia = new inputAdapter_t(numLocalPoints, globalIds.data(), coords.data(),
+                              coords.data() + 1, coords.data() + 2, 3, 3, 3);
     }
-    RCP<tMVector_t> tmVector = RCP<tMVector_t>(
-        new tMVector_t(mp, coordView.view(0, coord_dim), coord_dim));
-    std::vector<const zscalar_t *> weights;
-    if (numWeightsPerCoord) {
-      weights.push_back(weight);
-    }
-    std::vector<int> stride;
-    inputAdapter_t *ia = new inputAdapter_t(tmVector, weights, stride);
 
     params->set("algorithm", "multijagged");
     params->set("mj_keep_part_boxes", true);
 
-    Zoltan2::PartitioningProblem<inputAdapter_t> *problem;
-    problem = new Zoltan2::PartitioningProblem<inputAdapter_t>(
-        ia, params.getRawPtr(), comm);
+    Zoltan2::PartitioningProblem<inputAdapter_t> *problem =
+        new Zoltan2::PartitioningProblem<inputAdapter_t>(ia, params.getRawPtr(),
+                                                         comm);
 
     // solve the problem
     problem->solve();
     auto solution = problem->getSolution();
-
-    // clean up
-    if (numWeightsPerCoord) {
-      delete[] weight;
-    }
-    for (int i = 0; i < coord_dim; ++i) {
-      delete[] coords[i];
-    }
-    delete[] coords;
 
     delete problem;
     delete ia;
@@ -958,7 +926,7 @@ public:
     std::vector<int> destination(in_vec_size);
     std::vector<int> offset(in_vec_size + 1);
     for (int i = 0; i < in_vec_size; ++i) {
-      zscalar_t *coord = new zscalar_t[dim];
+      double coord[3];
       const auto &box = in_vec[i].getBox();
       for (int j = 0; j < dim; ++j) {
         coord[j] = imposePBC(box.first[j], box.second[j], pbcBox[j]);
@@ -966,7 +934,6 @@ public:
       int part = solution.pointAssign(dim, coord);
       destination[i] = part;
       offset[i] = i;
-      delete coord;
     }
     offset[in_vec_size] = in_vec_size;
 
