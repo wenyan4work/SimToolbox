@@ -1,13 +1,18 @@
-cmake_minimum_required(VERSION 3.17)
+cmake_minimum_required(VERSION 3.17) # same as trilinos
 project(SimToolbox)
 
 set(CMAKE_CXX_STANDARD 14)
 set(CMAKE_CXX_EXTENSIONS OFF)
-set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} "${CMAKE_SOURCE_DIR}/cmake/")
 
-# Get Trilinos as one entity
+include(CheckIPOSupported)
+check_ipo_supported(RESULT ipo_support OUTPUT ipo_output)
+
+# Get Trilinos and Kokkos
 find_package(Trilinos REQUIRED)
-find_package(ArborX REQUIRED)
+find_package(Kokkos REQUIRED PATHS ${Trilinos_DIR}/../Kokkos/)
+
+set(EXT_INCLUDE ${CMAKE_SOURCE_DIR}/ext/include)
+
 # clean up the too-long list
 list(REMOVE_DUPLICATES Trilinos_INCLUDE_DIRS)
 list(REMOVE_DUPLICATES Trilinos_TPL_INCLUDE_DIRS)
@@ -35,28 +40,47 @@ message("   Trilinos_TPL_LIBRARY_DIRS = ${Trilinos_TPL_LIBRARY_DIRS}")
 message("   Trilinos_BUILD_SHARED_LIBS = ${Trilinos_BUILD_SHARED_LIBS}")
 message("End of Trilinos details\n")
 
+find_package(Boost REQUIRED)
+find_package(Eigen3 REQUIRED)
 find_package(OpenMP REQUIRED)
 find_package(MPI REQUIRED)
-
-# find_package(VTK REQUIRED)
-find_package(msgpack REQUIRED)
-find_package(TRNG REQUIRED)
-find_package(Eigen3 REQUIRED)
-find_package(yaml-cpp REQUIRED)
-find_package(spdlog REQUIRED)
 
 message(
   "Run: ${MPIEXEC} ${MPIEXEC_NUMPROC_FLAG} ${MPIEXEC_MAX_NUMPROCS} ${MPIEXEC_PREFLAGS} EXECUTABLE ${MPIEXEC_POSTFLAGS} ARGS"
 )
 
-message(STATUS "SFTPATH: ${SFTPATH}")
+include(FetchContent)
+set(ARBORX_ENABLE_MPI
+    ON
+    CACHE INTERNAL "")
+
+FetchContent_Declare(
+  trng4
+  GIT_REPOSITORY https://github.com/rabauke/trng4.git
+  GIT_SHALLOW ON
+  GIT_TAG master)
+
+FetchContent_Declare(
+  arborx
+  GIT_REPOSITORY https://github.com/arborx/ArborX.git
+  GIT_SHALLOW ON
+  GIT_TAG v1.1)
+
+FetchContent_Populate(trng4)
+FetchContent_Populate(arborx)
+
+message(${trng4_SOURCE_DIR}/trng ${trng4_BINARY_DIR})
+message(${arborx_SOURCE_DIR} ${arborx_BINARY_DIR})
+
+add_subdirectory(${trng4_SOURCE_DIR}/trng ${trng4_BINARY_DIR} EXCLUDE_FROM_ALL)
+add_subdirectory(${arborx_SOURCE_DIR} ${arborx_BINARY_DIR} EXCLUDE_FROM_ALL)
 
 enable_testing()
 
 add_subdirectory(Util)
 add_subdirectory(Trilinos)
+add_subdirectory(Constraint)
 add_subdirectory(MPI)
 add_subdirectory(Boundary)
-add_subdirectory(Constraint)
-add_subdirectory(Particle)
+# add_subdirectory(Particle)
 # add_subdirectory(Sylinder)

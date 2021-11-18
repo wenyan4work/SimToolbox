@@ -2,12 +2,13 @@
 add_executable(
   ConstraintCollector_test ConstraintCollector_test.cpp ConstraintCollector.cpp
                            ${CMAKE_SOURCE_DIR}/Trilinos/TpetraUtil.cpp)
-target_include_directories(ConstraintCollector_test
-                           PRIVATE ${CMAKE_SOURCE_DIR} ${Trilinos_INCLUDE_DIRS})
+target_include_directories(
+  ConstraintCollector_test PRIVATE ${CMAKE_SOURCE_DIR} ${Trilinos_INCLUDE_DIRS}
+                                   ${Trilinos_TPL_INCLUDE_DIRS} ${EXT_INCLUDE})
 target_link_libraries(
   ConstraintCollector_test
-  PRIVATE ${Trilinos_LIBRARIES} ${Trilinos_TPL_LIBRARIES} msgpackc-cxx
-          Eigen3::Eigen OpenMP::OpenMP_CXX MPI::MPI_CXX)
+  PRIVATE ${Trilinos_LIBRARIES} ${Trilinos_TPL_LIBRARIES} Eigen3::Eigen
+          OpenMP::OpenMP_CXX MPI::MPI_CXX)
 add_test(NAME ConstraintCollector COMMAND python ConstraintCollector_verify.py)
 
 # copy the BCQPverify.py file to the build directory
@@ -28,8 +29,9 @@ add_dependencies(ConstraintCollector_test copy_ConstraintCollector_verify)
 ###############################################################################
 add_executable(BCQPSolver_test BCQPSolver_test.cpp BCQPSolver.cpp
                                ${CMAKE_SOURCE_DIR}/Trilinos/TpetraUtil.cpp)
-target_include_directories(BCQPSolver_test PRIVATE ${CMAKE_SOURCE_DIR}
-                                                   ${Trilinos_INCLUDE_DIRS})
+target_include_directories(
+  BCQPSolver_test PRIVATE ${CMAKE_SOURCE_DIR} ${Trilinos_INCLUDE_DIRS}
+                          ${Trilinos_TPL_INCLUDE_DIRS} ${EXT_INCLUDE})
 target_link_libraries(
   BCQPSolver_test PRIVATE ${Trilinos_LIBRARIES} ${Trilinos_TPL_LIBRARIES}
                           OpenMP::OpenMP_CXX MPI::MPI_CXX)
