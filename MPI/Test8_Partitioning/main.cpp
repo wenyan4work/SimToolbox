@@ -1,7 +1,5 @@
 #include "MPI/Srim.hpp"
 
-#include <ArborX_BruteForce.hpp>
-
 #include <iostream>
 #include <random>
 #include <vector>
@@ -81,7 +79,7 @@ auto partitioning(const std::vector<ParA> &sysA, const std::vector<ParB> &sysB,
   for (int i = 0; i < weight.size(); ++i) {
     weight[i] = (double)rand() / RAND_MAX;
   }
-  auto solution = part.MJ(sysA);
+  auto solution = part.MJ(sysA, weight);
   if (!solution.oneToOnePartDistribution()) {
     exit(100);
   }
@@ -101,30 +99,31 @@ auto partitioning(const std::vector<ParA> &sysA, const std::vector<ParB> &sysB,
   for (int i = 0; i < new_sysA.size(); ++i) {
     const auto &box = new_sysA[i].getBox();
     for (int j = 0; j < 3; ++j) {
-      bounding_box[0].boxlow[j] =
-          std::min(bounding_box[0].boxlow[j],
-                   part.imposePBC(box.first[j], box.second[j], pbcBox[j]) + srim::eps);
-      bounding_box[0].boxhigh[j] =
-          std::max(bounding_box[0].boxhigh[j],
-                   part.imposePBC(box.first[j], box.second[j], pbcBox[j]) - srim::eps);
+      bounding_box[0].boxlow[j] = std::min(
+          bounding_box[0].boxlow[j],
+          part.imposePBC(box.first[j], box.second[j], pbcBox[j]) + srim::eps);
+      bounding_box[0].boxhigh[j] = std::max(
+          bounding_box[0].boxhigh[j],
+          part.imposePBC(box.first[j], box.second[j], pbcBox[j]) - srim::eps);
     }
   }
 
   srim::Srim im;
-  if(bounding_box[0].boxlow[0] == FLT_MAX){
+  if (bounding_box[0].boxlow[0] == FLT_MAX) {
     bounding_box = std::vector<ParA>{};
   }
   const auto &pbc_bvh = im.buildBVH(bounding_box, bounding_box.size());
   const auto &bvh = pbc_bvh.first;
   const auto &shift_map = pbc_bvh.second;
   const auto &query = im.query(bvh, bounding_box, bounding_box.size());
-  const auto &dt = im.buildDataTransporter(query, bounding_box.size(), shift_map);
+  const auto &dt =
+      im.buildDataTransporter(query, bounding_box.size(), shift_map);
   const auto &nb_indices = dt.getNBI();
   const auto &offset = query.first;
   const auto &indices = query.second;
   std::vector<ParA> nb_container;
   dt.updateNBL<std::vector<ParA>, ParA>(bounding_box, nb_container);
-  if(nb_container.size() > 1){
+  if (nb_container.size() > 1) {
     exit(13);
   }
   return std::make_pair(new_sysA, new_sysB);
@@ -183,7 +182,7 @@ void test_check(const std::vector<ParA> &sysA, const std::vector<ParB> &sysB,
   // query the original particles.
   const auto &pairs_all =
       query_tree(sysA, sysB, r, pbcBox, comm_rank, comm_size);
-  
+
   // query the partitioned particles.
   const auto &new_pairs_all =
       query_tree(new_sysA, new_sysB, r, pbcBox, comm_rank, comm_size);
