@@ -906,7 +906,7 @@ public:
 
   /**
    * @brief Apply the partition solution to objects, and get a new list of
-   * objects.
+   * objects and corresponding weights.
    *
    * @tparam ObjContainer Container such as vector.
    * @tparam ObjType The type of the object.
@@ -915,10 +915,14 @@ public:
    * @param out_vec The new list of objects.
    * @param solution The solution of the partitioning problem, can be generated
    * with MJ function.
+   * @param weights The weights used in MJ function.
+   * @return auto
    */
   template <class ObjContainer, class ObjType, class Solution>
-  void applyPartition(const ObjContainer &in_vec, ObjContainer &out_vec,
-                      const Solution &solution) {
+  auto applyPartition(const ObjContainer &in_vec, ObjContainer &out_vec,
+                      const Solution &solution,
+                      const std::vector<double> &weights = {}) {
+    TEUCHOS_ASSERT(weights.size() == in_vec.size() || weights.size() == 0);
     int in_vec_size = in_vec.size();
     int dim = 3;
 
@@ -939,6 +943,18 @@ public:
 
     // forwardScatter to get a updated list of objects.
     forwardScatter<ObjContainer, ObjType>(in_vec, out_vec, offset, destination);
+
+    // forwardScatter weights to corresponding process.
+    std::vector<double> new_weights;
+    int local_weight_size = weights.size();
+    int weight_size = 0;
+    MPI_Allreduce(&local_weight_size, &weight_size, 1, MPI_INT, MPI_SUM,
+                  MPI_COMM_WORLD);
+    if (weight_size > 0) {
+      forwardScatter<std::vector<double>, double>(weights, new_weights, offset,
+                                                  destination);
+    }
+    return new_weights;
   }
 };
 
