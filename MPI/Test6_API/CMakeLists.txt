@@ -4,7 +4,6 @@ target_include_directories(
                     ${Trilinos_TPL_INCLUDE_DIRS})
 target_link_libraries(
   verifyAPI
-  PRIVATE
   PRIVATE ${Trilinos_LIBRARIES} ${Trilinos_TPL_LIBRARIES} ArborX::ArborX
           OpenMP::OpenMP_CXX MPI::MPI_CXX)
 add_test(NAME verifyAPI COMMAND bash -c "export OMP_NUM_THREADS=2 \

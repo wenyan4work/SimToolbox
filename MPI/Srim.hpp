@@ -221,7 +221,7 @@ void forwardScatter(const ObjContainer &in_vec, ObjContainer &out_vec,
                     const std::vector<int> &destination) {
   static_assert(std::is_trivially_copyable<ObjType>::value, "");
   static_assert(std::is_default_constructible<ObjType>::value, "");
-  assert(in_vec.size() == offset.size() - 1);
+  TEUCHOS_ASSERT(in_vec.size() == offset.size() - 1);
 
   // get MPI rank and total count.
   MPI_Comm comm_ = MPI_COMM_WORLD;
@@ -309,7 +309,7 @@ void reverseScatter(const ObjContainer &in_vec, ObjContainer &out_vec,
   int comm_size;
   MPI_Comm_size(comm_, &comm_size);
 
-  assert(offset.size() == comm_size + 1);
+  TEUCHOS_ASSERT(offset.size() == comm_size + 1);
 
   auto mpiDataType = createMPIStructType<ObjType>();
 
@@ -380,6 +380,9 @@ private:
   std::vector<int> in_sources;
   std::vector<std::array<int, 4>> nb_indices;
 
+  Teuchos::RCP<Teuchos::Time> BuildDTTimer;
+  Teuchos::RCP<Teuchos::Time> RunDTTimer;
+
 public:
   // default ctor and copy/move
   DataTransporter() = default;
@@ -400,7 +403,20 @@ public:
    */
   template <class Query, class ShiftMap>
   DataTransporter(const Query &query, int N,
-                  const std::vector<ShiftMap> shiftMap) {
+                  const std::vector<ShiftMap> shiftMap,
+                  bool enableTimer = false) {
+    BuildDTTimer = Teuchos::TimeMonitor::getNewCounter("Build DataTransporter");
+    RunDTTimer = Teuchos::TimeMonitor::getNewCounter("Run   DataTransporter");
+    if (enableTimer) {
+      BuildDTTimer->enable();
+      RunDTTimer->enable();
+    } else {
+      BuildDTTimer->disable();
+      RunDTTimer->disable();
+    }
+
+    Teuchos::TimeMonitor LocalTimer(*BuildDTTimer);
+
     // get the offset and indices from query
     const auto &offset = query.first;
     const auto &indices = query.second;
@@ -516,9 +532,9 @@ public:
           out_id.begin();
 
       // in case we have an scatter error, which should never happen.
-      assert(nb_indices[i][3] < out_id.size());
-      assert(shift_map_all[j][3] == out_id[nb_indices[i][3]][0]);
-      assert(indices(i)[1] == out_id[nb_indices[i][3]][1]);
+      TEUCHOS_ASSERT(nb_indices[i][3] < out_id.size());
+      TEUCHOS_ASSERT(shift_map_all[j][3] == out_id[nb_indices[i][3]][0]);
+      TEUCHOS_ASSERT(indices(i)[1] == out_id[nb_indices[i][3]][1]);
 
       // save the amount of shift
       nb_indices[i][0] = shift_map_all[j][0];
@@ -544,6 +560,8 @@ public:
    */
   template <class ObjContainer, class ObjType>
   void updateNBL(const ObjContainer &in_vec, ObjContainer &out_vec) const {
+    Teuchos::TimeMonitor LocalTimer(*RunDTTimer);
+
     reverseScatter<ObjContainer, ObjType>(in_vec, out_vec, this->in_offsets,
                                           this->in_sources);
     return;
@@ -573,11 +591,23 @@ private:
       {-1, -1, -1}}; // 26 copy directions
   ExecutionSpace execution_space;
 
+  Teuchos::RCP<Teuchos::Time> BuildTimer;
+  Teuchos::RCP<Teuchos::Time> QueryTimer;
+
 public:
   // constructor
-  Srim() {
+  Srim(bool enableTimer = false) {
     if (!Kokkos::is_initialized()) {
       Kokkos::initialize();
+    }
+    BuildTimer = Teuchos::TimeMonitor::getNewCounter("Build BVH");
+    QueryTimer = Teuchos::TimeMonitor::getNewCounter("Query BVH");
+    if (enableTimer) {
+      BuildTimer->enable();
+      QueryTimer->enable();
+    } else {
+      BuildTimer->disable();
+      QueryTimer->disable();
     }
   }
 
@@ -660,6 +690,8 @@ public:
    */
   template <class ObjIter>
   auto buildBVH(const ObjIter &objIter, const int N) const {
+    Teuchos::TimeMonitor LocalTimer(*BuildTimer);
+
     // build boxes
     Boxes<DeviceType, ObjIter> pts_boxes(execution_space, objIter, N);
     auto &boxes = pts_boxes._boxes;
@@ -728,6 +760,7 @@ public:
    */
   template <class bvhType, class ObjIter>
   auto query(bvhType &bvh, const ObjIter &objIter, const int N) const {
+    Teuchos::TimeMonitor LocalTimer(*QueryTimer);
 
     // build box
     Boxes<DeviceType, ObjIter> query_boxes(execution_space, objIter, N);
@@ -758,7 +791,11 @@ public:
   DataTransporter
   buildDataTransporter(const Query &query, int N,
                        const std::vector<ShiftMap> &shiftMap) const {
-    return DataTransporter(query, N, shiftMap);
+    if (BuildTimer) {
+      return DataTransporter(query, N, shiftMap, true);
+    } else {
+      return DataTransporter(query, N, shiftMap, false);
+    }
   };
 };
 
@@ -772,6 +809,11 @@ private:
                                             // in 3 dimension, default value -1,
                                             // value <=0 means no boundary.
 
+  Teuchos::RCP<Teuchos::Time> PartitionTimer =
+      Teuchos::TimeMonitor::getNewCounter("Calc  Partition");
+  Teuchos::RCP<Teuchos::Time> ApplyTimer =
+      Teuchos::TimeMonitor::getNewCounter("Apply Partition");
+
   /**
    * @brief parameter list for partition method
    *
@@ -783,9 +825,18 @@ public:
    * @brief Construct a new Partition object
    *
    */
-  Partition() {
+  Partition(bool enableTimer = false) {
     params =
         Teuchos::RCP<Teuchos::ParameterList>(new Teuchos::ParameterList, true);
+    PartitionTimer = Teuchos::TimeMonitor::getNewCounter("Calc  Partition");
+    ApplyTimer = Teuchos::TimeMonitor::getNewCounter("Apply Partition");
+    if (enableTimer) {
+      PartitionTimer->enable();
+      ApplyTimer->enable();
+    } else {
+      PartitionTimer->disable();
+      ApplyTimer->disable();
+    }
   }
 
   /**
@@ -843,6 +894,8 @@ public:
    */
   template <class ObjIter>
   auto MJ(const ObjIter &objIter, const std::vector<double> &weights = {}) {
+    Teuchos::TimeMonitor LocalTimer(*PartitionTimer);
+
     TEUCHOS_ASSERT(weights.size() == objIter.size() || weights.size() == 0);
 
     // types
@@ -922,6 +975,8 @@ public:
   auto applyPartition(const ObjContainer &in_vec, ObjContainer &out_vec,
                       const Solution &solution,
                       const std::vector<double> &weights = {}) {
+    Teuchos::TimeMonitor LocalTimer(*ApplyTimer);
+
     TEUCHOS_ASSERT(weights.size() == in_vec.size() || weights.size() == 0);
     int in_vec_size = in_vec.size();
     int dim = 3;
