@@ -60,7 +60,7 @@ void testNonUniformMPI(int parA_count, double r, double m, double s,
                        int comm_size, std::string file_name) {
   // Generate sysA
   if (comm_rank == 0) {
-    parA_count = 0;
+    parA_count = 1;
   } else {
     parA_count = rand() % (comm_rank * parA_count);
   }
@@ -71,7 +71,7 @@ void testNonUniformMPI(int parA_count, double r, double m, double s,
   std::cout << "Random Generates complete!" << std::endl;
 
   // test
-  // run partitioning algorithm and get partitioned sysA and sysB
+  // run partitioning algorithm and get partitioned sysA
   srim::Partition part;
   part.setPBCBox(pbcBox);
   part.setParam("imbalance_tolerance", 1.03);
@@ -96,8 +96,8 @@ void testNonUniformMPI(int parA_count, double r, double m, double s,
       part.applyPartition<std::vector<ParA>, ParA>(sysA, new_sysA, solution,
                                                    weight);
 
-  // create solA and solB to save on file
-  // x, y, z, (weight),rank
+  // create solA to save on file
+  // x, y, z, weight,rank
   int attribute_count = 5;
   std::vector<double> solA(new_sysA.size() * attribute_count);
   for (int i = 0; i < new_sysA.size(); ++i) {

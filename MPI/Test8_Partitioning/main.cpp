@@ -241,7 +241,7 @@ void testNonUniformMPI(int parA_count, int parB_count, double r, double m,
                        int comm_size) {
   // Generate sysA and sysB
   if (comm_rank == 0) {
-    parA_count = 0;
+    parA_count = 1;
   } else if (comm_rank == 1) {
     parB_count = 0;
   } else if (comm_rank == 2) {
@@ -266,7 +266,7 @@ void testNonUniformMPI(int parA_count, int parB_count, double r, double m,
 void testSmall(double r, double m, double s, std::array<double, 3> &pbcBox,
                int comm_rank, int comm_size) {
   // Generate sysA and sysB
-  int parA_count = comm_rank % 2;
+  int parA_count = (comm_rank + 1) % 2;
   int parB_count = 1 - parA_count;
 
   std::lognormal_distribution<double> distA(m, s);
