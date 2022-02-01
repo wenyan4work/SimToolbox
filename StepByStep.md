@@ -4,9 +4,6 @@ Depending on your operating system, you may need to slightly change the steps de
 The steps described here are used to setup things on Ubuntu 18.04 of WSL.
 If you do not know what WSL is, just use the same steps on Ubunto 18.04 Linux.
 
-This automated `Environment` at `https://github.com/wenyan4work/Environment.git` will try to install the following software automatically for you. 
-Use it with caution so your own files are not overwritted during the installation process. 
-
 # 1 Compilers and building tools
 ```
 sudo apt install build-essential automake cmake cmake-curses-gui
