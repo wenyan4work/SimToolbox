@@ -38,12 +38,15 @@ struct EmptyData {
  */
 template <class Shape, class Data = EmptyData>
 struct Particle {
+  int rank = -1; ///< mpi rank
+
   long gid = -1;         ///< unique global id
   long globalIndex = -1; ///< unique and sequentially ordered from rank 0
   long group = -1;       ///< a 'marker'
 
-  int rank = -1;          ///< mpi rank
   bool immovable = false; ///< if true, mobmat 6x6 = 0
+
+  double buffer = 0; ///< shape buffer on AABB
 
   std::array<double, 3> pos = {0, 0, 0}; ///< position
 
@@ -133,7 +136,14 @@ struct Particle {
    * boxLow,boxHigh
    */
   std::pair<std::array<double, 3>, std::array<double, 3>> getBox() const {
-    return shape.getBox(pos, quaternion);
+    auto box = shape.getBox(pos, quaternion);
+    for (auto &v : box.first) {
+      v -= buffer;
+    }
+    for (auto &v : box.second) {
+      v += buffer;
+    }
+    return box;
   };
 
   /**
