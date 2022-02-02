@@ -1,6 +1,7 @@
+#include "MultiTypeContainer.hpp"
 #include "Particle.hpp"
 #include "Sphere.hpp"
-#include "Sylinder.hpp"
+#include "Spherocylinder.hpp"
 
 #include <iostream>
 #include <memory>
@@ -25,7 +26,7 @@ void testPackUnpack() {
     p.globalIndex = udis(gen);
     p.rank = 0;
     p.group = udis(gen);
-    p.isImmovable = false;
+    p.immovable = false;
   }
 
   // pack
@@ -64,8 +65,6 @@ void testPackUnpack() {
 }
 
 void testMultiContainer() {
-  //   template <class... ParType>
-  //   using MultiTypeContainer = std::tuple<std::vector<ParType>...>;
 
   using MyContainer = MultiTypeContainer<Sylinder, Sphere>;
   MyContainer myContainer;
@@ -83,8 +82,8 @@ void testMultiContainer() {
 }
 
 int main() {
-  //   testPackUnpack<Sylinder>();
-  //   testPackUnpack<Sphere>();
+  testPackUnpack<Sylinder>();
+  testPackUnpack<Sphere>();
 
   testMultiContainer();
 

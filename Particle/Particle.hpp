@@ -11,6 +11,7 @@
 #ifndef PARTICLE_HPP_
 #define PARTICLE_HPP_
 
+#include "Constraint/ConstraintBlock.hpp"
 #include "Util/EigenDef.hpp"
 
 #include <msgpack.hpp>
@@ -21,12 +22,11 @@
 constexpr double Pi = 3.14159265358979323846;
 
 /**
- * @brief specify the link of sylinders
+ * @brief an empty user data class
  *
  */
-struct Link {
-  long prev = -1; ///< previous link in the link group
-  long next = -1; ///< next link in the link group
+struct EmptyData {
+  void echo() const { return; }
 };
 
 /**
@@ -36,49 +36,64 @@ struct Link {
  * force  = forceConU + forceConB + forceNonCon.
  * there is no Brownian force.
  */
-template <class ShapeData>
+template <class Shape, class Data = EmptyData>
 struct Particle {
   long gid = -1;         ///< unique global id
   long globalIndex = -1; ///< unique and sequentially ordered from rank 0
   long group = -1;       ///< a 'marker'
 
-  int rank = -1;            ///< mpi rank
-  bool isImmovable = false; ///< if true, mobmat 6x6 = 0
+  int rank = -1;          ///< mpi rank
+  bool immovable = false; ///< if true, mobmat 6x6 = 0
 
-  double pos[3] = {0, 0, 0}; ///< position
+  std::array<double, 3> pos = {0, 0, 0}; ///< position
 
   /**
    * @brief orientation quaternion
    *
-   * direction norm vector = orientation * (0,0,1)
-   * orientation = {x,y,z,w}, {x,y,z} vector and w scalar
+   * direction norm vector = quaternion * (0,0,1)
+   * quaternion = {x,y,z,w}, {x,y,z} vector and w scalar
    * This order of storage is used by Eigen::Quaternion
    * See Util/EquatnHelper.hpp
    */
-  double orientation[4] = {0, 0, 0, 1};
+  std::array<double, 4> quaternion = {0, 0, 0, 1};
 
-  double vel[6] = {0, 0, 0, 0, 0, 0};       ///< vel [6] = vel [3] + omega [3]
-  double velConU[6] = {0, 0, 0, 0, 0, 0};   ///< unilateral constraint
-  double velConB[6] = {0, 0, 0, 0, 0, 0};   ///< bilateral constraint
-  double velNonCon[6] = {0, 0, 0, 0, 0, 0}; ///<  sum of non-Brown and non-Con
+  // vel [6] = vel [3] + omega [3]
+  std::array<double, 6> vel = {0, 0, 0,      //
+                               0, 0, 0};     ///<
+  std::array<double, 6> velConU = {0, 0, 0,  //
+                                   0, 0, 0}; ///< unilateral constraint
+  std::array<double, 6> velConB = {0, 0, 0,  //
+                                   0, 0, 0}; ///< bilateral constraint
+  std::array<double, 6> velNonCon = {
+      0, 0, 0,  //
+      0, 0, 0}; ///<  sum of non-Brown and non-Con
 
-  double velBrown[6] = {0, 0, 0, 0, 0, 0}; ///< Brownian velocity
+  std::array<double, 6> velBrown = {0, 0, 0,  //
+                                    0, 0, 0}; ///< Brownian velocity
 
-  double force[6] = {0, 0, 0, 0, 0, 0}; ///< force [6] = force[3] + torque [3]
-  double forceConU[6] = {0, 0, 0, 0, 0, 0};   ///< unilateral constraint
-  double forceConB[6] = {0, 0, 0, 0, 0, 0};   ///< bilateral constraint
-  double forceNonCon[6] = {0, 0, 0, 0, 0, 0}; ///<  sum of non-Brown and non-Con
+  // force [6] = force[3] + torque [3]
+  std::array<double, 6> force = {0, 0, 0,         //
+                                 0, 0, 0};        ///<
+  std::array<double, 6> forceConU = {0, 0,        //
+                                     0, 0, 0, 0}; ///< unilateral constraint
+  std::array<double, 6> forceConB = {0, 0, 0,     //
+                                     0, 0, 0};    ///< bilateral constraint
+  std::array<double, 6> forceNonCon = {
+      0, 0, 0,  //
+      0, 0, 0}; ///<  sum of non-Brown and non-Con
 
-  ShapeData data;
+  Shape shape; ///< shape variables and methods
+  Data data;   ///< other user-defined variables and methods
 
   /**
    * @brief define msgpack serialization format
    *
    */
-  MSGPACK_DEFINE(gid, globalIndex, group, rank, isImmovable, //
-                 pos, orientation,                           //
+  MSGPACK_DEFINE(gid, globalIndex, group, rank, immovable,   //
+                 pos, quaternion,                            //
                  vel, velConU, velConB, velNonCon, velBrown, //
-                 force, forceConU, forceConB, forceNonCon, data);
+                 force, forceConU, forceConB, forceNonCon,   //
+                 shape);
 
   Particle() = default;
   ~Particle() = default;
@@ -93,14 +108,14 @@ struct Particle {
    *
    * @return const double*
    */
-  inline const double *getPos() const { return pos; };
+  auto getPos() const { return pos; };
 
   /**
-   * @brief Get orientation quaternion
+   * @brief Get quaternion
    *
    * @return const double*
    */
-  inline const double *getOrientation() const { return orientation; }
+  auto getQuaternion() const { return quaternion; }
 
   /**
    * @brief calculate mobility matrix
@@ -108,8 +123,7 @@ struct Particle {
    * @return EMat6 mobility matrix 6x6
    */
   Emat6 getMobMat() const {
-    return isImmovable ? std::move(Emat6::Zero())
-                       : std::move(data.getMobMat(orientation));
+    return immovable ? Emat6::Zero() : shape.getMobMat(quaternion);
   };
 
   /**
@@ -119,7 +133,7 @@ struct Particle {
    * boxLow,boxHigh
    */
   std::pair<std::array<double, 3>, std::array<double, 3>> getBox() const {
-    return std::move(data.getBox(pos, orientation));
+    return shape.getBox(pos, quaternion);
   };
 
   /**
@@ -132,45 +146,12 @@ struct Particle {
            gid, globalIndex,                           //
            pos[0], pos[1], pos[2]);
     printf("orient %g, %g, %g, %g\n", //
-           orientation[0], orientation[1], orientation[2], orientation[3]);
+           quaternion[0], quaternion[1], quaternion[2], quaternion[3]);
     printf("vel %g, %g, %g; omega %g, %g, %g\n", //
            vel[0], vel[1], vel[2],               //
            vel[3], vel[4], vel[5]);
+    shape.echo();
     data.echo();
-  }
-};
-
-template <std::size_t I = 0, typename FuncT, typename... Tp>
-inline typename std::enable_if<I == sizeof...(Tp), void>::type //
-for_each(std::tuple<Tp...> &, FuncT) // Unused arguments are given no names.
-{}
-
-template <std::size_t I = 0, typename FuncT, typename... Tp>
-    inline typename std::enable_if < I<sizeof...(Tp), void>::type //
-                                     for_each(std::tuple<Tp...> &t, FuncT f) {
-  f(std::get<I>(t));
-  for_each<I + 1, FuncT, Tp...>(t, f);
-}
-
-/**
- * @brief Container for multiple types of particles
- *
- * @tparam ParType
- */
-template <class... ParType>
-struct MultiTypeContainer {
-  std::tuple<std::vector<ParType>...> particles;
-
-  std::vector<int> buildOffset() {
-    std::vector<int> offset(1, 0);
-    // iterate over particle types
-
-    auto getsize = [&](const auto &container) {
-      offset.push_back(container.size() + offset.back());
-    };
-
-    for_each(particles, getsize);
-    return offset;
   }
 };
 
