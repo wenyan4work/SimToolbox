@@ -3,6 +3,9 @@
 
 #include "Util/TomlHelper.hpp"
 
+#include <memory>
+#include <vector>
+
 /**
  * @brief interface to all boundary types
  *
@@ -102,5 +105,13 @@ private:
   double radius = 0;
   bool inside = true; ///< if particles should be confined inside this tube
 };
+
+/**
+ * @brief read boundaries from a toml file
+ *
+ * @param filename
+ * @return std::vector<std::shared_ptr<Boundary>>
+ */
+std::vector<std::shared_ptr<Boundary>> readBoundaries(const std::string &filename);
 
 #endif

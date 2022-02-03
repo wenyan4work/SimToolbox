@@ -41,6 +41,8 @@ public:
   int conSolverChoice; ///< choose a iterative solver. 0 for BBPGD, 1 for APGD,
                        ///< etc
 
+  std::vector<std::shared_ptr<Boundary>> boundaries;
+
   SystemConfig() = default;
   ~SystemConfig() = default;
 

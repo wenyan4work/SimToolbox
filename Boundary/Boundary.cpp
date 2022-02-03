@@ -251,3 +251,32 @@ void Tube::echo() const {
   printf("axis: %g, %g, %g\n", axis[0], axis[1], axis[2]);
   printf("------------------------\n");
 }
+
+std::vector<std::shared_ptr<Boundary>>
+readBoundaries(const std::string &filename) {
+  std::vector<std::shared_ptr<Boundary>> boundaries;
+
+  auto config = toml::parse(filename);
+
+  if (!config.contains("boundaries")) {
+    return boundaries;
+  }
+
+  // boundaryConfig is an array of tables
+  const auto boundaryConfig =
+      toml::find<std::vector<toml::table>>(config, "boundaries");
+
+  for (const auto &b : boundaryConfig) {
+    std::string name = b.at("type").as_string();
+    spdlog::debug(name);
+    if (name == "wall") {
+      boundaries.push_back(std::make_shared<Wall>(b));
+    } else if (name == "tube") {
+      boundaries.push_back(std::make_shared<Tube>(b));
+    } else if (name == "sphere") {
+      boundaries.push_back(std::make_shared<SphereShell>(b));
+    }
+  }
+
+  return boundaries;
+}

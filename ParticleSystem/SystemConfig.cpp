@@ -39,6 +39,8 @@ SystemConfig::SystemConfig(std::string filename) {
 
   particleBufferAABB = 0.3;
   readConfig(config, VARNAME(particleBufferAABB), particleBufferAABB);
+
+  boundaries = readBoundaries(filename);
 }
 
 void SystemConfig::echo() const {
@@ -59,12 +61,6 @@ void SystemConfig::echo() const {
     printf("-------------------------------------------\n");
   }
   {
-    printf("-------------------------------------------\n");
-    printf("For drag and collision: Sylinders with length < diameter are "
-           "treated as spheres\n");
-    printf("-------------------------------------------\n");
-  }
-  {
     printf("Physical setting: \n");
     printf("viscosity: %g\n", viscosity);
     printf("kBT: %g\n", KBT);
@@ -76,5 +72,13 @@ void SystemConfig::echo() const {
     printf("Max Iteration: %d\n", conMaxIte);
     printf("Solver Choice: %d\n", conSolverChoice);
     printf("-------------------------------------------\n");
+  }
+
+  if (boundaries.size()) {
+    printf("-------------------------------------------\n");
+    printf("Boundaries \n");
+    for (const auto &b : boundaries) {
+      b->echo();
+    }
   }
 }

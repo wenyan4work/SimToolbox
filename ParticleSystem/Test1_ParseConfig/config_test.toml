@@ -1,3 +1,5 @@
+# There is no automatic conversion between int and float
+
 KBT = 0.00411
 conMaxIte = 1000
 conResTol = 0.00001
@@ -13,3 +15,34 @@ simBoxPBC = [true, true, false]
 timeSnap = 0.001
 timeTotal = 0.1
 viscosity = 0.01
+
+###################
+# Array of Tables #
+###################
+
+# An array of tables can be expressed by using a table name in double brackets.
+# Each table with the same double bracketed name will be an item in the array.
+# The tables are inserted in the order encountered.
+
+[[boundaries]]
+center = [5.0, 5.0, 5.0]
+norm = [1.0, 1.0, 0.0]
+type = "wall"
+
+[[boundaries]]
+center = [0.0, 0.0, 20.0]
+norm = [0.0, 0.0, -1.0]
+type = "wall"
+
+[[boundaries]]
+axis = [1.0, 1.0, 1.0]
+center = [12.0, 12.0, 12.0]
+inside = true
+radius = 8.0
+type = "tube"
+
+[[boundaries]]
+center = [12.0, 12.0, 12.0]
+inside = true
+radius = 10.0
+type = "sphere"
