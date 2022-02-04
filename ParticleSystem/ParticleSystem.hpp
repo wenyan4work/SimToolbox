@@ -23,6 +23,7 @@ class ParticleSystem {
 private:
   long stepID; ///< timestep id. sequentially numbered from 0
 
+  std::shared_ptr<std::ofstream> dataStreamPtr; ///< output data
   std::shared_ptr<const SystemConfig> configPtr;
 
   // TRngPool object for thread-safe random number generation
@@ -93,6 +94,7 @@ public:
   auto getConfig() { return configPtr; }
   auto getRngPool() { return rngPoolPtr; }
   auto getComm() { return commRcp; }
+  auto getDataFS() { return dataStreamPtr; }
 
   auto getConSolver() { return conSolverPtr; }
   auto getConCollector() { return conCollectorPtr; }
@@ -260,9 +262,14 @@ public:
     }
 
     Logger::set_level(configPtr->logLevel);
+    std::ios_base::openmode mode = IOHelper::fileExist(filename) //
+                                       ? std::ios_base::app
+                                       : std::ios_base::out;
+    dataStreamPtr = std::make_shared<std::ofstream>(filename, mode);
 
     // TRNG pool must be initialized after mpi is initialized
-    rngPoolPtr = std::make_shared<TRngPool>(configPtr->rngSeed);
+    rngPoolPtr = std::make_shared<TRngPool>(
+        configPtr->rngSeed, commRcp->getRank(), commRcp->getSize());
     conSolverPtr = std::make_shared<ConstraintSolver>();
     conCollectorPtr = std::make_shared<ConstraintCollector>();
 

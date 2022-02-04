@@ -113,7 +113,7 @@ struct Particle {
     // dataline contains the rest of line
     line = shape.parse(line, immovable, pos, quaternion);
     line = data.parse(line);
-    std::cout << "unused data: " << line << std::endl;
+    // std::cout << "unused data: " << line << std::endl;
   }
 
   /**

@@ -11,17 +11,16 @@
 #ifndef TRNGPOOL_HPP_
 #define TRNGPOOL_HPP_
 
-#include <iostream>
-#include <memory>
-
-#include <mpi.h>
-#include <omp.h>
-
 #include <trng/lcg64_shift.hpp>
 #include <trng/lognormal_dist.hpp>
 #include <trng/mrg5.hpp>
 #include <trng/normal_dist.hpp>
 #include <trng/uniform01_dist.hpp>
+
+#include <omp.h>
+
+#include <iostream>
+#include <memory>
 
 /**
  * @brief rng based on TRNG library
@@ -62,26 +61,14 @@ public:
    *
    * @param seed
    */
-  explicit TRngPool(int seed = 0) : n01(0, 1) {
+  explicit TRngPool(int seed = 0, int rank = 0, int nProcs = 1) : n01(0, 1) {
 
-    myRank = 0;
-    nProcs = 1;
-    nThreads = 1;
-    int mpiInitFlag;
-    MPI_Initialized(&mpiInitFlag);
-    if (mpiInitFlag > 0) {
-      MPI_Comm_rank(MPI_COMM_WORLD, &myRank);
-      MPI_Comm_size(MPI_COMM_WORLD, &nProcs);
-    } else {
-      myRank = 0;
-      nProcs = 1;
-    }
     nThreads = omp_get_max_threads();
     myEngineType rngEngine;
     rngEngine.seed(static_cast<unsigned long>(seed));
 
     if (nProcs > 1) {
-      rngEngine.split(nProcs, myRank);
+      rngEngine.split(nProcs, rank);
     }
 
     rngEngineThreadsPtr.resize(nThreads);
