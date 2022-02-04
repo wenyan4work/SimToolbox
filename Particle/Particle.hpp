@@ -17,6 +17,7 @@
 #include <msgpack.hpp>
 
 #include <array>
+#include <sstream>
 #include <utility>
 
 constexpr double Pi = 3.14159265358979323846;
@@ -27,6 +28,7 @@ constexpr double Pi = 3.14159265358979323846;
  */
 struct EmptyData {
   void echo() const { return; }
+  void parse(const std::string &line) { return; }
 };
 
 /**
@@ -106,6 +108,14 @@ struct Particle {
   Particle &operator=(const Particle &) = default;
   Particle &operator=(Particle &&) = default;
 
+  Particle(std::stringstream &line) {
+    // shape parse line, set immovable, pos and quaternion
+    // dataline contains the rest of line
+    line = shape.parse(line, immovable, pos, quaternion);
+    line = data.parse(line);
+    std::cout << "unused data: " << line << std::endl;
+  }
+
   /**
    * @brief Get position quaternion
    *
@@ -163,6 +173,8 @@ struct Particle {
     shape.echo();
     data.echo();
   }
+
+  double getVolume() const { return shape.getVolume(); }
 };
 
 #endif

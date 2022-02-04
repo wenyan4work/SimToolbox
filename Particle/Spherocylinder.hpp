@@ -61,6 +61,36 @@ struct SpherocylinderShape {
         Point{pos[0] - radius, pos[1] - radius, pos[2] - radius}, //
         Point{pos[0] + radius, pos[1] + radius, pos[2] + radius});
   };
+
+  double getVolume() const {
+    return 4 * Pi * radius * radius * radius / 3.0 +
+           Pi * radius * radius * length / 4.0;
+  }
+
+  std::stringstream &parse(std::stringstream &line, //
+                           long &gid, bool &immovable,
+                           std::array<double, 3> &pos,
+                           std::array<double, 4> &quaternion) {
+    // C immovable gid radius mx my mz px py pz data
+
+    // required data
+    char type, shape;
+    double mx, my, mz;
+    double px, py, pz;
+    line >> shape >> type >> gid >> radius >> mx >> my >> mz >> px >> py >> pz;
+    assert(shape == 'C');
+    immovable = type == 'T' ? true : false;
+
+    Evec3 minus(mx, my, mz);
+    Evec3 plus(px, py, pz);
+    Emap3(pos.data()) = 0.5 * (minus + plus);
+    Evec3 direction = plus - minus;
+    length = direction.norm();
+    Emapq(quaternion.data()) =
+        Equatn::FromTwoVectors(Evec3(0, 0, 1), direction);
+
+    return line;
+  }
 };
 
 using Sylinder = Particle<SpherocylinderShape>;

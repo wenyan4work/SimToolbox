@@ -24,6 +24,28 @@ struct SphereShape {
         Point{pos[0] - radius, pos[1] - radius, pos[2] - radius}, //
         Point{pos[0] + radius, pos[1] + radius, pos[2] + radius});
   };
+
+  double getVolume() const { return 4 * Pi * radius * radius * radius / 3.0; }
+
+  std::stringstream &parse(std::stringstream &line, //
+                           long &gid, bool &immovable,
+                           std::array<double, 3> &pos,
+                           std::array<double, 4> &quaternion) {
+    // S immovable gid radius cx cy cz data
+
+    // required data
+    char type, shape;
+    double cx, cy, cz;
+    line >> shape >> type >> gid >> radius >> cx >> cy >> cz;
+    assert(shape == 'S');
+    immovable = type == 'T' ? true : false;
+
+    Evec3 center(cx, cy, cz);
+    Emap3(pos.data()) = center;
+    Emap3(quaternion.data()).setIdentity();
+
+    return line;
+  }
 };
 
 using Sphere = Particle<SphereShape>;
