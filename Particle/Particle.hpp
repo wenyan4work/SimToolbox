@@ -27,8 +27,10 @@ constexpr double Pi = 3.14159265358979323846;
  *
  */
 struct EmptyData {
+  int data;
   void echo() const { return; }
   void parse(const std::string &line) { return; }
+  MSGPACK_DEFINE_ARRAY(data);
 };
 
 /**
@@ -63,29 +65,18 @@ struct Particle {
   std::array<double, 4> quaternion = {0, 0, 0, 1};
 
   // vel [6] = vel [3] + omega [3]
-  std::array<double, 6> vel = {0, 0, 0,      //
-                               0, 0, 0};     ///<
-  std::array<double, 6> velConU = {0, 0, 0,  //
-                                   0, 0, 0}; ///< unilateral constraint
-  std::array<double, 6> velConB = {0, 0, 0,  //
-                                   0, 0, 0}; ///< bilateral constraint
-  std::array<double, 6> velNonCon = {
-      0, 0, 0,  //
-      0, 0, 0}; ///<  sum of non-Brown and non-Con
+  std::array<double, 6> vel = {0, 0, 0, 0, 0, 0};
+  std::array<double, 6> velConU = {0, 0, 0, 0, 0, 0};
+  std::array<double, 6> velConB = {0, 0, 0, 0, 0, 0};
+  std::array<double, 6> velNonCon = {0, 0, 0, 0, 0, 0};
 
-  std::array<double, 6> velBrown = {0, 0, 0,  //
-                                    0, 0, 0}; ///< Brownian velocity
+  std::array<double, 6> velBrown = {0, 0, 0, 0, 0, 0};
 
   // force [6] = force[3] + torque [3]
-  std::array<double, 6> force = {0, 0, 0,         //
-                                 0, 0, 0};        ///<
-  std::array<double, 6> forceConU = {0, 0,        //
-                                     0, 0, 0, 0}; ///< unilateral constraint
-  std::array<double, 6> forceConB = {0, 0, 0,     //
-                                     0, 0, 0};    ///< bilateral constraint
-  std::array<double, 6> forceNonCon = {
-      0, 0, 0,  //
-      0, 0, 0}; ///<  sum of non-Brown and non-Con
+  std::array<double, 6> force = {0, 0, 0, 0, 0, 0};
+  std::array<double, 6> forceConU = {0, 0, 0, 0, 0, 0};
+  std::array<double, 6> forceConB = {0, 0, 0, 0, 0, 0};
+  std::array<double, 6> forceNonCon = {0, 0, 0, 0, 0, 0};
 
   Shape shape; ///< shape variables and methods
   Data data;   ///< other user-defined variables and methods
@@ -94,11 +85,12 @@ struct Particle {
    * @brief define msgpack serialization format
    *
    */
-  MSGPACK_DEFINE(gid, globalIndex, group, rank, immovable,   //
-                 pos, quaternion,                            //
-                 vel, velConU, velConB, velNonCon, velBrown, //
-                 force, forceConU, forceConB, forceNonCon,   //
-                 shape);
+  MSGPACK_DEFINE_ARRAY(gid, globalIndex, group, rank, immovable, //
+                       buffer, pos, quaternion,                  //
+                       vel, velConU, velConB, velNonCon,         //
+                       velBrown,                                 //
+                       force, forceConU, forceConB, forceNonCon, //
+                       shape, data);
 
   Particle() = default;
   ~Particle() = default;

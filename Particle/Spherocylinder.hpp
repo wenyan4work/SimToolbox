@@ -1,3 +1,6 @@
+#ifndef SPHEROCYLINDER_HPP_
+#define SPHEROCYLINDER_HPP_
+
 #include "Particle.hpp"
 
 /**
@@ -8,7 +11,7 @@ struct SpherocylinderShape {
   double radius = 1.0; ///< radius
   double length = 1.0; ///< length
 
-  MSGPACK_DEFINE(radius, length)
+  MSGPACK_DEFINE_ARRAY(radius, length);
 
   /**
    * @brief
@@ -97,3 +100,5 @@ using Sylinder = Particle<SpherocylinderShape>;
 
 static_assert(std::is_trivially_copyable<Sylinder>::value, "");
 static_assert(std::is_default_constructible<Sylinder>::value, "");
+
+#endif

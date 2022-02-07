@@ -1,9 +1,17 @@
+#ifndef SPHERE_HPP_
+#define SPHERE_HPP_
+
 #include "Particle.hpp"
 
 struct SphereShape {
   double radius = 1;
-  MSGPACK_DEFINE(radius);
 
+  MSGPACK_DEFINE_ARRAY(radius);
+
+  /**
+   * @brief
+   *
+   */
   void echo() const { printf("radius %g\n", radius); }
 
   Emat6 getMobMat(const std::array<double, 4> &quaternion) const {
@@ -52,3 +60,5 @@ using Sphere = Particle<SphereShape>;
 
 static_assert(std::is_trivially_copyable<Sphere>::value, "");
 static_assert(std::is_default_constructible<Sphere>::value, "");
+
+#endif
