@@ -10,6 +10,7 @@
  */
 #include "ParticleSystem.hpp"
 #include "Spherocylinder.hpp"
+
 #include "Util/Logger.hpp"
 
 #include <mpi.h>
@@ -19,18 +20,23 @@ int main(int argc, char **argv) {
   MPI_Init(&argc, &argv);
   Logger::setup_mpi_spdlog();
   {
-    std::string runConfig = "RunConfig.yaml";
+    std::string configFile = "RunConfig.yaml";
     std::string posFile = "SylinderInitial.dat";
-    std::string restartFile = "TimeStepInfo.txt";
+    auto configPtr = std::make_shared<SystemConfig>(configFile);
     ParticleSystem<Sylinder> system;
+    system.writeBox();
 
     // main time loop
-    while (system.running()) {
-      system.prepareStep();
-      system.runStep();
-      system.calcPolarity();
-      system.calcStressConB();
-      system.calcStressConU();
+    while (system.stepRunning()) {
+      system.stepPrepare();
+      system.stepCalcMotion();
+      system.stepUpdatePtcl();
+      system.writeData();
+      system.stepMovePtcl();
+
+      system.statPolarity();
+      system.statStressConB();
+      system.statStressConU();
       system.printTimingSummary(true);
     }
   }

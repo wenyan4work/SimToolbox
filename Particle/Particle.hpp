@@ -69,15 +69,18 @@ struct Particle {
   std::array<double, 6> vel = {0, 0, 0, 0, 0, 0};
   std::array<double, 6> velConU = {0, 0, 0, 0, 0, 0};
   std::array<double, 6> velConB = {0, 0, 0, 0, 0, 0};
-  std::array<double, 6> velNonCon = {0, 0, 0, 0, 0, 0};
+
+  // force [6] = force[3] + torque [3]
+  std::array<double, 6> forceConU = {0, 0, 0, 0, 0, 0};
+  std::array<double, 6> forceConB = {0, 0, 0, 0, 0, 0};
 
   std::array<double, 6> velBrown = {0, 0, 0, 0, 0, 0};
 
-  // force [6] = force[3] + torque [3]
-  std::array<double, 6> force = {0, 0, 0, 0, 0, 0};
-  std::array<double, 6> forceConU = {0, 0, 0, 0, 0, 0};
-  std::array<double, 6> forceConB = {0, 0, 0, 0, 0, 0};
-  std::array<double, 6> forceNonCon = {0, 0, 0, 0, 0, 0};
+  std::array<double, 6> velPartNonCon = {0, 0, 0, 0, 0, 0};
+  std::array<double, 6> forcePartNonCon = {0, 0, 0, 0, 0, 0};
+
+  // velTotalNonCon = velPartNonCon+M *forcePartNonCon+velBrown
+  std::array<double, 6> velTotalNonCon = {0, 0, 0, 0, 0, 0};
 
   Shape shape; ///< shape variables and methods
   Data data;   ///< other user-defined variables and methods
@@ -88,9 +91,11 @@ struct Particle {
    */
   MSGPACK_DEFINE_ARRAY(gid, globalIndex, group, rank, immovable, //
                        buffer, pos, quaternion,                  //
-                       vel, velConU, velConB, velNonCon,         //
+                       vel, velConU, velConB,                    //
                        velBrown,                                 //
-                       force, forceConU, forceConB, forceNonCon, //
+                       forceConU, forceConB,                     //
+                       velPartNonCon, forcePartNonCon,           //
+                       velTotalNonCon,                           //
                        shape, data);
 
   Particle() = default;
@@ -122,12 +127,20 @@ struct Particle {
     vel.fill(0);
     velConB.fill(0);
     velConU.fill(0);
-    velNonCon.fill(0);
-    velBrown.fill(0);
-    force.fill(0);
     forceConB.fill(0);
     forceConU.fill(0);
-    forceNonCon.fill(0);
+    velBrown.fill(0);
+    velPartNonCon.fill(0);
+    forcePartNonCon.fill(0);
+    velTotalNonCon.fill(0);
+  }
+
+  void stepEuler(const double dt) {
+    for (int k = 0; k < 3; k++) {
+      pos[k] += dt * vel[k];
+    }
+    Evec3 omega(vel[3], vel[4], vel[5]);
+    EquatnHelper::rotateEquatn(Emapq(quaternion.data()), omega, dt);
   }
 
   /**

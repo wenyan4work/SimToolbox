@@ -195,14 +195,6 @@ public:
       TEUCHOS_ASSERT(forcePartNonConRcp->getLocalLength() == 6 * nLocal);
       // U_{TotalNonCon} = M_{UF} F_{Part,NonCon}
       ptclMobOpRcp->apply(*forcePartNonConRcp, *velTotalNonConRcp);
-      auto forceView = forcePartNonConRcp->getLocalView<Kokkos::HostSpace>();
-#pragma omp parallel for
-      for (int i = 0; i < nLocal; i++) {
-        auto &par = particles[i];
-        for (int j = 0; j < 6; j++) {
-          par.forceNonCon[j] = forceView(6 * i + j, 0);
-        }
-      }
     }
 
     // step 2, vel part
@@ -245,7 +237,7 @@ public:
    *
    */
   void updatePtclRank() {
-    const int nLocal = sylinderContainer.getNumberOfParticleLocal();
+    const int nLocal = particles.size();
     const int rank = commRcp->getRank();
 #pragma omp parallel for
     for (int i = 0; i < nLocal; i++) {
@@ -279,11 +271,17 @@ public:
    */
   void applyBoxPBC() { return; }
 
-  bool running() {
+  /*********************************************
+   *
+   *   system high level API
+   *
+   **********************************************/
+
+  bool stepRunning() {
     return configPtr->dt * stepID > configPtr->timeTotal ? false : true;
   }
 
-  void prepareStep() {
+  void stepPrepare() {
     spdlog::warn("CurrentStep {}", stepID);
     applyBoxPBC();
 
@@ -328,19 +326,66 @@ public:
     velConBRcp.reset();
   }
 
-  void runStep() {
+  void stepCalcMotion() {
 
     if (configPtr->KBT > 0) {
       calcVelBrown();
     }
 
     calcVelTotalNonCon();
+  }
 
-    sumForceVelocity();
+  /**
+   * @brief write vel/force back to particle struct
+   *
+   */
+  void stepUpdatePtcl() {
+    const int nLocal = particles.size();
 
-    stepEuler();
+    auto writeBack = [&](Teuchos::RCP<TV> &vector,
+                         std::array<double, 6> ParticleBase::*mptr) {
+      if (!vector.is_null()) {
+        auto vecView = vector->getLocalView<Kokkos::HostSpace>();
+#pragma omp parallel for
+        for (int i = 0; i < nLocal; i++) {
+          auto &data = particles[i].*mptr;
+          for (int j = 0; j < 6; j++) {
+            data[j] = vecView(6 * i + j, 0);
+          }
+        }
+      }
+    };
 
+    writeBack(forcePartNonConRcp, &ParticleBase::forcePartNonCon);
+    writeBack(velPartNonConRcp, &ParticleBase::velPartNonCon);
+    writeBack(velTotalNonConRcp, &ParticleBase::velTotalNonCon);
+    writeBack(velBrownRcp, &ParticleBase::velBrown);
+    writeBack(velConBRcp, &ParticleBase::velConB);
+    writeBack(velConURcp, &ParticleBase::velConU);
+    writeBack(forceConBRcp, &ParticleBase::forceConB);
+    writeBack(forceConURcp, &ParticleBase::forceConU);
+
+#pragma omp parallel for
+    for (int i = 0; i < nLocal; i++) {
+      auto &par = particles[i];
+      for (int k = 0; k < 6; k++) {
+        par.vel[k] = par.velConB[k] + par.velConU[k] + par.velTotalNonCon[k];
+      }
+    }
+  }
+
+  void stepMovePtcl() {
     stepID++;
+    const int nLocal = particles.size();
+    const double dt = runConfig.dt;
+
+    if (!configPtr->particleFixed) {
+#pragma omp parallel for
+      for (long i = 0; i < nLocal; i++) {
+        auto &sy = particles[i];
+        sy.stepEuler(dt);
+      }
+    }
   }
 
   void initialize(std::shared_ptr<const SystemConfig> &configPtr_,
@@ -354,10 +399,6 @@ public:
     }
 
     Logger::set_level(configPtr->logLevel);
-    std::ios_base::openmode mode = IOHelper::fileExist(filename) //
-                                       ? std::ios_base::app
-                                       : std::ios_base::out;
-    dataStreamPtr = std::make_shared<std::ofstream>(filename, mode);
 
     // TRNG pool must be initialized after mpi is initialized
     rngPoolPtr = std::make_shared<TRngPool>(
@@ -366,20 +407,23 @@ public:
     conCollectorPtr = std::make_shared<ConstraintCollector>();
 
     particles.clear();
-    particles.reserve(1000);
 
     if (IOHelper::fileExist(posFile)) {
       // at this point all sylinders located on rank 0
       readFromDatFile(posFile);
     }
+    spdlog::warn("ParticleSystem Initialized. {} local particles",
+                 particles.size());
 
     if (commRcp->getRank() == 0) {
       IOHelper::makeSubFolder("./result"); // prepare the output directory
       writeBox();
     }
-
-    spdlog::warn("ParticleSystem Initialized. {} local particles",
-                 particles.size());
+    filename = "./result/alens_data_r" + str(commRcp->getRank()) + ".msgpack";
+    std::ios_base::openmode mode = IOHelper::fileExist(filename) //
+                                       ? std::ios_base::app
+                                       : std::ios_base::out;
+    dataStreamPtr = std::make_shared<std::ofstream>(filename, mode);
   }
 
   /*********************************************
@@ -442,7 +486,10 @@ public:
     spdlog::debug("Particle number in file: {} ", particles.size());
   }
 
-  void writeData() const {}
+  void writeData() const {
+    msgpack::pack(*dataStreamPtr, stepID);
+    msgpack::pack(*dataStreamPtr, particles);
+  }
 
   /*********************************************
    *
@@ -455,7 +502,7 @@ public:
    *
    * @return double total particle volume
    */
-  double calcPtclVol() const {
+  double statPtclVol() const {
     double lclPtclVol = 0;
     const int nLocal = particles.size();
 #pragma omp parallel for reduction(+ : lclPtclVol)
@@ -470,17 +517,17 @@ public:
     return glbPtclVol;
   }
 
-  std::array<double, 9> calcStressConB() const {
+  std::array<double, 9> statStressConB() const {
     std::array<double, 9> stress;
     return stress;
   }
 
-  std::array<double, 9> calcStressConU() const {
+  std::array<double, 9> statStressConU() const {
     std::array<double, 9> stress;
     return stress;
   }
 
-  std::array<double, 3> calcPolarity() const {
+  std::array<double, 3> statPolarity() const {
     std::array<double, 3> polarity;
     return polarity
   }
