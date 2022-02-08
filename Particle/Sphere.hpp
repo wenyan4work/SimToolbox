@@ -14,9 +14,57 @@ struct SphereShape {
    */
   void echo() const { printf("radius %g\n", radius); }
 
-  Emat6 getMobMat(const std::array<double, 4> &quaternion) const {
-    return Emat6::Identity() / (6 * Pi * radius);
+  Emat6 getMobMat(const std::array<double, 4> &quaternion,
+                  const double mu = 1) const {
+    const double drag = 6 * Pi * mu * radius;
+    const double dragRot = 8 * Pi * mu * radius * radius * radius;
+
+    Emat6 mobmat = Emat6::Identity();
+    for (int k = 0; k < 3; k++) {
+      mobmat(k, k) = 1 / drag;
+      mobmat(3 + k, 3 + k) = 1 / dragRot;
+    }
+
+    return mobmat;
   };
+
+  Emat6 getVelBrown(const std::array<double, 4> &quaternion,
+                    const std::array<double, 12> &rngN01s, const double dt,
+                    const double kBT, const double mu = 1) const {
+    const double delta = dt * 0.1; // a small parameter used in RFD algorithm
+    const double kBTfactor = sqrt(2 * kBT / dt);
+    const double drag = 6 * Pi * mu * radius;
+    const double dragRot = 8 * Pi * mu * radius * radius * radius;
+    const double dragInv = 1 / drag;
+    const double dragRotInv = 1 / dragRot;
+
+    Evec3 direction = ECmapq(quaternion.data()) * Evec3(0, 0, 1);
+
+    // RFD from Delong, JCP, 2015
+    // slender fiber has 0 rot drag, regularize with identity rot mobility
+    // trans mobility is this
+    Evec3 q = direction;
+    Emat3 Nmat = dragInv * Emat3::Identity();
+    Emat3 Nmatsqrt = Nmat.llt().matrixL();
+
+    Evec3 Wrot(rngN01s[0], rngN01s[1], rngN01s[2]);
+    Evec3 Wpos(rngN01s[3], rngN01s[4], rngN01s[5]);
+    Evec3 Wrfdrot(rngN01s[6], rngN01s[7], rngN01s[8]);
+    Evec3 Wrfdpos(rngN01s[9], rngN01s[10], rngN01s[11]);
+
+    Equatn orientRFD = ECmapq(quaternion.data());
+    EquatnHelper::rotateEquatn(orientRFD, Wrfdrot, delta);
+    q = orientRFD * Evec3(0, 0, 1);
+    Emat3 Nmatrfd = dragInv * Emat3::Identity();
+    Evec6 vel;
+    // Gaussian noise
+    vel.segment<3>(0) = kBTfactor * (Nmatsqrt * Wpos);
+    // rfd drift. seems no effect in this case
+    vel += (kBT / delta) * ((Nmatrfd - Nmat) * Wrfdpos);
+    // regularized identity rotation drag
+    vel.segment<3>(3) = sqrt(dragRotInv) * kBTfactor * Wrot;
+    return vel;
+  }
 
   /**
    * @brief Get AABB for neighbor search

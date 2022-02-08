@@ -13,6 +13,7 @@
 
 #include "Constraint/ConstraintBlock.hpp"
 #include "Util/EigenDef.hpp"
+#include "Util/EquatnHelper.hpp"
 
 #include <msgpack.hpp>
 
@@ -100,12 +101,33 @@ struct Particle {
   Particle &operator=(const Particle &) = default;
   Particle &operator=(Particle &&) = default;
 
+  /**
+   * @brief Construct a new Particle object
+   *
+   * @param line a line of string
+   */
   Particle(std::stringstream &line) {
     // shape parse line, set immovable, pos and quaternion
     // dataline contains the rest of line
     line = shape.parse(line, immovable, pos, quaternion);
     line = data.parse(line);
     // std::cout << "unused data: " << line << std::endl;
+  }
+
+  /**
+   * @brief clear velocity
+   *
+   */
+  void clear() {
+    vel.fill(0);
+    velConB.fill(0);
+    velConU.fill(0);
+    velNonCon.fill(0);
+    velBrown.fill(0);
+    force.fill(0);
+    forceConB.fill(0);
+    forceConU.fill(0);
+    forceNonCon.fill(0);
   }
 
   /**
@@ -127,9 +149,15 @@ struct Particle {
    *
    * @return EMat6 mobility matrix 6x6
    */
-  Emat6 getMobMat() const {
-    return immovable ? Emat6::Zero() : shape.getMobMat(quaternion);
+  Emat6 getMobMat(const double mu) const {
+    return immovable ? Emat6::Zero() : shape.getMobMat(quaternion, mu);
   };
+
+  Evec6 getVelBrown(const std::array<double, 12> &rngN01s, const double dt,
+                    const double kbt, const double mu) const {
+    return immovable ? Emat6::Zero()
+                     : shape.getVelBrown(quaternion, rngN01s, dt, mu);
+  }
 
   /**
    * @brief Get AABB for neighbor search

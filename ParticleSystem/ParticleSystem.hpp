@@ -142,6 +142,41 @@ public:
    **********************************************/
 
   /**
+   * @brief calculate Brownian velocity
+   *
+   */
+  void calcVelBrown() {
+    const int nLocal = particles.size();
+    const double Pi = 3.1415926535897932384626433;
+    const double mu = configPtr->viscosity;
+    const double dt = configPtr->dt;
+    const double delta = dt * 0.1; // a small parameter used in RFD algorithm
+    const double kBT = configPtr->KBT;
+    const double kBTfactor = sqrt(2 * kBT / dt);
+
+    velBrownRcp = Teuchos::rcp<TV>(new TV(ptclMobMapRcp, true));
+    auto velBrownPtr = velBrownRcp->getLocalView<Kokkos::HostSpace>();
+    velBrownRcp->modify<Kokkos::HostSpace>();
+
+#pragma omp parallel
+    {
+      const int threadId = omp_get_thread_num();
+#pragma omp for
+      for (int i = 0; i < nLocal; i++) {
+        auto &par = particles[i];
+        std::array<double, 12> rngN01s;
+        for (auto &v : rngN01s) {
+          v = rngPoolPtr->getN01(threadId);
+        }
+        Emat6 vel = par.getVelBrown(rngN01s, dt, kBT, mu);
+        for (int j = 0; j < 6; j++) {
+          velBrownPtr(6 * i + j, 0) = vel[j];
+        }
+      }
+    }
+  }
+
+  /**
    * @brief calculate total non-constraint velocity
    *
    *  \f$U_{TotalNonCon} = U_{Brown} + U_{Part,NonCon} + M_{UF}
@@ -213,7 +248,7 @@ public:
     const int nLocal = sylinderContainer.getNumberOfParticleLocal();
     const int rank = commRcp->getRank();
 #pragma omp parallel for
-    for (long i = 0; i < nLocal; i++) {
+    for (int i = 0; i < nLocal; i++) {
       particles[i].rank = rank;
     }
   }
@@ -244,12 +279,69 @@ public:
    */
   void applyBoxPBC() { return; }
 
-  /**
-   * @brief resolve collision with given nonBrownian motion and advance the
-   * system configuration
-   *
-   */
-  void runStep() {}
+  bool running() {
+    return configPtr->dt * stepID > configPtr->timeTotal ? false : true;
+  }
+
+  void prepareStep() {
+    spdlog::warn("CurrentStep {}", stepID);
+    applyBoxPBC();
+
+    updatePtclRank();
+    updatePtclMap();
+
+    const int nLocal = particles.size();
+    const double buffer = configPtr->particleBufferAABB;
+#pragma omp parallel for
+    for (int i = 0; i < nLocal; i++) {
+      auto &par = particles[i];
+      par.clear();
+      par.buffer = buffer;
+    }
+
+    if (configPtr->monolayer) {
+      const double monoZ =
+          (configPtr->simBoxHigh[2] + configPtr->simBoxLow[2]) / 2;
+#pragma omp parallel for
+      for (int i = 0; i < nLocal; i++) {
+        auto &par = particles[i];
+        par.pos[2] = monoZ;
+        Evec3 drt = Emapq(par.quaternion.data()) * Evec3(0, 0, 1);
+        drt[2] = 0;
+        drt.normalize();
+        Emapq(par.quaternion.data()).setFromTwoVectors(Evec3(0, 0, 1), drt);
+      }
+    }
+
+    conCollectorPtr->clear();
+
+    forcePartNonConRcp.reset();
+    velPartNonConRcp.reset();
+    velNonConRcp.reset();
+
+    velBrownRcp.reset();
+    velTotalNonConRcp.reset();
+
+    forceConURcp.reset();
+    forceConBRcp.reset();
+    velConURcp.reset();
+    velConBRcp.reset();
+  }
+
+  void runStep() {
+
+    if (configPtr->KBT > 0) {
+      calcVelBrown();
+    }
+
+    calcVelTotalNonCon();
+
+    sumForceVelocity();
+
+    stepEuler();
+
+    stepID++;
+  }
 
   void initialize(std::shared_ptr<const SystemConfig> &configPtr_,
                   const std::string &posFile, int argc, char **argv) {
