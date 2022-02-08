@@ -21,7 +21,7 @@ ConstraintOperator::ConstraintOperator(Teuchos::RCP<TOP> &mobOp_,
   // explicit transpose
   {
     Teuchos::TimeMonitor mon(*transposeDMat);
-    Tpetra::RowMatrixTransposer<double, int, int> transposerDu(DMatTransRcp);
+    Tpetra::RowMatrixTransposer<double, TLO, TGO> transposerDu(DMatTransRcp);
     DMatRcp = transposerDu.createTranspose();
   }
 

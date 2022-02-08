@@ -28,7 +28,7 @@ struct SphereShape {
     return mobmat;
   };
 
-  Emat6 getVelBrown(const std::array<double, 4> &quaternion,
+  Evec6 getVelBrown(const std::array<double, 4> &quaternion,
                     const std::array<double, 12> &rngN01s, const double dt,
                     const double kBT, const double mu = 1) const {
     const double delta = dt * 0.1; // a small parameter used in RFD algorithm
@@ -60,7 +60,7 @@ struct SphereShape {
     // Gaussian noise
     vel.segment<3>(0) = kBTfactor * (Nmatsqrt * Wpos);
     // rfd drift. seems no effect in this case
-    vel += (kBT / delta) * ((Nmatrfd - Nmat) * Wrfdpos);
+    vel.segment<3>(0) += (kBT / delta) * ((Nmatrfd - Nmat) * Wrfdpos);
     // regularized identity rotation drag
     vel.segment<3>(3) = sqrt(dragRotInv) * kBTfactor * Wrot;
     return vel;

@@ -30,7 +30,7 @@ constexpr double Pi = 3.14159265358979323846;
 struct EmptyData {
   int data;
   void echo() const { return; }
-  void parse(const std::string &line) { return; }
+  void parse(std::stringstream &line) { return; }
   MSGPACK_DEFINE_ARRAY(data);
 };
 
@@ -114,8 +114,8 @@ struct Particle {
   Particle(std::stringstream &line) {
     // shape parse line, set immovable, pos and quaternion
     // dataline contains the rest of line
-    line = shape.parse(line, immovable, pos, quaternion);
-    line = data.parse(line);
+    shape.parse(line, gid, immovable, pos, quaternion);
+    data.parse(line);
     // std::cout << "unused data: " << line << std::endl;
   }
 
@@ -140,7 +140,9 @@ struct Particle {
       pos[k] += dt * vel[k];
     }
     Evec3 omega(vel[3], vel[4], vel[5]);
-    EquatnHelper::rotateEquatn(Emapq(quaternion.data()), omega, dt);
+    Equatn quat = Emapq(quaternion.data());
+    EquatnHelper::rotateEquatn(quat, omega, dt);
+    Emapq(quaternion.data()) = quat;
   }
 
   /**
@@ -162,13 +164,13 @@ struct Particle {
    *
    * @return EMat6 mobility matrix 6x6
    */
-  Emat6 getMobMat(const double mu) const {
+  Emat6 getMobMat(const double mu = 1.0) const {
     return immovable ? Emat6::Zero() : shape.getMobMat(quaternion, mu);
   };
 
   Evec6 getVelBrown(const std::array<double, 12> &rngN01s, const double dt,
-                    const double kbt, const double mu) const {
-    return immovable ? Emat6::Zero()
+                    const double kbt, const double mu = 1.0) const {
+    return immovable ? Evec6::Zero()
                      : shape.getVelBrown(quaternion, rngN01s, dt, mu);
   }
 

@@ -18,7 +18,7 @@
 #include <unordered_map>
 #include <utility>
 
-template <class ParticleBase>
+template <class ParticleType>
 class ParticleSystem {
 private:
   long stepID; ///< timestep id. sequentially numbered from 0
@@ -41,7 +41,7 @@ private:
    *   These are particle basic data
    *
    **********************************************/
-  std::vector<ParticleBase> particles;
+  std::vector<ParticleType> particles;
   Teuchos::RCP<TMAP> ptclMapRcp;     ///< TMAP, contiguous and sequentially
                                      ///< ordered 1 dof per sylinder
   Teuchos::RCP<TMAP> ptclMobMapRcp;  ///< TMAP, contiguous and sequentially
@@ -128,7 +128,7 @@ public:
     forcePartNonConRcp = getTVFromVector(forcePartNonCon, commRcp);
   }
 
-  void setVelPartNonCon(const std::vector<double> &forcePartNonCon) {
+  void setVelPartNonCon(const std::vector<double> &velPartNonCon) {
     const int nLocal = particles.size();
     TEUCHOS_ASSERT(ptclMapRcp->getNodeNumElements() == nLocal);
     TEUCHOS_ASSERT(ptclMobMapRcp->getNodeNumElements() == 6 * nLocal);
@@ -168,7 +168,7 @@ public:
         for (auto &v : rngN01s) {
           v = rngPoolPtr->getN01(threadId);
         }
-        Emat6 vel = par.getVelBrown(rngN01s, dt, kBT, mu);
+        Evec6 vel = par.getVelBrown(rngN01s, dt, kBT, mu);
         for (int j = 0; j < 6; j++) {
           velBrownPtr(6 * i + j, 0) = vel[j];
         }
@@ -204,31 +204,11 @@ public:
       velTotalNonConRcp->update(1.0, *velPartNonConRcp, 1.0);
     }
 
-    // step3, write back to particle data
-    auto velTotalView = velTotalNonConRcp->getLocalView<Kokkos::HostSpace>();
-#pragma omp parallel for
-    for (int i = 0; i < nLocal; i++) {
-      auto &par = particles[i];
-      for (int j = 0; j < 6; j++) {
-        par.velNonCon[j] = velTotalView(6 * i + j, 0);
-      }
-    }
-
-    // step4, velBrown
+    // step 3, velBrown
     if (!velBrownRcp.is_null()) {
       TEUCHOS_ASSERT(velBrownRcp->getLocalLength() == 6 * nLocal);
       // U_{TotalNonCon} += U_{Brown}
       velTotalNonConRcp->update(1.0, *velBrownRcp, 1.0);
-    }
-
-    // step 5, monolayer
-    if (configPtr->monolayer) {
-#pragma omp parallel for
-      for (int i = 0; i < nLocal; i++) {
-        velTotalView(6 * i + 2, 0) = 0; // vz
-        velTotalView(6 * i + 3, 0) = 0; // wx
-        velTotalView(6 * i + 4, 0) = 0; // wy
-      }
     }
   }
 
@@ -271,6 +251,34 @@ public:
    */
   void applyBoxPBC() { return; }
 
+  void applyMonoLayer() {
+    //         if (configPtr->monolayer) {
+    //       const double monoZ =
+    //           (configPtr->simBoxHigh[2] + configPtr->simBoxLow[2]) / 2;
+    // #pragma omp parallel for
+    //       for (int i = 0; i < nLocal; i++) {
+    //         auto &par = particles[i];
+    //         par.pos[2] = monoZ;
+    //         Evec3 drt = Emapq(par.quaternion.data()) * Evec3(0, 0, 1);
+    //         drt[2] = 0;
+    //         drt.normalize();
+    //         Emapq(par.quaternion.data()).setFromTwoVectors(Evec3(0, 0, 1),
+    //         drt);
+    //       }
+    //     }
+
+    if (configPtr->monolayer) {
+      const int nLocal = particles.size();
+#pragma omp parallel for
+      for (int i = 0; i < nLocal; i++) {
+        particles[i].vel[3] = 0; // vz
+        particles[i].vel[4] = 0; // wx
+        particles[i].vel[5] = 0; // wy
+      }
+    }
+    return;
+  }
+
   /*********************************************
    *
    *   system high level API
@@ -297,19 +305,7 @@ public:
       par.buffer = buffer;
     }
 
-    if (configPtr->monolayer) {
-      const double monoZ =
-          (configPtr->simBoxHigh[2] + configPtr->simBoxLow[2]) / 2;
-#pragma omp parallel for
-      for (int i = 0; i < nLocal; i++) {
-        auto &par = particles[i];
-        par.pos[2] = monoZ;
-        Evec3 drt = Emapq(par.quaternion.data()) * Evec3(0, 0, 1);
-        drt[2] = 0;
-        drt.normalize();
-        Emapq(par.quaternion.data()).setFromTwoVectors(Evec3(0, 0, 1), drt);
-      }
-    }
+    velTotalNonConRcp = Teuchos::rcp(new TV(ptclMobMapRcp, true));
 
     conCollectorPtr->clear();
 
@@ -318,7 +314,6 @@ public:
     velNonConRcp.reset();
 
     velBrownRcp.reset();
-    velTotalNonConRcp.reset();
 
     forceConURcp.reset();
     forceConBRcp.reset();
@@ -343,7 +338,7 @@ public:
     const int nLocal = particles.size();
 
     auto writeBack = [&](Teuchos::RCP<TV> &vector,
-                         std::array<double, 6> ParticleBase::*mptr) {
+                         std::array<double, 6> ParticleType::*mptr) {
       if (!vector.is_null()) {
         auto vecView = vector->getLocalView<Kokkos::HostSpace>();
 #pragma omp parallel for
@@ -356,14 +351,14 @@ public:
       }
     };
 
-    writeBack(forcePartNonConRcp, &ParticleBase::forcePartNonCon);
-    writeBack(velPartNonConRcp, &ParticleBase::velPartNonCon);
-    writeBack(velTotalNonConRcp, &ParticleBase::velTotalNonCon);
-    writeBack(velBrownRcp, &ParticleBase::velBrown);
-    writeBack(velConBRcp, &ParticleBase::velConB);
-    writeBack(velConURcp, &ParticleBase::velConU);
-    writeBack(forceConBRcp, &ParticleBase::forceConB);
-    writeBack(forceConURcp, &ParticleBase::forceConU);
+    writeBack(forcePartNonConRcp, &ParticleType::forcePartNonCon);
+    writeBack(velPartNonConRcp, &ParticleType::velPartNonCon);
+    writeBack(velTotalNonConRcp, &ParticleType::velTotalNonCon);
+    writeBack(velBrownRcp, &ParticleType::velBrown);
+    writeBack(velConBRcp, &ParticleType::velConB);
+    writeBack(velConURcp, &ParticleType::velConU);
+    writeBack(forceConBRcp, &ParticleType::forceConB);
+    writeBack(forceConURcp, &ParticleType::forceConU);
 
 #pragma omp parallel for
     for (int i = 0; i < nLocal; i++) {
@@ -377,7 +372,9 @@ public:
   void stepMovePtcl() {
     stepID++;
     const int nLocal = particles.size();
-    const double dt = runConfig.dt;
+    const double dt = configPtr->dt;
+
+    applyMonoLayer();
 
     if (!configPtr->particleFixed) {
 #pragma omp parallel for
@@ -419,7 +416,8 @@ public:
       IOHelper::makeSubFolder("./result"); // prepare the output directory
       writeBox();
     }
-    filename = "./result/alens_data_r" + str(commRcp->getRank()) + ".msgpack";
+    std::string filename =
+        "./result/data_r" + std::to_string(commRcp->getRank()) + ".msgpack";
     std::ios_base::openmode mode = IOHelper::fileExist(filename) //
                                        ? std::ios_base::app
                                        : std::ios_base::out;
@@ -447,7 +445,7 @@ public:
     fprintf(boxFile, "%g %g\n", configPtr->simBoxLow[0],
             configPtr->simBoxHigh[0]);
     fprintf(boxFile, "Y_COORDINATES 2 float\n");
-    fprintf(boxFile, "%g %g\n", configPtr->imBoxLow[1],
+    fprintf(boxFile, "%g %g\n", configPtr->simBoxLow[1],
             configPtr->simBoxHigh[1]);
     fprintf(boxFile, "Z_COORDINATES 2 float\n");
     fprintf(boxFile, "%g %g\n", configPtr->simBoxLow[2],
@@ -463,7 +461,7 @@ public:
    * @param datFile
    */
   void readFromDatFile(const std::string &datFile) {
-    spdlog::warn("Reading file " + filename);
+    spdlog::warn("Reading file " + datFile);
 
     if (!commRcp->getRank()) {
       std::string line;
@@ -511,7 +509,7 @@ public:
     }
 
     double glbPtclVol = lclPtclVol;
-    MPI_Allreduce(MPI_IN_PLACE, lclPtclVol, 1, MPI_DOUBLE, MPI_SUM,
+    MPI_Allreduce(MPI_IN_PLACE, &glbPtclVol, 1, MPI_DOUBLE, MPI_SUM,
                   MPI_COMM_WORLD);
 
     return glbPtclVol;
@@ -529,7 +527,7 @@ public:
 
   std::array<double, 3> statPolarity() const {
     std::array<double, 3> polarity;
-    return polarity
+    return polarity;
   }
 
   /*********************************************
