@@ -308,6 +308,7 @@ public:
     velTotalNonConRcp = Teuchos::rcp(new TV(ptclMobMapRcp, true));
 
     conCollectorPtr->clear();
+    conSolverPtr->reset();
 
     forcePartNonConRcp.reset();
     velPartNonConRcp.reset();
@@ -484,9 +485,18 @@ public:
     spdlog::debug("Particle number in file: {} ", particles.size());
   }
 
+  /**
+   * @brief append data as a map. serialize everything
+   *
+   */
   void writeData() const {
-    msgpack::pack(*dataStreamPtr, stepID);
-    msgpack::pack(*dataStreamPtr, particles);
+    msgpack::packer<std::ofstream> opacker(*dataStreamPtr);
+    opacker.pack_map(2);
+    opacker.pack("stepID");
+    opacker.pack(stepID);
+    opacker.pack("particles");
+    opacker.pack(particles);
+    opacker.pack("EOT"); // end of current timestep
   }
 
   /*********************************************
