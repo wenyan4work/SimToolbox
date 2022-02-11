@@ -284,9 +284,61 @@ public:
    *   system high level API
    *
    **********************************************/
+  void initialize(std::shared_ptr<const SystemConfig> &configPtr_,
+                  const std::string &posFile, const bool resume = false) {
+    commRcp = Tpetra::getDefaultComm();
+    stepID = 0;
+
+    configPtr = configPtr_;
+    if (!commRcp->getRank()) {
+      configPtr->echo();
+    }
+    if (commRcp->getRank() == 0) {
+      IOHelper::makeSubFolder("./result"); // prepare the output directory
+      writeBox();
+    }
+
+    Logger::set_level(configPtr->logLevel);
+
+    // TRNG pool must be initialized after mpi is initialized
+    rngPoolPtr = std::make_shared<TRngPool>(
+        configPtr->rngSeed, commRcp->getRank(), commRcp->getSize());
+    conSolverPtr = std::make_shared<ConstraintSolver>();
+    conCollectorPtr = std::make_shared<ConstraintCollector>();
+
+    particles.clear();
+
+    if (resume) {
+
+    } else {
+      if (IOHelper::fileExist(posFile)) {
+        // at this point all sylinders located on rank 0
+        readFromDatFile(posFile);
+      }
+      spdlog::warn("ParticleSystem Initialized. {} local particles",
+                   particles.size());
+
+      const std::string &filename = getDataFilename();
+      std::ios_base::openmode mode = IOHelper::fileExist(filename) //
+                                         ? std::ios_base::app
+                                         : std::ios_base::out;
+      dataStreamPtr = std::make_shared<std::ofstream>(filename, mode);
+    }
+  }
+
+  void resume() {
+    const auto &filename = getDataFileName();
+    auto ifs = std::ifstream(filename);
+
+    // resume last frame of data
+  }
 
   bool stepRunning() {
-    return configPtr->dt * stepID > configPtr->timeTotal ? false : true;
+    return configPtr->dt * stepID < configPtr->timeTotal ? true : false;
+  }
+
+  bool stepWriting() {
+    return stepID % configPtr->timeSnap / configPtr->dt == 0 ? true : false;
   }
 
   void stepPrepare() {
@@ -386,50 +438,22 @@ public:
     }
   }
 
-  void initialize(std::shared_ptr<const SystemConfig> &configPtr_,
-                  const std::string &posFile, int argc, char **argv) {
-    commRcp = Tpetra::getDefaultComm();
-    stepID = 0;
-
-    configPtr = configPtr_;
-    if (!commRcp->getRank()) {
-      configPtr->echo();
-    }
-
-    Logger::set_level(configPtr->logLevel);
-
-    // TRNG pool must be initialized after mpi is initialized
-    rngPoolPtr = std::make_shared<TRngPool>(
-        configPtr->rngSeed, commRcp->getRank(), commRcp->getSize());
-    conSolverPtr = std::make_shared<ConstraintSolver>();
-    conCollectorPtr = std::make_shared<ConstraintCollector>();
-
-    particles.clear();
-
-    if (IOHelper::fileExist(posFile)) {
-      // at this point all sylinders located on rank 0
-      readFromDatFile(posFile);
-    }
-    spdlog::warn("ParticleSystem Initialized. {} local particles",
-                 particles.size());
-
-    if (commRcp->getRank() == 0) {
-      IOHelper::makeSubFolder("./result"); // prepare the output directory
-      writeBox();
-    }
-    std::string filename =
-        "./result/data_r" + std::to_string(commRcp->getRank()) + ".msgpack";
-    std::ios_base::openmode mode = IOHelper::fileExist(filename) //
-                                       ? std::ios_base::app
-                                       : std::ios_base::out;
-    dataStreamPtr = std::make_shared<std::ofstream>(filename, mode);
-  }
-
   /*********************************************
    *
    *   read write
    *
    **********************************************/
+
+  /**
+   * @brief Get Data File Name
+   *
+   * @return std::string
+   */
+  std::string getDataFileName() {
+    std::string filename =
+        "./result/data_r" + std::to_string(commRcp->getRank()) + ".msgpack";
+    return filename;
+  }
 
   /**
    * @brief write a simple legacy VTK file for simBox

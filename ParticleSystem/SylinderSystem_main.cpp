@@ -25,7 +25,7 @@ int main(int argc, char **argv) {
     auto configPtr = std::make_shared<const SystemConfig>(configFile);
     configPtr->echo();
     ParticleSystem<Sylinder> system;
-    system.initialize(configPtr, posFile, argc, argv);
+    system.initialize(configPtr, posFile);
     system.writeBox();
 
     // main time loop
