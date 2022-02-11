@@ -33,7 +33,9 @@ int main(int argc, char **argv) {
       system.stepPrepare();
       system.stepCalcMotion();
       system.stepUpdatePtcl();
-      system.writeData();
+      if (system.stepWriting()) {
+        system.writeData();
+      }
       system.stepMovePtcl();
 
       system.statPolarity();

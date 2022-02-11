@@ -23,7 +23,8 @@ class ParticleSystem {
 private:
   long stepID; ///< timestep id. sequentially numbered from 0
 
-  std::shared_ptr<std::ofstream> dataStreamPtr; ///< output data
+  std::shared_ptr<std::ofstream> dataStreamPtr;   ///< output data
+  std::shared_ptr<std::ofstream> offsetStreamPtr; ///< offset data
   std::shared_ptr<const SystemConfig> configPtr;
 
   // TRngPool object for thread-safe random number generation
@@ -285,7 +286,7 @@ public:
    *
    **********************************************/
   void initialize(std::shared_ptr<const SystemConfig> &configPtr_,
-                  const std::string &posFile, const bool resume = false) {
+                  const std::string &posFile_, const bool resume_ = false) {
     commRcp = Tpetra::getDefaultComm();
     stepID = 0;
 
@@ -300,37 +301,35 @@ public:
 
     Logger::set_level(configPtr->logLevel);
 
-    // TRNG pool must be initialized after mpi is initialized
-    rngPoolPtr = std::make_shared<TRngPool>(
-        configPtr->rngSeed, commRcp->getRank(), commRcp->getSize());
     conSolverPtr = std::make_shared<ConstraintSolver>();
     conCollectorPtr = std::make_shared<ConstraintCollector>();
 
     particles.clear();
 
-    if (resume) {
-
+    if (resume_) {
+      rngPoolPtr = std::make_shared<TRngPool>(
+          configPtr->rngSeed + 1, commRcp->getRank(), commRcp->getSize());
+      resume();
     } else {
-      if (IOHelper::fileExist(posFile)) {
-        // at this point all sylinders located on rank 0
-        readFromDatFile(posFile);
+      rngPoolPtr = std::make_shared<TRngPool>(
+          configPtr->rngSeed, commRcp->getRank(), commRcp->getSize());
+      if (IOHelper::fileExist(posFile_)) {
+        readFromDatFile(posFile_);
       }
       spdlog::warn("ParticleSystem Initialized. {} local particles",
                    particles.size());
-
-      const std::string &filename = getDataFilename();
-      std::ios_base::openmode mode = IOHelper::fileExist(filename) //
-                                         ? std::ios_base::app
-                                         : std::ios_base::out;
-      dataStreamPtr = std::make_shared<std::ofstream>(filename, mode);
     }
-  }
 
-  void resume() {
-    const auto &filename = getDataFileName();
-    auto ifs = std::ifstream(filename);
-
-    // resume last frame of data
+    const auto &filenames = getDataFileNames();
+    std::ios_base::openmode mode;
+    if (IOHelper::fileExist(filenames.first) &&
+        IOHelper::fileExist(filenames.second)) {
+      mode = std::ios_base::app;
+    } else {
+      mode = std::ios_base::out;
+    }
+    dataStreamPtr = std::make_shared<std::ofstream>(filenames.first, mode);
+    offsetStreamPtr = std::make_shared<std::ofstream>(filenames.second, mode);
   }
 
   bool stepRunning() {
@@ -338,7 +337,9 @@ public:
   }
 
   bool stepWriting() {
-    return stepID % configPtr->timeSnap / configPtr->dt == 0 ? true : false;
+    return stepID % static_cast<long>(configPtr->timeSnap / configPtr->dt) == 0
+               ? true
+               : false;
   }
 
   void stepPrepare() {
@@ -447,12 +448,14 @@ public:
   /**
    * @brief Get Data File Name
    *
-   * @return std::string
+   * @return auto
    */
-  std::string getDataFileName() {
-    std::string filename =
+  auto getDataFileNames() {
+    std::string dataname =
         "./result/data_r" + std::to_string(commRcp->getRank()) + ".msgpack";
-    return filename;
+    std::string offsetname =
+        "./result/offset_r" + std::to_string(commRcp->getRank()) + ".txt";
+    return std::make_pair(dataname, offsetname);
   }
 
   /**
@@ -512,8 +515,12 @@ public:
   /**
    * @brief append data as a map. serialize everything
    *
+   * offset file records the beginning position of every timestep in datafile
    */
   void writeData() const {
+    *offsetStreamPtr << stepID << " " << dataStreamPtr->tellp() << std::endl;
+    offsetStreamPtr->flush();
+
     msgpack::packer<std::ofstream> opacker(*dataStreamPtr);
     opacker.pack_map(2);
     opacker.pack("stepID");
@@ -521,6 +528,13 @@ public:
     opacker.pack("particles");
     opacker.pack(particles);
     opacker.pack("EOT"); // end of current timestep
+    dataStreamPtr->flush();
+  }
+
+  void resume() {
+    const auto &filenames = getDataFileNames();
+
+    // resume from last valid frame of data
   }
 
   /*********************************************
