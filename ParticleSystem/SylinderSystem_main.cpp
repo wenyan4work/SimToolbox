@@ -35,6 +35,7 @@ int main(int argc, char **argv) {
       system.stepUpdatePtcl();
       if (system.stepWriting()) {
         system.writeData();
+        system.writeDataEOT();
       }
       system.stepMovePtcl();
 

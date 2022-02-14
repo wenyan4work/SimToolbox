@@ -286,7 +286,7 @@ public:
    *
    **********************************************/
   void initialize(std::shared_ptr<const SystemConfig> &configPtr_,
-                  const std::string &posFile_, const bool resume_ = false) {
+                  const std::string &posFile_) {
     commRcp = Tpetra::getDefaultComm();
     stepID = 0;
 
@@ -306,7 +306,7 @@ public:
 
     particles.clear();
 
-    if (resume_) {
+    if (configPtr->resume) {
       rngPoolPtr = std::make_shared<TRngPool>(
           configPtr->rngSeed + 1, commRcp->getRank(), commRcp->getSize());
       resume();
@@ -513,7 +513,7 @@ public:
   }
 
   /**
-   * @brief append data as a map. serialize everything
+   * @brief serialize everything sequentially in msgpack format
    *
    * offset file records the beginning position of every timestep in datafile
    */
@@ -522,19 +522,81 @@ public:
     offsetStreamPtr->flush();
 
     msgpack::packer<std::ofstream> opacker(*dataStreamPtr);
-    opacker.pack_map(2);
     opacker.pack("stepID");
     opacker.pack(stepID);
     opacker.pack("particles");
     opacker.pack(particles);
+  }
+
+  /**
+   * @brief mark the end of data in current timestep
+   *
+   */
+  void writeDataEOT() const {
+    msgpack::packer<std::ofstream> opacker(*dataStreamPtr);
     opacker.pack("EOT"); // end of current timestep
     dataStreamPtr->flush();
   }
 
+  /**
+   * @brief resume from every rank's data and offset files
+   *
+   * data and offset files must be valid and match each other.
+   *
+   */
   void resume() {
     const auto &filenames = getDataFileNames();
 
+    // step 1, read last line
+    std::ifstream ioffset(filenames.second);
+    long istep = -1, offset = 0;
+    for (std::string line; std::getline(ioffset, line);) {
+      std::stringstream liness(line);
+      long a, b;
+      liness >> a >> b;
+      if (a <= istep || b < offset) {
+        std::cout << "rank " << commRcp->getRank()
+                  << " offset file error at line " << line << std::endl;
+        std::exit(1);
+      }
+      istep = a;
+      offset = b;
+    }
+    ioffset.close();
+
     // resume from last valid frame of data
+    std::ifstream idata(filenames.first, std::ios::binary);
+    idata.seekg(offset);
+
+    std::stringstream buffer;
+    buffer << idata.rdbuf();
+    const std::string &sbuf = buffer.str();
+    std::size_t len = sbuf.size();
+    std::size_t off = 0;
+
+    auto parse = [&](std::string header) {
+      msgpack::object_handle result;
+      // Unpack the first msgpack data.
+      // off is updated when function is returned.
+      result = msgpack::unpack(sbuf.data(), len, off);
+      std::string msg = result.get().as<std::string>();
+      if (msg != header) {
+        spdlog::critical(" parsing error ", msg);
+        std::exit(1);
+      }
+      result = msgpack::unpack(sbuf.data(), len, off);
+      return result.get();
+    };
+
+    msgpack::object obj;
+    obj = parse("stepID");
+    this->stepID = obj.as<long>();
+    obj = parse("particles");
+    this->particles = obj.as<std::vector<ParticleType>>();
+
+    assert(stepID == istep);
+    assert(len == off);
+    idata.close();
   }
 
   /*********************************************

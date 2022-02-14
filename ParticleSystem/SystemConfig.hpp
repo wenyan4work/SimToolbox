@@ -14,7 +14,8 @@ class SystemConfig {
 public:
   unsigned int rngSeed; ///< random number seed
   int logLevel; ///< follows SPDLOG level enum, see Util/Logger.hpp for details
-  int timerLevel = 0; ///< how detailed the timer should be
+  int timerLevel = 0;  ///< how detailed the timer should be
+  bool resume = false; ///< resume from previous run
 
   // domain setting
   double simBoxHigh[3];   ///< simulation box size

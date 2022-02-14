@@ -38,12 +38,20 @@ SystemConfig::SystemConfig(std::string filename) {
   readConfig(config, VARNAME(particleFixed), particleFixed, true);
 
   particleBufferAABB = 0.3;
-  readConfig(config, VARNAME(particleBufferAABB), particleBufferAABB);
+  readConfig(config, VARNAME(particleBufferAABB), particleBufferAABB, true);
+
+  resume = false;
+  readConfig(config, VARNAME(resume), resume, true);
 
   boundaries = readBoundaries(filename);
 }
 
 void SystemConfig::echo() const {
+  if (resume) {
+    printf("-------------------------------------------\n");
+    printf("----------RESUME FROM PREVIOUS-------------\n");
+    printf("-------------------------------------------\n");
+  }
   {
     printf("-------------------------------------------\n");
     printf("Run Setting: \n");
