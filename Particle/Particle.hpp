@@ -31,7 +31,7 @@ struct EmptyData {
   int data;
   void echo() const { return; }
   void parse(std::stringstream &line) { return; }
-  MSGPACK_DEFINE_ARRAY(data);
+  MSGPACK_DEFINE(data);
 };
 
 /**
@@ -89,14 +89,14 @@ struct Particle {
    * @brief define msgpack serialization format
    *
    */
-  MSGPACK_DEFINE_ARRAY(gid, globalIndex, group, rank, immovable, //
-                       buffer, pos, quaternion,                  //
-                       vel, velConU, velConB,                    //
-                       velBrown,                                 //
-                       forceConU, forceConB,                     //
-                       velPartNonCon, forcePartNonCon,           //
-                       velTotalNonCon,                           //
-                       shape, data);
+  MSGPACK_DEFINE(gid, globalIndex, group, rank, immovable, //
+                 buffer, pos, quaternion,                  //
+                 vel, velConU, velConB,                    //
+                 velBrown,                                 //
+                 forceConU, forceConB,                     //
+                 velPartNonCon, forcePartNonCon,           //
+                 velTotalNonCon,                           //
+                 shape, data);
 
   Particle() = default;
   ~Particle() = default;

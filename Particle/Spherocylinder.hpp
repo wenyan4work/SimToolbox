@@ -11,7 +11,7 @@ struct SpherocylinderShape {
   double radius = 1.0; ///< radius
   double length = 1.0; ///< length
 
-  MSGPACK_DEFINE_ARRAY(radius, length);
+  MSGPACK_DEFINE(radius, length);
 
   /**
    * @brief

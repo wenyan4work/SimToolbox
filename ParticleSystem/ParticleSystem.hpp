@@ -150,7 +150,7 @@ public:
     const int nLocal = particles.size();
     const double Pi = 3.1415926535897932384626433;
     const double mu = configPtr->viscosity;
-    const double dt = configPtr->dt;
+    const double dt = configPtr->timedt;
     const double delta = dt * 0.1; // a small parameter used in RFD algorithm
     const double kBT = configPtr->KBT;
     const double kBTfactor = sqrt(2 * kBT / dt);
@@ -333,11 +333,13 @@ public:
   }
 
   bool stepRunning() {
-    return configPtr->dt * stepID < configPtr->timeTotal ? true : false;
+    return configPtr->timedt * stepID < configPtr->timeTotal ? true : false;
   }
 
   bool stepWriting() {
-    return stepID % static_cast<long>(configPtr->timeSnap / configPtr->dt) == 0
+    return stepID % static_cast<long>(configPtr->timeSnap /
+                                      configPtr->timedt) ==
+                   0
                ? true
                : false;
   }
@@ -426,7 +428,7 @@ public:
   void stepMovePtcl() {
     stepID++;
     const int nLocal = particles.size();
-    const double dt = configPtr->dt;
+    const double dt = configPtr->timedt;
 
     applyMonoLayer();
 
@@ -525,7 +527,10 @@ public:
     opacker.pack("stepID");
     opacker.pack(stepID);
     opacker.pack("particles");
-    opacker.pack(particles);
+    opacker.pack(particles.size());
+    for (const auto &p : particles) {
+      opacker.pack(p);
+    }
   }
 
   /**
@@ -566,6 +571,7 @@ public:
 
     // resume from last valid frame of data
     std::ifstream idata(filenames.first, std::ios::binary);
+    spdlog::info("reading data from offset {} ", offset);
     idata.seekg(offset);
 
     std::stringstream buffer;
@@ -574,26 +580,39 @@ public:
     std::size_t len = sbuf.size();
     std::size_t off = 0;
 
-    auto parse = [&](std::string header) {
-      msgpack::object_handle result;
+    spdlog::info("unpacking {} bytes", len);
+    msgpack::object_handle result;
+
+    auto parse_str = [&](std::string header) {
       // Unpack the first msgpack data.
       // off is updated when function is returned.
+      msgpack::object_handle result;
       result = msgpack::unpack(sbuf.data(), len, off);
       std::string msg = result.get().as<std::string>();
+      spdlog::info(" parsing {}", msg);
       if (msg != header) {
-        spdlog::critical(" parsing error ", msg);
         std::exit(1);
       }
-      result = msgpack::unpack(sbuf.data(), len, off);
-      return result.get();
     };
 
-    msgpack::object obj;
-    obj = parse("stepID");
-    this->stepID = obj.as<long>();
-    obj = parse("particles");
-    this->particles = obj.as<std::vector<ParticleType>>();
+    parse_str("stepID");
+    result = msgpack::unpack(sbuf.data(), len, off);
+    this->stepID = result.get().as<long>();
+    spdlog::info("resuming time step {}", stepID);
 
+    parse_str("particles");
+    particles.clear();
+    result = msgpack::unpack(sbuf.data(), len, off);
+    long nLocal = result.get().as<long>();
+    spdlog::info("start to parse {} particles", nLocal);
+    particles.resize(nLocal);
+    for (auto &p : particles) {
+      result = msgpack::unpack(sbuf.data(), len, off);
+      p = result.get().as<ParticleType>();
+    }
+    spdlog::info("parsed {} particles", particles.size());
+
+    parse_str("EOT");
     assert(stepID == istep);
     assert(len == off);
     idata.close();

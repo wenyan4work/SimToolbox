@@ -69,10 +69,10 @@ FetchContent_Declare(
 FetchContent_Populate(trng4)
 FetchContent_Populate(arborx)
 
-message(${trng4_SOURCE_DIR}/trng ${trng4_BINARY_DIR})
+message(${trng4_SOURCE_DIR} ${trng4_BINARY_DIR})
 message(${arborx_SOURCE_DIR} ${arborx_BINARY_DIR})
 
-add_subdirectory(${trng4_SOURCE_DIR}/trng ${trng4_BINARY_DIR} EXCLUDE_FROM_ALL)
+add_subdirectory(${trng4_SOURCE_DIR} ${trng4_BINARY_DIR} EXCLUDE_FROM_ALL)
 add_subdirectory(${arborx_SOURCE_DIR} ${arborx_BINARY_DIR} EXCLUDE_FROM_ALL)
 
 enable_testing()

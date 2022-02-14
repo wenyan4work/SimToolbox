@@ -16,7 +16,7 @@ SystemConfig::SystemConfig(std::string filename) {
   readConfig(config, VARNAME(viscosity), viscosity, "");
   readConfig(config, VARNAME(KBT), KBT, "");
 
-  readConfig(config, VARNAME(dt), dt, "");
+  readConfig(config, VARNAME(timedt), timedt, "");
   readConfig(config, VARNAME(timeTotal), timeTotal, "");
   readConfig(config, VARNAME(timeSnap), timeSnap, "");
 
@@ -63,7 +63,7 @@ void SystemConfig::echo() const {
     printf("Simulation box High: %g,%g,%g\n", simBoxHigh[0], simBoxHigh[1],
            simBoxHigh[2]);
     printf("Periodicity: %d,%d,%d\n", simBoxPBC[0], simBoxPBC[1], simBoxPBC[2]);
-    printf("Time step size: %g\n", dt);
+    printf("Time step: %g\n", timedt);
     printf("Total Time: %g\n", timeTotal);
     printf("Snap Time: %g\n", timeSnap);
     printf("-------------------------------------------\n");

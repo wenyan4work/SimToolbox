@@ -32,7 +32,7 @@ public:
   double particleBufferAABB = 0; ///< added buffer for particle AABB
 
   // time stepping
-  double dt;        ///< timestep size
+  double timedt;        ///< timestep size
   double timeTotal; ///< total simulation time
   double timeSnap;  ///< snapshot time. save one group of data for each snapshot
 

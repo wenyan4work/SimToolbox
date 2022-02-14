@@ -6,7 +6,7 @@
 struct SphereShape {
   double radius = 1;
 
-  MSGPACK_DEFINE_ARRAY(radius);
+  MSGPACK_DEFINE(radius);
 
   /**
    * @brief
