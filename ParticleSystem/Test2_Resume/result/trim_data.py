@@ -4,12 +4,13 @@ import msgpack as mp
 
 
 def get_step_offset(offset_file_name):
+    '''find the last frame of valid stepid and offset'''
     offset_file = open(offset_file_name, 'r')
-    step = 0
+    step = -1
     offset = 0
     for line in offset_file:
         entry = line.split()
-        if len(entry) == 2 and int(entry[0]) >= step and int(entry[1]) >= offset:
+        if len(entry) == 2 and int(entry[0]) > step and int(entry[1]) >= offset:
             step = int(entry[0])
             offset = int(entry[1])
         else:
@@ -18,12 +19,25 @@ def get_step_offset(offset_file_name):
 
 
 def trim_data(data_file_name, step, offset):
+    '''parse one frame starting from offset and truncate the file'''
     data_file = open(data_file_name, 'rb')
     data_file.seek(offset)
     unpacker = mp.Unpacker(data_file)
-    frame = unpacker.unpack()
-    msg = unpacker.unpack()
-    if frame['stepID'] == step and msg == 'EOT':
+    # header
+    header = unpacker.unpack()
+    assert header == 'stepID'
+    stepID = unpacker.unpack()
+    # particles
+    header = unpacker.unpack()
+    assert header == 'particles'
+    nLocal = unpacker.unpack()
+    for i in range(nLocal):
+        par = unpacker.unpack()
+    # EOT
+    header = unpacker.unpack()
+    assert header == 'EOT'
+
+    if stepID == step:
         trunc_offset = offset+unpacker.tell()
         print(trunc_offset)
         data_file.close()

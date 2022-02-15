@@ -26,6 +26,10 @@ int main(int argc, char **argv) {
     configPtr->echo();
     ParticleSystem<Sylinder> system;
     system.initialize(configPtr, posFile);
+    if (configPtr->resume) {
+      // complete the resumed step
+      system.stepMovePtcl();
+    }
     system.writeBox();
 
     // main time loop

@@ -53,24 +53,37 @@ target_link_libraries(
           OpenMP::OpenMP_CXX
           MPI::MPI_CXX)
 
-file(GLOB_RECURSE resources "./Test*/*.*")
-foreach(resource ${resources})
-  get_filename_component(filename ${resource} NAME)
-  get_filename_component(dir ${resource} DIRECTORY)
-  get_filename_component(dirname ${dir} NAME)
+file(GLOB_RECURSE resources "./Test*/*")
 
-  set(output "${CMAKE_CURRENT_BINARY_DIR}/TestCases/${dirname}/${filename}")
+foreach(resource ${resources})
+  message(${resource})
+  file(RELATIVE_PATH relresource ${CMAKE_CURRENT_SOURCE_DIR} ${resource})
+  get_filename_component(filename ${relresource} NAME)
+  get_filename_component(dir ${relresource} DIRECTORY)
+
+  set(output "${CMAKE_CURRENT_BINARY_DIR}/TestCases/${dir}/${filename}")
 
   add_custom_command(
     COMMENT "Moving updated resource-file '${resource}'"
     OUTPUT ${output}
     DEPENDS ${resource}
-    COMMAND ${CMAKE_COMMAND} -E copy_if_different ${resource} ${output})
-  add_custom_target(${dirname}_${filename} ALL DEPENDS ${resource} ${output})
+    COMMAND ${CMAKE_COMMAND} -E copy ${resource} ${output})
+  string(REPLACE "/" "_" targetname ${relresource})
+  add_custom_target(${targetname} ALL DEPENDS ${resource} ${output})
 
 endforeach()
 
 add_test(NAME ParseConfig COMMAND sh -c "cd TestCases/Test1_ParseConfig/ \
     && ../../SystemConfig_test > ParseConfig.log")
+set_tests_properties(ParseConfig PROPERTIES FAIL_REGULAR_EXPRESSION
+                                            "[^a-z]Error;ERROR;Failed")
+
+add_test(
+  NAME Resume
+  COMMAND
+    sh -c "cd TestCases/Test2_Resume/ \
+          && cd result && python3 trim_data.py \
+          && cd ../ \
+          && ../../SylinderSystem.X > SylinderSystem.log")
 set_tests_properties(ParseConfig PROPERTIES FAIL_REGULAR_EXPRESSION
                                             "[^a-z]Error;ERROR;Failed")

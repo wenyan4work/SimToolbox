@@ -560,12 +560,12 @@ public:
       long a, b;
       liness >> a >> b;
       if (a <= istep || b < offset) {
-        std::cout << "rank " << commRcp->getRank()
-                  << " offset file error at line " << line << std::endl;
-        std::exit(1);
+        spdlog::critical(" offset file error at line {}", line);
+        break;
+      } else {
+        istep = a;
+        offset = b;
       }
-      istep = a;
-      offset = b;
     }
     ioffset.close();
 
