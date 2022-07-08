@@ -24,28 +24,14 @@
 #include <omp.h>
 
 /**
- * @brief collecter of collision blocks
- *
- * This class must have very low copy overhead dueto the design of FDPS
+ * @brief Collecter of constraint blocks
  *
  */
 class ConstraintCollector {
   public:
     std::shared_ptr<ConstraintBlockPool> constraintPoolPtr;
-    ///< all copy of collector share a pointer to collision pool
-    ///< this is required by FDPS
 
     ConstraintCollector();
-
-    /**
-     * @brief Default copy
-     *
-     * @param obj
-     */
-    ConstraintCollector(const ConstraintCollector &obj) = default;
-    ConstraintCollector(ConstraintCollector &&obj) = default;
-    ConstraintCollector &operator=(const ConstraintCollector &obj) = default;
-    ConstraintCollector &operator=(ConstraintCollector &&obj) = default;
 
     /**
      * @brief Destroy the ConstraintCollector object
@@ -54,7 +40,14 @@ class ConstraintCollector {
     ~ConstraintCollector() = default;
 
     /**
-     * @brief if the shared pointer to collision pool is not allocated
+     * @brief Forbid copying the ConstraintCollector object
+     *
+     */
+    ConstraintCollector(const ConstraintCollector &) = delete;
+    ConstraintCollector &operator=(const ConstraintCollector &) = delete;
+
+    /**
+     * @brief if the shared pointer to constraint pool is not allocated
      *
      * After the constructor this should always be false
      * @return true
@@ -63,25 +56,25 @@ class ConstraintCollector {
     bool valid() const;
 
     /**
-     * @brief clear the blocks and get an empty collision pool
+     * @brief clear the blocks and get an empty constraint pool
      *
-     * The collision pool still contains (the number of openmp threads) queues
+     * The constraint pool still contains (the number of openmp threads) queues
      *
      */
     void clear();
 
     /**
-     * @brief get the number of collision constraints on the local node
+     * @brief get the number of constraints on the local node
      *
      * @return int
      */
     int getLocalNumberOfConstraints();
 
     /**
-     * @brief compute the total collision stress of all constraints (blocks)
+     * @brief compute the total constraint stress of all constraints (blocks)
      *
      * @param stress the sum of all stress blocks for all threads on the local rank
-     * @param withOneSide include the stress (without proper definition) of one side collisions
+     * @param withOneSide include the stress (without proper definition) of one side constraints
      */
     void sumLocalConstraintStress(Emat3 &uniStress, Emat3 &biStress, bool withOneSide = false) const;
 
@@ -127,18 +120,25 @@ class ConstraintCollector {
      *
      * @param [in] mobMapRcp  mobility map
      * @param DTransRcp D^Trans matrix
-     * @param delta0Rcp delta_0 vector
      * @param invKappaRcp K^{-1} vector
      * @param biFlagRcp 1 for bilateral, 1 for unilateral
      * @param gammaGuessRcp initial guess of gamma
-     * @return int error code (TODO:)
+     * @return DMatTransRcp D^Trans matrix
      */
-    int buildConstraintMatrixVector(const Teuchos::RCP<const TMAP> &mobMapRcp, //
-                                    Teuchos::RCP<TCMAT> &DMatTransRcp,         //
-                                    Teuchos::RCP<TV> &delta0Rcp,               //
-                                    Teuchos::RCP<TV> &invKappaRcp,             //
-                                    Teuchos::RCP<TV> &biFlagRcp,               //
-                                    Teuchos::RCP<TV> &gammaGuessRcp) const;
+    Teuchos::RCP<TCMAT> buildConstraintMatrixVector(const Teuchos::RCP<const TMAP> &mobMapRcp,
+                                                    const Teuchos::RCP<const TMAP> &gammaMapRcp,
+                                                    const Teuchos::RCP<const TV> &gammaRcp) const;
+
+    int fillConstraintInformation(const Teuchos::RCP<const TCOMM>& commRcp,
+                                  const Teuchos::RCP<TV> &gammaGuessRcp,         
+                                  const Teuchos::RCP<TV> &constraintFlagRcp) const;
+                                  
+    int evalConstraintDiagonal(const Teuchos::RCP<const TV> &gammaRcp, 
+                               const Teuchos::RCP<TV> &constraintDiagonalRcp) const;
+
+    int evalConstraintValues(const Teuchos::RCP<const TV> &gammaRcp, 
+                             const Teuchos::RCP<TV> &constraintValueRcp) const;
+
 
     // /**
     //  * @brief build the K^{-1} diagonal matrix

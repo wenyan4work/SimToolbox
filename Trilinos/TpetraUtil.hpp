@@ -35,69 +35,51 @@
 #include <BelosSolverFactory.hpp>
 #include <BelosTpetraAdapter.hpp>
 
+// NOX solver
+#include <NOX.H>
+#include <NOX_Thyra.H>
+
+/////////////////////////////
+// Stuff we might not need //
+/////////////////////////////
+#include <Teuchos_ConfigDefs.hpp>
+#include <Teuchos_Comm.hpp>
+#include <Teuchos_ParameterList.hpp>
+#include <Teuchos_RCP.hpp>
+#include <Teuchos_FancyOStream.hpp>
+
+#include <BelosTypes.hpp>
+#include <Stratimikos_DefaultLinearSolverBuilder.hpp>
+#include <Thyra_LinearOpWithSolveFactoryHelpers.hpp>
+
+#include <NOX_Thyra_MatrixFreeJacobianOperator.hpp>
+#include <NOX_MatrixFree_ModelEvaluatorDecorator.hpp>
+
+// for solution IO
+#include "Thyra_TpetraVector.hpp"
+
 // Preconditioner
 #include <Ifpack2_Factory.hpp>
 
 // no need to specify node type for new version of Tpetra. It defaults to
 // Kokkos::default, which is openmp
 // typedef Tpetra::Details::DefaultTypes::node_type TNODE;
+using Scalar = double;
+using LO = int;
+using GO = int;
+using Node = Tpetra::Vector<>::node_type;
 
-using TCOMM = Teuchos::Comm<int>;                  ///< default Teuchos::Comm type
-using TMAP = Tpetra::Map<int, int>;                ///< default Teuchos::Map type
-using TOP = Tpetra::Operator<double, int, int>;    ///< default Tpetra::Operator type
-using TCMAT = Tpetra::CrsMatrix<double, int, int>; ///< default Tpetra::CrsMatrix type
-using TMV = Tpetra::MultiVector<double, int, int>; ///< default Tpetra::MultiVector type
-using TV = Tpetra::Vector<double, int, int>;       ///< default to Tpetra::Vector type
+using TCOMM = Teuchos::Comm<GO>;                       ///< default Teuchos::Comm type
+using TMAP = Tpetra::Map<LO, GO, Node>;                ///< default Teuchos::Map type
+using TOP = Tpetra::Operator<Scalar, LO, GO, Node>;    ///< default Tpetra::Operator type
+using TCMAT = Tpetra::CrsMatrix<Scalar, LO, GO, Node>; ///< default Tpetra::CrsMatrix type
+using TMV = Tpetra::MultiVector<Scalar, LO, GO, Node>; ///< default Tpetra::MultiVector type
+using TV = Tpetra::Vector<Scalar, LO, GO, Node>;       ///< default to Tpetra::Vector type
 
-/**
- * @brief inserting a specialization for Tpetra objects into Belos namespace
- *
- */
-namespace Belos {
-/**
- * @brief explicit full specialization of OperatorTraits for TOP and TMV.
- *
- * @tparam
- */
-template <>
-class OperatorTraits<::TOP::scalar_type, ::TMV, ::TOP> {
-  public:
-    /**
-     * @brief Belos operator apply function, Y = Op X
-     *
-     * @param Op
-     * @param X
-     * @param Y
-     * @param trans
-     */
-    static void Apply(const ::TOP &Op, const ::TMV &X, ::TMV &Y, const ETrans trans = NOTRANS) {
-        Teuchos::ETransp teuchosTrans = Teuchos::NO_TRANS;
-        if (trans == NOTRANS) {
-            teuchosTrans = Teuchos::NO_TRANS;
-        } else if (trans == TRANS) {
-            teuchosTrans = Teuchos::TRANS;
-        } else if (trans == CONJTRANS) {
-            teuchosTrans = Teuchos::CONJ_TRANS;
-        } else {
-            TEUCHOS_TEST_FOR_EXCEPTION(true, std::invalid_argument,
-                                       "Belos::OperatorTraits::Apply: Invalid "
-                                       "'trans' value "
-                                           << trans << ".  Valid values are NOTRANS=" << NOTRANS << ", TRANS=" << TRANS
-                                           << ", and CONJTRANS=" << CONJTRANS << ".");
-        }
-        Op.apply(X, Y, teuchosTrans);
-    }
-
-    /**
-     * @brief return if the operator has transpose apply
-     *
-     * @param Op
-     * @return true
-     * @return false
-     */
-    static bool HasApplyTranspose(const ::TOP &Op) { return Op.hasTransposeApply(); }
-};
-} // namespace Belos
+using thyra_vec_space = Thyra::VectorSpaceBase<Scalar>;
+using thyra_vec = Thyra::VectorBase<Scalar>;
+using thyra_op = Thyra::LinearOpBase<Scalar>;
+using thyra_prec = Thyra::PreconditionerBase<Scalar>;
 
 /**
  * @brief write TCMAT A to a file in MatrixMarket format
@@ -138,7 +120,7 @@ Teuchos::RCP<const TCOMM> getMPIWORLDTCOMM();
  * @param commRcp
  * @return Teuchos::RCP<TMAP>
  */
-Teuchos::RCP<TMAP> getTMAPFromLocalSize(const int &localSize, Teuchos::RCP<const TCOMM> &commRcp);
+Teuchos::RCP<TMAP> getTMAPFromLocalSize(const int &localSize, const Teuchos::RCP<const TCOMM> &commRcp);
 
 /**
  * @brief get a TMAP from arbitrary global index on local
@@ -149,7 +131,7 @@ Teuchos::RCP<TMAP> getTMAPFromLocalSize(const int &localSize, Teuchos::RCP<const
  * @return Teuchos::RCP<TMAP>
  */
 Teuchos::RCP<TMAP> getTMAPFromGlobalIndexOnLocal(const std::vector<int> &gidOnLocal, const int globalSize,
-                                                 Teuchos::RCP<const TCOMM> &commRcp);
+                                                 const Teuchos::RCP<const TCOMM> &commRcp);
 
 /**
  * @brief create a map for vector with two blocks X=[X1;X2],
@@ -182,6 +164,6 @@ Teuchos::RCP<TV> getTVFromTwoBlockTV(const Teuchos::RCP<const TV> &vec1, const T
  * @param commRcp
  * @return Teuchos::RCP<TV> the local part of this TV will contain the same entries as given in the input vector
  */
-Teuchos::RCP<TV> getTVFromVector(const std::vector<double> &in, Teuchos::RCP<const TCOMM> &commRcp);
+Teuchos::RCP<TV> getTVFromVector(const std::vector<double> &in, const Teuchos::RCP<const TCOMM> &commRcp);
 
 #endif /* TPETRAUTIL_HPP_ */

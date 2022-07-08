@@ -11,7 +11,7 @@
 
 #include <mpi.h>
 
-#include "SylinderSystem.hpp"
+#include "DryPhysicsController.hpp"
 #include "Util/Logger.hpp"
 
 int main(int argc, char **argv) {
@@ -21,25 +21,18 @@ int main(int argc, char **argv) {
     {
         // create a system and distribute it to all ranks
         // MPI is initialized inside PS::Initialize()
-        std::string runConfig = "RunConfig.yaml";
+        std::string runConfigFile = "RunConfig.yaml";
         std::string posFile = "SylinderInitial.dat";
         std::string restartFile = "TimeStepInfo.txt";
-        SylinderSystem system;
-
+        DryPhysicsController controller;
         if (IOHelper::fileExist(restartFile)) {
-            system.reinitialize(runConfig, restartFile, argc, argv, true);
+            controller.reinitialize(runConfigFile, restartFile, true);
         } else {
-            system.initialize(runConfig, posFile, argc, argv);
+            controller.initialize(runConfigFile, posFile);
         }
 
         // main time loop
-        while (system.getStepCount() * system.runConfig.dt < system.runConfig.timeTotal) {
-            system.prepareStep();
-            system.runStep();
-            system.calcOrderParameter();
-            system.calcConStress();
-            system.printTimingSummary();
-        }
+        controller.run();
     }
     // mpi finalize
     // let the root rank wait for other

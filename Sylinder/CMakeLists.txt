@@ -7,69 +7,6 @@ target_link_libraries(
                             Eigen3::Eigen OpenMP::OpenMP_CXX MPI::MPI_CXX)
 add_test(NAME SylidnerNear COMMAND SylinderNear_test)
 
-add_executable(
-  SylinderSystem_main
-  SylinderSystem_main.cpp
-  SylinderSystem.cpp
-  SylinderConfig.cpp
-  Sylinder.cpp
-  ${PROJECT_SOURCE_DIR}/Trilinos/TpetraUtil.cpp
-  ${PROJECT_SOURCE_DIR}/Boundary/Boundary.cpp
-  ${PROJECT_SOURCE_DIR}/Constraint/BCQPSolver.cpp
-  ${PROJECT_SOURCE_DIR}/Constraint/ConstraintCollector.cpp
-  ${PROJECT_SOURCE_DIR}/Constraint/ConstraintOperator.cpp
-  ${PROJECT_SOURCE_DIR}/Constraint/ConstraintSolver.cpp
-  ${PROJECT_SOURCE_DIR}/Util/Base64.cpp)
-target_compile_options(SylinderSystem_main PRIVATE ${OpenMP_CXX_FLAGS})
-target_compile_definitions(
-  SylinderSystem_main PRIVATE PARTICLE_SIMULATOR_THREAD_PARALLEL
-                              PARTICLE_SIMULATOR_MPI_PARALLEL)
-target_include_directories(
-  SylinderSystem_main PRIVATE ${PROJECT_SOURCE_DIR} ${Trilinos_INCLUDE_DIRS}
-                              ${TRNG_INCLUDE_DIR} ${YAML_CPP_INCLUDE_DIR})
-target_link_libraries(
-  SylinderSystem_main
-  PRIVATE ${Trilinos_LIBRARIES}
-          ${Trilinos_TPL_LIBRARIES}
-          ${YAML_CPP_LIBRARIES}
-          ${TRNG_LIBRARY}
-          VTK::IOXML
-          Eigen3::Eigen
-          OpenMP::OpenMP_CXX
-          MPI::MPI_CXX)
-
-add_executable(
-  SylinderSystem_test_api
-  SylinderSystem_test_api.cpp
-  SylinderSystem.cpp
-  SylinderConfig.cpp
-  Sylinder.cpp
-  ${PROJECT_SOURCE_DIR}/Trilinos/TpetraUtil.cpp
-  ${PROJECT_SOURCE_DIR}/Boundary/Boundary.cpp
-  ${PROJECT_SOURCE_DIR}/Constraint/BCQPSolver.cpp
-  ${PROJECT_SOURCE_DIR}/Constraint/ConstraintCollector.cpp
-  ${PROJECT_SOURCE_DIR}/Constraint/ConstraintOperator.cpp
-  ${PROJECT_SOURCE_DIR}/Constraint/ConstraintSolver.cpp
-  ${PROJECT_SOURCE_DIR}/Util/Base64.cpp)
-target_compile_options(SylinderSystem_test_api PRIVATE ${OpenMP_CXX_FLAGS})
-target_compile_definitions(
-  SylinderSystem_test_api PRIVATE PARTICLE_SIMULATOR_THREAD_PARALLEL
-                                  PARTICLE_SIMULATOR_MPI_PARALLEL)
-target_include_directories(
-  SylinderSystem_test_api
-  PRIVATE ${PROJECT_SOURCE_DIR} ${Trilinos_INCLUDE_DIRS} ${TRNG_INCLUDE_DIR}
-          ${YAML_CPP_INCLUDE_DIR})
-target_link_libraries(
-  SylinderSystem_test_api
-  PRIVATE ${Trilinos_LIBRARIES}
-          ${Trilinos_TPL_LIBRARIES}
-          ${YAML_CPP_LIBRARIES}
-          ${TRNG_LIBRARY}
-          VTK::IOXML
-          Eigen3::Eigen
-          OpenMP::OpenMP_CXX
-          MPI::MPI_CXX)
-
 # Scan through resource folder for updated files and copy if none existing or changed
 file(GLOB_RECURSE resources "./Test*/*.*")
 foreach(resource ${resources})

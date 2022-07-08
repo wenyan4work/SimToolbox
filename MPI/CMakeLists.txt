@@ -4,11 +4,10 @@
 add_executable(CommMPI_test CommMPI_test.cpp)
 target_compile_options(CommMPI_test PRIVATE ${OpenMP_CXX_FLAGS})
 target_include_directories(
-  CommMPI_test PRIVATE ${PROJECT_SOURCE_DIR} ${Trilinos_INCLUDE_DIRS}
-                       ${TRNG_INCLUDE_DIR})
+  CommMPI_test PRIVATE ${PROJECT_SOURCE_DIR} ${Trilinos_INCLUDE_DIRS})
 target_link_libraries(
   CommMPI_test PRIVATE ${Trilinos_LIBRARIES} ${Trilinos_TPL_LIBRARIES}
-                       ${TRNG_LIBRARY} OpenMP::OpenMP_CXX MPI::MPI_CXX)
+                      trng4 OpenMP::OpenMP_CXX MPI::MPI_CXX)
 add_test(NAME CommMPI COMMAND CommMPI_test)
 
 # executable of sample code

@@ -36,12 +36,12 @@ void dumpTMAP(const Teuchos::RCP<const TMAP> &map, std::string filename) {
 
 Teuchos::RCP<const TCOMM> getMPIWORLDTCOMM() { return Teuchos::rcp(new Teuchos::MpiComm<int>(MPI_COMM_WORLD)); }
 
-Teuchos::RCP<TMAP> getTMAPFromLocalSize(const int &localSize, Teuchos::RCP<const TCOMM> &commRcp) {
+Teuchos::RCP<TMAP> getTMAPFromLocalSize(const int &localSize, const Teuchos::RCP<const TCOMM> &commRcp) {
     return Teuchos::rcp(new TMAP(Teuchos::OrdinalTraits<Tpetra::global_size_t>::invalid(), localSize, 0, commRcp));
 }
 
 Teuchos::RCP<TMAP> getTMAPFromGlobalIndexOnLocal(const std::vector<int> &gidOnLocal, const int globalSize,
-                                                 Teuchos::RCP<const TCOMM> &commRcp) {
+                                                 const Teuchos::RCP<const TCOMM> &commRcp) {
     return Teuchos::rcp(new TMAP(globalSize, gidOnLocal.data(), gidOnLocal.size(), 0, commRcp));
 }
 
@@ -82,7 +82,7 @@ Teuchos::RCP<TV> getTVFromTwoBlockTV(const Teuchos::RCP<const TV> &vec1, const T
     return vec;
 }
 
-Teuchos::RCP<TV> getTVFromVector(const std::vector<double> &in, Teuchos::RCP<const TCOMM> &commRcp) {
+Teuchos::RCP<TV> getTVFromVector(const std::vector<double> &in, const Teuchos::RCP<const TCOMM> &commRcp) {
 
     const int localSize = in.size();
 

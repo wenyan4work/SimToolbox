@@ -13,7 +13,7 @@
 
 #include "Sylinder.hpp"
 
-#include "Collision/DCPQuery.hpp"
+#include "Constraint/DCPQuery.hpp"
 #include "Constraint/ConstraintCollector.hpp"
 #include "FDPS/particle_simulator.hpp"
 #include "Util/EigenDef.hpp"
@@ -235,6 +235,32 @@ class CalcSylinderNearForce {
         }
     }
 
+    /**
+     * @brief Update a collision constraint between two SylinderNearEPs
+     *   when a sylinder has length < diameter, it is treated as a sphere with radius_eff = radius + 0.5*length,
+     *   i.e., a big sphere that completely encapsules this sylinder.
+     *   collision stress is also calculated in this way
+     * @param syI target
+     * @param syJ source
+     * @param conBlock block to update
+     */
+    void updateCollisionBlock(const SylinderNearEP syI, const SylinderNearEP syJ, ConstraintBlock &conBlock) {
+        ForceNear forceI;
+        if (isSphere(syI)) { // sphereI collisions
+            if (isSphere(syJ)) {
+                sp_sp(syI, syJ, forceI, conBlock);
+            } else {
+                sp_sy(syI, syJ, forceI, conBlock);
+            }
+        } else { // sylinderI collisions
+            if (isSphere(syJ)) {
+                sp_sy(syJ, syI, forceI, conBlock, true); 
+            } else {
+                sy_sy(syI, syJ, forceI, conBlock);
+            }
+        }
+    }
+
     bool isSphere(const SylinderNearEP &sy) const { return sy.lengthCollision < 2 * sy.radiusCollision; }
 
     /**
@@ -267,20 +293,21 @@ class CalcSylinderNearForce {
             const Evec3 &Ploc = centerI;
             const Evec3 &Qloc = centerJ;
             collision = true;
-            const double delta0 = sep;
-            const double gamma = sep < 0 ? -sep : 0;
+            // TODO MODULARIZE! 
+            const double gammaGuess = sep < 0 ? -sep : 0;
             const Evec3 normI = (Ploc - Qloc).normalized();
             const Evec3 normJ = -normI;
             const Evec3 posI = Ploc - centerI;
             const Evec3 posJ = Qloc - centerJ;
-            conBlock = ConstraintBlock(delta0, gamma,              // current separation, initial guess of gamma
+            const double nan = std::numeric_limits<double>::quiet_NaN();
+            conBlock = ConstraintBlock(sep, gammaGuess, nan,       // value of the constraint, initial guess of gamma, spring constant
                                        spI.gid, spJ.gid,           //
                                        spI.globalIndex,            //
                                        spJ.globalIndex,            //
                                        normI.data(), normJ.data(), // direction of collision force
                                        posI.data(), posJ.data(),   // location of collision relative to particle center
                                        Ploc.data(), Qloc.data(),   // location of collision in lab frame
-                                       false, false, 0.0, 0.0);
+                                       false, false);
             Emat3 stressIJ = Emat3::Zero();
             collideStress(Evec3(0, 0, 1), Evec3(0, 0, 1), centerI, centerJ, 0, 0, // length = 0, degenerates to sphere
                           radI, radJ, 1.0, Ploc, Qloc, stressIJ);
@@ -301,7 +328,7 @@ class CalcSylinderNearForce {
      * @return false
      */
     bool sp_sy(const SylinderNearEP &spI, const SylinderNearEP &syJ, ForceNear &forceI, ConstraintBlock &conBlock,
-               bool reverseIJ = false) const {
+               const bool reverseIJ = false) const {
         // sphere collide with sylinder
         // effective radius of sphere = sp.lengthCollision*0.5 + sp.radiusCollision
 
@@ -324,21 +351,22 @@ class CalcSylinderNearForce {
 
         if (sep < (radI * spI.colBuf + syJ.radiusCollision * syJ.colBuf)) {
             collision = true;
-            const double delta0 = sep;
-            const double gamma = sep < 0 ? -sep : 0;
+            // TODO MODULARIZE! 
+            const double gammaGuess = sep < 0 ? -sep : 0;
             const Evec3 normI = (Ploc - Qloc).normalized();
             const Evec3 normJ = -normI;
             const Evec3 posI = Ploc - centerI;
             const Evec3 posJ = Qloc - centerJ;
             Emat3 stressIJ;
-            conBlock = ConstraintBlock(delta0, gamma,              // current separation, initial guess of gamma
+            const double nan = std::numeric_limits<double>::quiet_NaN();
+            conBlock = ConstraintBlock(sep, gammaGuess, nan,    // value of the constraint, initial guess of gamma, spring constant
                                        spI.gid, syJ.gid,           //
                                        spI.globalIndex,            //
                                        syJ.globalIndex,            //
                                        normI.data(), normJ.data(), // direction of collision force
                                        posI.data(), posJ.data(),   // location of collision relative to particle center
                                        Ploc.data(), Qloc.data(),   // location of collision in lab frame
-                                       false, false, 0.0, 0.0);
+                                       false, false);
             if (reverseIJ) {
                 conBlock.reverseIJ();
             }
@@ -385,20 +413,21 @@ class CalcSylinderNearForce {
 
         if (sep < (syI.radiusCollision * syI.colBuf + syJ.radiusCollision * syJ.colBuf)) {
             collision = true;
-            const double delta0 = sep;
-            const double gamma = sep < 0 ? -sep : 0;
+            // TODO MODULARIZE! 
+            const double gammaGuess = sep < 0 ? -sep : 0;
             const Evec3 normI = (Ploc - Qloc).normalized();
             const Evec3 normJ = -normI;
             const Evec3 posI = Ploc - centerI;
             const Evec3 posJ = Qloc - centerJ;
-            conBlock = ConstraintBlock(delta0, gamma,              // current separation, initial guess of gamma
+            const double nan = std::numeric_limits<double>::quiet_NaN();
+            conBlock = ConstraintBlock(sep, gammaGuess, nan,       // seperation, initial guess of gamma, spring constant
                                        syI.gid, syJ.gid,           //
                                        syI.globalIndex,            //
                                        syJ.globalIndex,            //
                                        normI.data(), normJ.data(), // direction of collision force
                                        posI.data(), posJ.data(),   // location of collision relative to particle center
                                        Ploc.data(), Qloc.data(),   // location of collision in lab frame
-                                       false, false, 0.0, 0.0);
+                                       false, false);
             Emat3 stressIJ;
             collideStress(directionI, directionJ, centerI, centerJ, syI.lengthCollision, syJ.lengthCollision,
                           syI.radiusCollision, syJ.radiusCollision, 1.0, Ploc, Qloc, stressIJ);

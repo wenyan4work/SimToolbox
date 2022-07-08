@@ -52,8 +52,12 @@ class Sylinder {
     double sepmin;          ///< minimal separation with its neighbors within radiusSearch
     double colBuf;          ///< collision buffer
 
-    double pos[3];         ///< position
-    double orientation[4]; ///< orientation quaternion. direction norm vector = orientation * (0,0,1)
+    double pos[3];         ///< position (will be updated implicitly)
+    double orientation[4]; ///< orientation quaternion (will be updated implicitly)
+                           ///< direction norm vector = orientation * (0,0,1)
+    double posCurrent[3];         ///< position at current timestep 
+    double orientationCurrent[4]; ///< orientation quaternion at next timestep. 
+                                  ///< direction norm vector = orientation * (0,0,1)
 
     // vel = velBrown + velCol + velBi + velNonB
     // force =          forceCol + forceBi + forceNonB
@@ -62,20 +66,16 @@ class Sylinder {
     // velocity
     double vel[3];       ///< velocity = velCol+velBi+velNonB+velBrown
     double omega[3];     ///< angular velocity = omegaCol+omegaBi+omegaNonB+velBrown
-    double velCol[3];    ///< collision velocity
-    double omegaCol[3];  ///< collision angular velocity
-    double velBi[3];     ///< bilateral constraint velocity
-    double omegaBi[3];   ///< bilateral constraint angular velocity
+    double velCon[3];    ///< constraint velocity
+    double omegaCon[3];  ///< constraint angular velocity
     double velNonB[3];   ///< all non-Brownian deterministic velocity before constraint resolution
     double omegaNonB[3]; ///< all non-Brownian deterministic angular velocity before constraint resolution
 
     // force
     double force[3];      ///< force = forceCol+forceBi+forceNonB
     double torque[3];     ///< torque = torqueCol+torqueBi+torqueNonB
-    double forceCol[3];   ///< collision force
-    double torqueCol[3];  ///< collision torque
-    double forceBi[3];    ///< bilateral constraint force
-    double torqueBi[3];   ///< bilateral constraint torque
+    double forceCon[3];   ///< constraint force
+    double torqueCon[3];  ///< constraint torque
     double forceNonB[3];  ///< all non-Brownian deterministic force before constraint resolution
     double torqueNonB[3]; ///< all non-Brownian deterministic torque before constraint resolution
 
@@ -157,6 +157,12 @@ class Sylinder {
     void stepEuler(double dt);
 
     /**
+     * @brief advance the current position and orientation to the position and orientation at the next timestep
+     *
+     */
+    void advance();
+
+    /**
      * @brief return position
      *
      * necessary interface for InteractionManager.hpp
@@ -233,19 +239,15 @@ class Sylinder {
 
         cellDataFields.emplace_back(3, IOHelper::IOTYPE::Float32, "vel");
         cellDataFields.emplace_back(3, IOHelper::IOTYPE::Float32, "omega");
-        cellDataFields.emplace_back(3, IOHelper::IOTYPE::Float32, "velCollision");
-        cellDataFields.emplace_back(3, IOHelper::IOTYPE::Float32, "omegaCollision");
-        cellDataFields.emplace_back(3, IOHelper::IOTYPE::Float32, "velBilateral");
-        cellDataFields.emplace_back(3, IOHelper::IOTYPE::Float32, "omegaBilateral");
+        cellDataFields.emplace_back(3, IOHelper::IOTYPE::Float32, "velConstraint");
+        cellDataFields.emplace_back(3, IOHelper::IOTYPE::Float32, "omegaConstraint");
         cellDataFields.emplace_back(3, IOHelper::IOTYPE::Float32, "velNonBrown");
         cellDataFields.emplace_back(3, IOHelper::IOTYPE::Float32, "omegaNonBrown");
 
         cellDataFields.emplace_back(3, IOHelper::IOTYPE::Float32, "force");
         cellDataFields.emplace_back(3, IOHelper::IOTYPE::Float32, "torque");
-        cellDataFields.emplace_back(3, IOHelper::IOTYPE::Float32, "forceCollision");
-        cellDataFields.emplace_back(3, IOHelper::IOTYPE::Float32, "torqueCollision");
-        cellDataFields.emplace_back(3, IOHelper::IOTYPE::Float32, "forceBilateral");
-        cellDataFields.emplace_back(3, IOHelper::IOTYPE::Float32, "torqueBilateral");
+        cellDataFields.emplace_back(3, IOHelper::IOTYPE::Float32, "forceConstraint");
+        cellDataFields.emplace_back(3, IOHelper::IOTYPE::Float32, "torqueConstraint");
         cellDataFields.emplace_back(3, IOHelper::IOTYPE::Float32, "forceNonBrown");
         cellDataFields.emplace_back(3, IOHelper::IOTYPE::Float32, "torqueNonBrown");
 
@@ -307,20 +309,16 @@ class Sylinder {
         // vel
         std::vector<float> vel(3 * sylinderNumber);
         std::vector<float> omega(3 * sylinderNumber);
-        std::vector<float> velCol(3 * sylinderNumber);
-        std::vector<float> omegaCol(3 * sylinderNumber);
-        std::vector<float> velBi(3 * sylinderNumber);
-        std::vector<float> omegaBi(3 * sylinderNumber);
+        std::vector<float> velCon(3 * sylinderNumber);
+        std::vector<float> omegaCon(3 * sylinderNumber);
         std::vector<float> velNonB(3 * sylinderNumber);
         std::vector<float> omegaNonB(3 * sylinderNumber);
 
         // force
         std::vector<float> force(3 * sylinderNumber);
         std::vector<float> torque(3 * sylinderNumber);
-        std::vector<float> forceCol(3 * sylinderNumber);
-        std::vector<float> torqueCol(3 * sylinderNumber);
-        std::vector<float> forceBi(3 * sylinderNumber);
-        std::vector<float> torqueBi(3 * sylinderNumber);
+        std::vector<float> forceCon(3 * sylinderNumber);
+        std::vector<float> torqueCon(3 * sylinderNumber);
         std::vector<float> forceNonB(3 * sylinderNumber);
         std::vector<float> torqueNonB(3 * sylinderNumber);
 
@@ -336,9 +334,10 @@ class Sylinder {
         for (int i = 0; i < sylinderNumber; i++) {
             const auto &sy = sylinder[i];
             // point and point data
-            Evec3 direction = ECmapq(sy.orientation) * Evec3(0, 0, 1);
-            Evec3 end0 = ECmap3(sy.pos) - direction * (sy.length * 0.5);
-            Evec3 end1 = ECmap3(sy.pos) + direction * (sy.length * 0.5);
+            // store current position and orientation
+            Evec3 direction = ECmapq(sy.orientationCurrent) * Evec3(0, 0, 1);
+            Evec3 end0 = ECmap3(sy.posCurrent) - direction * (sy.length * 0.5);
+            Evec3 end1 = ECmap3(sy.posCurrent) + direction * (sy.length * 0.5);
             pos[6 * i] = end0[0];
             pos[6 * i + 1] = end0[1];
             pos[6 * i + 2] = end0[2];
@@ -368,19 +367,15 @@ class Sylinder {
             for (int j = 0; j < 3; j++) {
                 vel[3 * i + j] = sy.vel[j];
                 omega[3 * i + j] = sy.omega[j];
-                velCol[3 * i + j] = sy.velCol[j];
-                omegaCol[3 * i + j] = sy.omegaCol[j];
-                velBi[3 * i + j] = sy.velBi[j];
-                omegaBi[3 * i + j] = sy.omegaBi[j];
+                velCon[3 * i + j] = sy.velCon[j];
+                omegaCon[3 * i + j] = sy.omegaCon[j];
                 velNonB[3 * i + j] = sy.velNonB[j];
                 omegaNonB[3 * i + j] = sy.omegaNonB[j];
 
                 force[3 * i + j] = sy.force[j];
                 torque[3 * i + j] = sy.torque[j];
-                forceCol[3 * i + j] = sy.forceCol[j];
-                torqueCol[3 * i + j] = sy.torqueCol[j];
-                forceBi[3 * i + j] = sy.forceBi[j];
-                torqueBi[3 * i + j] = sy.torqueBi[j];
+                forceCon[3 * i + j] = sy.forceCon[j];
+                torqueCon[3 * i + j] = sy.torqueCon[j];
                 forceNonB[3 * i + j] = sy.forceNonB[j];
                 torqueNonB[3 * i + j] = sy.torqueNonB[j];
 
@@ -424,19 +419,15 @@ class Sylinder {
 
         IOHelper::writeDataArrayBase64(vel, "vel", 3, file);
         IOHelper::writeDataArrayBase64(omega, "omega", 3, file);
-        IOHelper::writeDataArrayBase64(velCol, "velCollision", 3, file);
-        IOHelper::writeDataArrayBase64(omegaCol, "omegaCollision", 3, file);
-        IOHelper::writeDataArrayBase64(velBi, "velBilateral", 3, file);
-        IOHelper::writeDataArrayBase64(omegaBi, "omegaBilateral", 3, file);
+        IOHelper::writeDataArrayBase64(velCon, "velConstraint", 3, file);
+        IOHelper::writeDataArrayBase64(omegaCon, "omegaConstraint", 3, file);
         IOHelper::writeDataArrayBase64(velNonB, "velNonBrown", 3, file);
         IOHelper::writeDataArrayBase64(omegaNonB, "omegaNonBrown", 3, file);
 
         IOHelper::writeDataArrayBase64(force, "force", 3, file);
         IOHelper::writeDataArrayBase64(torque, "torque", 3, file);
-        IOHelper::writeDataArrayBase64(forceCol, "forceCollision", 3, file);
-        IOHelper::writeDataArrayBase64(torqueCol, "torqueCollision", 3, file);
-        IOHelper::writeDataArrayBase64(forceBi, "forceBilateral", 3, file);
-        IOHelper::writeDataArrayBase64(torqueBi, "torqueBilateral", 3, file);
+        IOHelper::writeDataArrayBase64(forceCon, "forceConstraint", 3, file);
+        IOHelper::writeDataArrayBase64(torqueCon, "torqueConstraint", 3, file);
         IOHelper::writeDataArrayBase64(forceNonB, "forceNonBrown", 3, file);
         IOHelper::writeDataArrayBase64(torqueNonB, "torqueNonBrown", 3, file);
 
