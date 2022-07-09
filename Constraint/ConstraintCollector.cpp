@@ -292,45 +292,44 @@ Teuchos::RCP<TCMAT> ConstraintCollector::buildConstraintMatrixVector(const Teuch
     Kokkos::View<int *> columnIndices("columnIndices", rowPointers[localGammaSize]);
     Kokkos::View<double *> values("values", rowPointers[localGammaSize]);
     // multi-thread filling. nThreads = poolSize, each thread process a queue
-    const int nThreads = cPool.size();
-#pragma omp parallel for num_threads(nThreads)
-    for (int threadId = 0; threadId < nThreads; threadId++) {
+#pragma omp parallel for num_threads(cQueNum)
+    for (int threadId = 0; threadId < cQueNum; threadId++) {
         // each thread process a queue
         const auto &cBlockQue = cPool[threadId];
         const int cBlockNum = cBlockQue.size();
-        const int cBlockIndexBase = cQueSize[threadId];
+        const int cBlockIndexBase = cQueIndex[threadId];
         int kk = colIndexPool[threadId];
 
         for (int j = 0; j < cBlockNum; j++) {
             // each 6nnz for an object: gx.ux+gy.uy+gz.uz+(gzpy-gypz)wx+(gxpz-gzpx)wy+(gypx-gxpy)wz
             // 6 nnz for I
-            const auto &block = cBlockQue[j];
+            const auto &cBlock = cBlockQue[j];
             const auto idx = cBlockIndexBase + j;
 
             // TODO: This entire for loop needs modularized. Desperately! 
             // Scale accounts for complementarity constraints 
             double scale;
-            if (block.bilateral) {
+            if (cBlock.bilateral) {
                 // spring constraint
                 scale = 1.0;
             } else {
                 // collision constraint using Ficher Bermiester function
                 // this is the partial derivative of the FB function (sep^k, gamma^k) w.r.t sep^k
-                scale = 1.0 - block.sepDist / std::sqrt(std::pow(block.sepDist , 2) + std::pow(gammaPtr(idx, 0) , 2));
+                scale = 1.0 - cBlock.sepDist / std::sqrt(std::pow(cBlock.sepDist , 2) + std::pow(gammaPtr(idx, 0) , 2));
             }
 
-            columnIndices[kk + 0] = 6 * block.globalIndexI;
-            columnIndices[kk + 1] = 6 * block.globalIndexI + 1;
-            columnIndices[kk + 2] = 6 * block.globalIndexI + 2;
-            columnIndices[kk + 3] = 6 * block.globalIndexI + 3;
-            columnIndices[kk + 4] = 6 * block.globalIndexI + 4;
-            columnIndices[kk + 5] = 6 * block.globalIndexI + 5;
-            const double &gx = block.normI[0];
-            const double &gy = block.normI[1];
-            const double &gz = block.normI[2];
-            const double &px = block.posI[0];
-            const double &py = block.posI[1];
-            const double &pz = block.posI[2];
+            columnIndices[kk + 0] = 6 * cBlock.globalIndexI;
+            columnIndices[kk + 1] = 6 * cBlock.globalIndexI + 1;
+            columnIndices[kk + 2] = 6 * cBlock.globalIndexI + 2;
+            columnIndices[kk + 3] = 6 * cBlock.globalIndexI + 3;
+            columnIndices[kk + 4] = 6 * cBlock.globalIndexI + 4;
+            columnIndices[kk + 5] = 6 * cBlock.globalIndexI + 5;
+            const double &gx = cBlock.normI[0];
+            const double &gy = cBlock.normI[1];
+            const double &gz = cBlock.normI[2];
+            const double &px = cBlock.posI[0];
+            const double &py = cBlock.posI[1];
+            const double &pz = cBlock.posI[2];
             values[kk + 0] = scale * gx;
             values[kk + 1] = scale * gy;
             values[kk + 2] = scale * gz;
@@ -338,19 +337,19 @@ Teuchos::RCP<TCMAT> ConstraintCollector::buildConstraintMatrixVector(const Teuch
             values[kk + 4] = scale * (gx * pz - gz * px);
             values[kk + 5] = scale * (gy * px - gx * py);
             kk += 6;
-            if (!cBlockQue[j].oneSide) {
-                columnIndices[kk + 0] = 6 * block.globalIndexJ;
-                columnIndices[kk + 1] = 6 * block.globalIndexJ + 1;
-                columnIndices[kk + 2] = 6 * block.globalIndexJ + 2;
-                columnIndices[kk + 3] = 6 * block.globalIndexJ + 3;
-                columnIndices[kk + 4] = 6 * block.globalIndexJ + 4;
-                columnIndices[kk + 5] = 6 * block.globalIndexJ + 5;
-                const double &gx = block.normJ[0];
-                const double &gy = block.normJ[1];
-                const double &gz = block.normJ[2];
-                const double &px = block.posJ[0];
-                const double &py = block.posJ[1];
-                const double &pz = block.posJ[2];
+            if (!cBlock.oneSide) {
+                columnIndices[kk + 0] = 6 * cBlock.globalIndexJ;
+                columnIndices[kk + 1] = 6 * cBlock.globalIndexJ + 1;
+                columnIndices[kk + 2] = 6 * cBlock.globalIndexJ + 2;
+                columnIndices[kk + 3] = 6 * cBlock.globalIndexJ + 3;
+                columnIndices[kk + 4] = 6 * cBlock.globalIndexJ + 4;
+                columnIndices[kk + 5] = 6 * cBlock.globalIndexJ + 5;
+                const double &gx = cBlock.normJ[0];
+                const double &gy = cBlock.normJ[1];
+                const double &gz = cBlock.normJ[2];
+                const double &px = cBlock.posJ[0];
+                const double &py = cBlock.posJ[1];
+                const double &pz = cBlock.posJ[2];
                 values[kk + 0] = scale * gx;
                 values[kk + 1] = scale * gy;
                 values[kk + 2] = scale * gz;
@@ -432,22 +431,22 @@ int ConstraintCollector::evalConstraintDiagonal(const Teuchos::RCP<const TV> &ga
     constraintDiagonalRcp->modify<Kokkos::HostSpace>();
 
 #pragma omp parallel for num_threads(cQueNum)
-    for (int que = 0; que < cQueNum; que++) {
-        const auto &cQue = cPool[que];
-        const int cIndexBase = cQueIndex[que];
-        const int queSize = cQue.size();
-        for (int j = 0; j < queSize; j++) {
-            const auto &block = cQue[j];
-            const auto idx = cIndexBase + j;
-            if (cQue[j].bilateral) {
+    for (int threadId = 0; threadId < cQueNum; threadId++) {
+        const auto &cBlockQue = cPool[threadId];
+        const int cBlockNum = cBlockQue.size();
+        const int cBlockIndexBase = cQueIndex[threadId];
+        for (int j = 0; j < cBlockNum; j++) {
+            const auto &cBlock = cBlockQue[j];
+            const auto idx = cBlockIndexBase + j;
+            if (cBlock.bilateral) {
                 // spring constraint
                 // this is the partial derivative of the linear spring constraint w.r.t gamma^k
-                constraintDiagonalPtr(idx, 0) = 1.0 / cQue[j].kappa;
+                constraintDiagonalPtr(idx, 0) = 1.0 / cBlock.kappa;
             } else {
                 // collision constraint using Ficher Bermiester function
                 // this is the partial derivative of the FB function (sep^k, gamma^k) w.r.t gamma^k
                 constraintDiagonalPtr(idx, 0) = 1.0 
-                    - gammaPtr(idx, 0) / std::sqrt(std::pow(cQue[j].sepDist , 2) + std::pow(gammaPtr(idx, 0) , 2));
+                    - gammaPtr(idx, 0) / std::sqrt(std::pow(cBlock.sepDist , 2) + std::pow(gammaPtr(idx, 0) , 2));
             }
         }
     }
@@ -475,9 +474,9 @@ int ConstraintCollector::evalConstraintValues(const Teuchos::RCP<const TV> &gamm
     constraintValueRcp->modify<Kokkos::HostSpace>();
 
 #pragma omp parallel for num_threads(cQueNum)
-    for (int que = 0; que < cQueNum; que++) {
-        const auto &cQue = cPool[que];
-        const int cIndexBase = cQueIndex[que];
+    for (int threadId = 0; threadId < cQueNum; threadId++) {
+        const auto &cQue = cPool[threadId];
+        const int cIndexBase = cQueIndex[threadId];
         const int queSize = cQue.size();
         for (int j = 0; j < queSize; j++) {
             const auto &block = cQue[j];

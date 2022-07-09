@@ -328,6 +328,13 @@ class SylinderSystem {
     void buildsylinderNearDataDirectory();
 
     /**
+     * @brief update the ZDD<SylinderNearEP> object without modifying the index
+     *
+     */
+    void updatesylinderNearDataDirectory();
+
+
+    /**
      * @brief Get the sylinderNearDataDirectory object
      *
      * @return std::shared_ptr<const ZDD<SylinderNearEP>>&

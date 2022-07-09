@@ -69,6 +69,12 @@ class ConstraintSolver {
      */
     void setup(double dt);
 
+    // /**
+    //  * @brief dump the jacobian and constraint values to MatrixMarket files
+    //  *
+    //  */
+    // void dumpConstraints();
+
     /**
      * @brief solve the nonlinear complementarity problem
      *

@@ -3,12 +3,20 @@
 
 #include <limits>
 
-void dumpTCMAT(const Teuchos::RCP<const TCMAT> &A, std::string filename) {
-    filename = filename + std::string("_TCMAT.mtx");
-    spdlog::info("dumping " + filename);
+void dumpTOP(const Teuchos::RCP<const TOP> &A, const std::string &filename) {
+    const std::string filename_mod = filename + std::string("_TOP.mtx");
+    spdlog::info("dumping " + filename_mod);
+
+    Tpetra::MatrixMarket::Writer<TCMAT> topDumper;
+    topDumper.writeOperator(filename_mod, *A);
+}
+
+void dumpTCMAT(const Teuchos::RCP<const TCMAT> &A, const std::string &filename) {
+    const std::string filename_mod = filename + std::string("_TCMAT.mtx");
+    spdlog::info("dumping " + filename_mod);
 
     Tpetra::MatrixMarket::Writer<TCMAT> matDumper;
-    matDumper.writeSparseFile(filename, A, filename, filename, true);
+    matDumper.writeSparseFile(filename_mod, A, filename_mod, filename_mod, true);
 }
 
 void dumpTV(const Teuchos::RCP<const TV> &A, std::string filename) {

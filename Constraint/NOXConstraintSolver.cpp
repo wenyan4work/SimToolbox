@@ -1,5 +1,6 @@
 #include "NOXConstraintSolver.hpp"
 #include "Util/Logger.hpp"
+#include <mpi.h>
 
 ConstraintSolver::ConstraintSolver(const Teuchos::RCP<const Teuchos::Comm<int> >& commRcp,
                                    std::shared_ptr<ConstraintCollector> conCollectorPtr,
@@ -13,11 +14,16 @@ ConstraintSolver::ConstraintSolver(const Teuchos::RCP<const Teuchos::Comm<int> >
     params->set("Linear Solver Type", "Belos");
     Teuchos::ParameterList &belosList = params->sublist("Linear Solver Types").sublist("Belos");
     belosList.set("Solver Type", "Pseudo Block GMRES");
-    belosList.sublist("Solver Types").sublist("Pseudo Block GMRES").set<int>("Maximum Iterations", 1000);
-    belosList.sublist("Solver Types").sublist("Pseudo Block GMRES").set<int>("Num Blocks", 200);
-    belosList.sublist("Solver Types").sublist("Pseudo Block GMRES").set<int>("Maximum Restarts", 100);
-    belosList.sublist("Solver Types").sublist("Pseudo Block GMRES").set("Verbosity", 0x7f);
+    belosList.sublist("Solver Types").sublist("Pseudo Block GMRES").set("Num Blocks", 30);
+    belosList.sublist("Solver Types").sublist("Pseudo Block GMRES").set("Maximum Restarts", 20);
+    belosList.sublist("Solver Types").sublist("Pseudo Block GMRES").set("Maximum Iterations", 1000);
+    belosList.sublist("Solver Types").sublist("Pseudo Block GMRES").set("Convergence Tolerance", 1e-8);
+    belosList.sublist("Solver Types").sublist("Pseudo Block GMRES").set("Timer Label", "NOX_Linear_Belos");
+    belosList.sublist("Solver Types").sublist("Pseudo Block GMRES").set("Verbosity", Belos::Errors + Belos::Warnings + Belos::TimingDetails + Belos::FinalSummary);
+    belosList.sublist("Solver Types").sublist("Pseudo Block GMRES").set("Show Maximum Residual Norm Only", false);
     belosList.sublist("Solver Types").sublist("Pseudo Block GMRES").set("Output Frequency", 100);
+    belosList.sublist("Solver Types").sublist("Pseudo Block GMRES").set("Implicit Residual Scaling", "Norm of RHS");
+    belosList.sublist("Solver Types").sublist("Pseudo Block GMRES").set("Explicit Residual Scaling", "Norm of RHS");
     belosList.sublist("VerboseObject").set("Verbosity Level", "medium");
     params->set("Preconditioner Type", "None");
 
@@ -74,9 +80,78 @@ void ConstraintSolver::reset() {
     mobOpRcp_.reset();
 }
 
-// TODO: give ConstraintSolver COMM access
+// void ConstraintSolver::dumpConstraints() {
+//     /////////////////////////////////////////////////
+//     // Check if there are any constraints to solve //
+//     /////////////////////////////////////////////////
+//     const int numLocalConstraints = conCollectorPtr_->getLocalNumberOfConstraints();
+//     int numGlobalConstraints;
+//     MPI_Allreduce(&numLocalConstraints, &numGlobalConstraints, 1, MPI_INT, MPI_SUM, MPI_COMM_WORLD);
+
+//     if (numGlobalConstraints == 0) { 
+//         return;
+//     }
+
+//     ///////////////////////////////////////
+//     // Create the model evaluator object //
+//     ///////////////////////////////////////
+//     Teuchos::RCP<EvaluatorTpetraConstraint> model = Teuchos::rcp(new EvaluatorTpetraConstraint(commRcp_, mobOpRcp_, conCollectorPtr_, ptcSystemPtr_, dt_));
+//     model->set_W_factory(lowsFactory_);
+
+//     //////////////////////////////
+//     // Create the JFNK operator //
+//     //////////////////////////////
+//     Teuchos::ParameterList printParams;
+//     Teuchos::RCP<Teuchos::ParameterList> jfnkParams = Teuchos::parameterList();
+//     jfnkParams->set("Difference Type", "Forward");
+//     jfnkParams->set("Perturbation Algorithm", "KSP NOX 2001");
+//     jfnkParams->set("lambda", 1.0e-4);
+//     Teuchos::RCP<NOX::Thyra::MatrixFreeJacobianOperator<Scalar> > jfnkOp =
+//         Teuchos::rcp(new NOX::Thyra::MatrixFreeJacobianOperator<Scalar>(printParams));
+//     jfnkOp->setParameterList(jfnkParams);
+
+//     // Wrap the model evaluator in a JFNK Model Evaluator
+//     Teuchos::RCP<Thyra::ModelEvaluator<Scalar> > thyraModel =
+//         Teuchos::rcp(new NOX::MatrixFreeModelEvaluatorDecorator<Scalar>(model));
+
+//     //////////////////////////////
+//     // Create the initial guess //
+//     //////////////////////////////
+//     Teuchos::RCP<Thyra::VectorBase<Scalar>> initial_guess = model->getNominalValues().get_x()->clone_v();
+
+//     Teuchos::RCP<NOX::Thyra::Group> noxGroup = Teuchos::rcp(new NOX::Thyra::Group(
+//         *initial_guess, model, model->create_W_op(), lowsFactory_, Teuchos::null, Teuchos::null, Teuchos::null));
+
+//     // model, model->create_W_op()
+
+//     noxGroup->computeF(); //TODO: is this necessary?
+//     noxGroup->computeJacobian(); //TODO: is this necessary?
+
+//     // VERY IMPORTANT!!!  jfnk object needs base evaluation objects.
+//     // This creates a circular dependency, so use a weak pointer.
+//     jfnkOp->setBaseEvaluationToNOXGroup(noxGroup.create_weak());
+
+//     ///////////////////////////////
+//     // Get the Jacobian as a TOP //
+//     /////////////////////////////// 
+//     // Thyra::LinearOpBase -> Thyra::TpetraLinearOp -> Tpetra::Operator
+//     Teuchos::RCP<Thyra::LinearOpBase<Scalar> > jacThyraOpBaseRcp = noxGroup->getNonconstJacobianOperator();
+//     Teuchos::RCP<TOP> jacTOP = Teuchos::rcp_dynamic_cast<Thyra::TpetraLinearOp<Scalar, LO, GO, Node> >(jacThyraOpBaseRcp, true)->getTpetraOperator();
+//     dumpTOP(jacTOP, "Jacobian");
+// }
 
 void ConstraintSolver::solveConstraints() {
+    /////////////////////////////////////////////////
+    // Check if there are any constraints to solve //
+    /////////////////////////////////////////////////
+    const int numLocalConstraints = conCollectorPtr_->getLocalNumberOfConstraints();
+    int numGlobalConstraints;
+    MPI_Allreduce(&numLocalConstraints, &numGlobalConstraints, 1, MPI_INT, MPI_SUM, MPI_COMM_WORLD);
+
+    if (numGlobalConstraints == 0) { 
+        return;
+    }
+
     ///////////////////////////////////////
     // Create the model evaluator object //
     ///////////////////////////////////////
@@ -84,15 +159,38 @@ void ConstraintSolver::solveConstraints() {
     model->set_W_factory(lowsFactory_);
 
     //////////////////////////////
+    // Create the JFNK operator //
+    //////////////////////////////
+    Teuchos::ParameterList printParams;
+    Teuchos::RCP<Teuchos::ParameterList> jfnkParams = Teuchos::parameterList();
+    jfnkParams->set("Difference Type", "Forward");
+    jfnkParams->set("Perturbation Algorithm", "KSP NOX 2001");
+    jfnkParams->set("lambda", 1.0e-4);
+    Teuchos::RCP<NOX::Thyra::MatrixFreeJacobianOperator<Scalar> > jfnkOp =
+        Teuchos::rcp(new NOX::Thyra::MatrixFreeJacobianOperator<Scalar>(printParams));
+    jfnkOp->setParameterList(jfnkParams);
+
+    // Wrap the model evaluator in a JFNK Model Evaluator
+    Teuchos::RCP<Thyra::ModelEvaluator<Scalar> > thyraModel =
+        Teuchos::rcp(new NOX::MatrixFreeModelEvaluatorDecorator<Scalar>(model));
+
+    //////////////////////////////
     // Create the initial guess //
     //////////////////////////////
     Teuchos::RCP<Thyra::VectorBase<Scalar>> initial_guess = model->getNominalValues().get_x()->clone_v();
+
     Teuchos::RCP<NOX::Thyra::Group> noxGroup = Teuchos::rcp(new NOX::Thyra::Group(
         *initial_guess, model, model->create_W_op(), lowsFactory_, Teuchos::null, Teuchos::null, Teuchos::null));
 
-    // noxGroup->computeF(); //TODO: is this necessary?
-    // noxGroup->computeJacobian(); //TODO: is this necessary?
+    // model, model->create_W_op(),
+    // thyraModel, jfnkOp,
 
+    noxGroup->computeF(); //TODO: is this necessary? No, I don't think so
+    noxGroup->computeJacobian(); //TODO: is this necessary? No, I know think so
+
+    // VERY IMPORTANT!!!  jfnk object needs base evaluation objects.
+    // This creates a circular dependency, so use a weak pointer.
+    jfnkOp->setBaseEvaluationToNOXGroup(noxGroup.create_weak());
 
     ///////////////////////////////
     // Create and run the solver //

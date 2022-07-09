@@ -59,6 +59,9 @@ void SylinderSystem::initialize(const std::string &posFile) {
         writeBox();
     }
 
+    // make sure the current position and orientation are updated
+    advanceParticles();
+
     spdlog::warn("SylinderSystem Initialized. {} local sylinders", sylinderContainer.getNumberOfParticleLocal());
 }
 
@@ -98,6 +101,9 @@ void SylinderSystem::reinitialize(const std::string &pvtpFileName_, bool eulerSt
     setTreeSylinder();
     calcVolFrac();
 
+    // make sure the current position and orientation are updated
+    advanceParticles();
+    
     spdlog::warn("SylinderSystem Initialized. {} local sylinders", sylinderContainer.getNumberOfParticleLocal());
 }
 
@@ -673,24 +679,6 @@ void SylinderSystem::collectConstraints() {
         Teuchos::TimeMonitor mon(*collectLinkTimer);
         collectLinkBilateral();
     }
-    // // solve collision
-    // // positive buffer value means collision radius is effectively smaller
-    // // i.e., less likely to collide
-    // Teuchos::RCP<Teuchos::Time> solveTimer = Teuchos::TimeMonitor::getNewCounter("SylinderSystem::SolveConstraints");
-    // {
-    //     Teuchos::TimeMonitor mon(*solveTimer);
-    //     const double buffer = 0;
-    //     spdlog::debug("constraint solver setup");
-    //     conSolverPtr->setup(*conCollectorPtr, mobilityOperatorRcp, velocityNonConRcp, runConfig.dt);
-    //     spdlog::debug("setControl");
-    //     conSolverPtr->setControlParams(runConfig.conResTol, runConfig.conMaxIte, runConfig.conSolverChoice);
-    //     spdlog::debug("solveConstraints");
-    //     conSolverPtr->solveConstraints();
-    //     spdlog::debug("writebackGamma");
-    //     conSolverPtr->writebackGamma();
-    // }
-
-    // saveForceVelocityConstraints();
 }
 
 void SylinderSystem::updateSylinderMap() {
@@ -1121,10 +1109,23 @@ void SylinderSystem::buildsylinderNearDataDirectory() {
     sylinderNearDataDirectory.buildIndex();
 }
 
+void SylinderSystem::updatesylinderNearDataDirectory() {
+    const int nLocal = sylinderContainer.getNumberOfParticleLocal();
+    auto &sylinderNearDataDirectory = *sylinderNearDataDirectoryPtr;
+#pragma omp parallel for
+    for (int i = 0; i < nLocal; i++) {
+        assert(sylinderNearDataDirectory.gidOnLocal[i] == sylinderContainer[i].gid);
+        sylinderNearDataDirectory.dataOnLocal[i].copyFromFP(sylinderContainer[i]);
+    }
+
+    // build index (must be called even though the index is unchanged. boooooo)
+    sylinderNearDataDirectory.buildIndex();
+}
+
 // TODO: move to particle-particle interaction class
 void SylinderSystem::collectPairCollision() {
 
-    CalcSylinderNearForce calcColFtr(conCollectorPtr->constraintPoolPtr);
+    CalcSylinderNearForce calcColFtr(conCollectorPtr->constraintPoolPtr, runConfig.dt, runConfig.viscosity);
 
     TEUCHOS_ASSERT(treeSylinderNearPtr);
     const int nLocal = sylinderContainer.getNumberOfParticleLocal();
@@ -1208,7 +1209,11 @@ void SylinderSystem::collectLinkBilateral() {
                 const Evec3 rvec = Qloc - Ploc;
                 const double rnorm = rvec.norm();
                 const double sep = rnorm - syI.radius - syJ.radius - runConfig.linkGap;
-                const double gammaGuess = sep < 0 ? -sep : 0;
+
+                const double Pi = 3.14159265358979323846;
+                const double mu = runConfig.viscosity;
+                const double gammaGuess = sep < 0 ? -0.5 * sep / runConfig.dt * 6 * Pi * mu : 0;
+
                 const Evec3 normI = (Ploc - Qloc).normalized();
                 const Evec3 normJ = -normI;
                 const Evec3 posI = Ploc - centerI;
@@ -1280,7 +1285,7 @@ void SylinderSystem::updatePairCollision() {
     // Step 2. Update each constraint
     //TODO: rewrite CalcSylinderNearForce/SylinderNear to be more of a utils class without memory storage
     //      we need a function that generates the constraint info using two particles/links/walls and the constraint type between them
-    CalcSylinderNearForce forceNear;
+    CalcSylinderNearForce calcColFtr(conCollectorPtr->constraintPoolPtr, runConfig.dt, runConfig.viscosity);
 
     // multi-thread filling. nThreads = poolSize, each thread process a queue
 #pragma omp parallel for num_threads(nThreads)
@@ -1292,7 +1297,7 @@ void SylinderSystem::updatePairCollision() {
             const int idx = cBlockIndexBase + 2 * j;
             const auto &syI = sylinderNearDataDirectoryPtr->dataToFind[idx + 0]; // sylinderNearI
             const auto &syJ = sylinderNearDataDirectoryPtr->dataToFind[idx + 1]; // sylinderNearJ
-            forceNear.updateCollisionBlock(syI, syJ, cBlockQue[j]);
+            calcColFtr.updateCollisionBlock(syI, syJ, cBlockQue[j]);
         }
     }
 }

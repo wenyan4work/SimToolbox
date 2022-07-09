@@ -154,7 +154,7 @@ class Sylinder {
      *
      * @param dt
      */
-    void stepEuler(double dt);
+    void stepEuler(const double dt);
 
     /**
      * @brief advance the current position and orientation to the position and orientation at the next timestep

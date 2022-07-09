@@ -85,6 +85,13 @@ void DryPhysicsController::initialize(const SylinderConfig &runConfig_, const st
     ptcSystemPtr->prepareStep(stepCount);
     ptcSystemPtr->collectConstraints(); 
     conSolverPtr->setup(runConfig.dt);
+
+    std::string baseFolder = getCurrentResultFolder();
+    IOHelper::makeSubFolder(baseFolder);
+    const std::string postfix = std::to_string(snapID);
+    ptcSystemPtr->writeResult(stepCount, baseFolder, postfix); //TODO: split this function into two: one for ptcSystem and one for ConCollector
+    writeTimeStepInfo(baseFolder, postfix);
+
     conSolverPtr->solveConstraints(); 
     ptcSystemPtr->advanceParticles();
 
@@ -102,8 +109,6 @@ void DryPhysicsController::reinitialize(const SylinderConfig &runConfig_, const 
     myfile >> stepCount;
     myfile >> snapID;
     myfile >> pvtpFileName;
-    std::string baseFolder = getCurrentResultFolder();
-    pvtpFileName = baseFolder + pvtpFileName;
 
     // increment the rngSeed forward by one to ensure randomness compared to previous run
     restartRngSeed++;
@@ -133,6 +138,8 @@ void DryPhysicsController::reinitialize(const SylinderConfig &runConfig_, const 
     conCollectorPtr = std::make_shared<ConstraintCollector>();
     ptcSystemPtr = std::make_shared<SylinderSystem>(runConfig, commRcp, rngPoolPtr, conCollectorPtr);
     conSolverPtr = std::make_shared<ConstraintSolver>(commRcp, conCollectorPtr, ptcSystemPtr); 
+    std::string baseFolder = getCurrentResultFolder();
+    pvtpFileName = baseFolder + pvtpFileName;
     ptcSystemPtr->reinitialize(pvtpFileName);
 
     // misc
@@ -200,6 +207,7 @@ void DryPhysicsController::writeTimeStepInfo(const std::string &baseFolder, cons
 std::string DryPhysicsController::getCurrentResultFolder() { return getResultFolderWithID(this->snapID); }
 
 std::string DryPhysicsController::getResultFolderWithID(int snapID_) {
+    TEUCHOS_ASSERT(nonnull(commRcp));
     const int num = std::max(400 / commRcp->getSize(), 1); // limit max number of files per folder
     int k = snapID_ / num;
     int low = k * num, high = k * num + num - 1;

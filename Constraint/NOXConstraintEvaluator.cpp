@@ -65,10 +65,7 @@ EvaluatorTpetraConstraint::EvaluatorTpetraConstraint(const Teuchos::RCP<const TC
   prototypeOutArgs_ = outArgs;
 
   // set the initial condition
-  // x0Rcp_ = Thyra::createVector(xGuessRcp_, xSpaceRcp_);
-  x0Rcp_ = Thyra::createMember(xSpaceRcp_);
-  Thyra::V_S(x0Rcp_.ptr(), Teuchos::ScalarTraits<Scalar>::one());
-
+  x0Rcp_ = Thyra::createVector(xGuessRcp_, xSpaceRcp_);
   nominalValues_ = inArgs;
   nominalValues_.set_x(x0Rcp_); 
 
@@ -195,21 +192,37 @@ evalModelImpl(const Thyra::ModelEvaluatorBase::InArgs<Scalar> &inArgs,
     //////////////////////
     // fill the objects //
     //////////////////////
-    // build the D and D^T matrices using the current configuration and current xRcp
-    /* 
-    
-      TODO: nothing within conCollector or SylinderSystem should use gamma when creating constraints
-      The only exception is gammaGuess. That means constraint value and constraint diagonal should be computed within their respective fill calls
-      evalConstraintValues and fillConstraintDiaginals should be evalConstraintValues and evalConstraintDiaginals and be functions of xRcp!
-
-    */
-
     Teuchos::RCP<const TCMAT> DMatTransRcp = conCollectorPtr_->buildConstraintMatrixVector(mobMapRcp_, xMapRcp_, xRcp);
     Tpetra::RowMatrixTransposer<double, int, int> transposerDu(DMatTransRcp);
     Teuchos::RCP<const TCMAT> DMatRcp = transposerDu.createTranspose();
 
     // fill the constraint values
     if (fill_f) {
+      std::cout << "### UPDATE SYLINDERSYSTEM ###" << std::endl;
+
+      ///////////////////////////////////////////////
+      // Step 1. update the particle configuration //
+      ///////////////////////////////////////////////
+      // step 1.1 solve for the induced force and velocity
+      DMatRcp->apply(*xRcp, *forceRcp_);
+      mobOpRcp_->apply(*forceRcp_, *velRcp_);
+
+      // step 1.2. update the particle system
+      // send the constraint vel and force to the particles
+      ptcSystemPtr_->saveForceVelocityConstraints(forceRcp_, velRcp_);
+      // merge the constraint and nonconstraint vel and force
+      ptcSystemPtr_->sumForceVelocity();
+      // move the particles according to the total velocity
+      ptcSystemPtr_->stepEuler();
+
+      // step 1.3. update all constraints
+      // this must NOT generate new constraints and MUST maintain the current constraint ordering
+      ptcSystemPtr_->updatesylinderNearDataDirectory();
+      ptcSystemPtr_->updatePairCollision();
+
+      ////////////////////////////////////////////////////////////////////
+      // Step 2. fill the constraint based on the updated configuration //
+      ////////////////////////////////////////////////////////////////////
       conCollectorPtr_->evalConstraintValues(xRcp, fRcp);
     }
 
@@ -219,31 +232,26 @@ evalModelImpl(const Thyra::ModelEvaluatorBase::InArgs<Scalar> &inArgs,
       JRcp->initialize(mobOpRcp_, DMatTransRcp, DMatRcp, constraintDiagonalRcp_, dt_);
     }
 
-    ///////////////////////////////////////
-    // update the particle configuration //
-    ///////////////////////////////////////
-    // step 1. solve for the induced force and velocity
-    DMatRcp->apply(*xRcp, *forceRcp_);
-    mobOpRcp_->apply(*forceRcp_, *velRcp_);
-
-    // step 2. update the particle system
-    // send the constraint vel and force to the particles
-    ptcSystemPtr_->saveForceVelocityConstraints(forceRcp_, velRcp_);
-    // merge the constraint and nonconstraint vel and force
-    ptcSystemPtr_->sumForceVelocity();
-    // move the particles according to the total velocity
-    ptcSystemPtr_->stepEuler();
-
-    // step 3. update all constraints
-    // this must NOT generate new constraints and MUST maintain the current constraint ordering
-    ptcSystemPtr_->updatePairCollision();
+    // for debug, dump to file
+    // dumpToFile(JRcp, xRcp, DMatTransRcp, mobOpRcp_);
   }
 }
 
 
-////////////////////////////////////////////////////////
-// Jacobian operator implementations
-////////////////////////////////////////////////////////
+void EvaluatorTpetraConstraint::dumpToFile(const Teuchos::RCP<const TOP> JRcp, 
+                                           const Teuchos::RCP<const TV> xRcp, 
+                                           const Teuchos::RCP<const TCMAT> DMatTransRcp,
+                                           const Teuchos::RCP<const TOP> mobOpRcp) const {
+  // only dump nonnull objects
+  if (nonnull(JRcp)) {dumpTOP(JRcp, "Jacobian");}
+  if (nonnull(xRcp)) {dumpTV(xRcp, "Gamma");}
+  if (nonnull(DMatTransRcp)) {dumpTCMAT(DMatTransRcp, "Dmat");}
+  if (nonnull(mobOpRcp)) {dumpTOP(mobOpRcp, "Mobility");}
+}
+
+///////////////////////////////////////
+// Jacobian operator implementations //
+///////////////////////////////////////
 
 
 JacobianOperator::JacobianOperator(const Teuchos::RCP<const TMAP> &xMapRcp) :
@@ -298,6 +306,10 @@ Teuchos::RCP<const TMAP>JacobianOperator::getRangeMap() const
   return xMapRcp_;
 }
 
+bool JacobianOperator::hasTransposeApply() const 
+{
+  return true;
+}
 
 void JacobianOperator::
 apply(const TMV& X, TMV& Y, Teuchos::ETransp mode,
@@ -306,7 +318,7 @@ apply(const TMV& X, TMV& Y, Teuchos::ETransp mode,
                               "X and Y do not have the same numbers of vectors (columns).");
   TEUCHOS_TEST_FOR_EXCEPTION(!X.getMap()->isSameAs(*Y.getMap()), std::invalid_argument,
                               "X and Y do not have the same Map.\n");
-  TEUCHOS_ASSERT(mode == Teuchos::NO_TRANS);
+  // TEUCHOS_ASSERT(mode == Teuchos::NO_TRANS); // The jacobian is symmetric, so trans apply is ok.
   TEUCHOS_ASSERT(nonnull(mobOpRcp_));
   TEUCHOS_ASSERT(nonnull(forceRcp_));
   TEUCHOS_ASSERT(nonnull(velRcp_));

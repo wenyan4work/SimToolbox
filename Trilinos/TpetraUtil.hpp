@@ -81,13 +81,23 @@ using thyra_vec = Thyra::VectorBase<Scalar>;
 using thyra_op = Thyra::LinearOpBase<Scalar>;
 using thyra_prec = Thyra::PreconditionerBase<Scalar>;
 
+//TODO: can we move all of this into a namepace? I want to know where everything is coming from
+
+/**
+ * @brief write TOP A to a file in MatrixMarket format
+ *
+ * @param A
+ * @param filename
+ */
+void dumpTOP(const Teuchos::RCP<const TOP> &A, const std::string &filename);
+
 /**
  * @brief write TCMAT A to a file in MatrixMarket format
  *
  * @param A
  * @param filename
  */
-void dumpTCMAT(const Teuchos::RCP<const TCMAT> &A, std::string filename);
+void dumpTCMAT(const Teuchos::RCP<const TCMAT> &A, const std::string &filename);
 
 /**
  * @brief write TOP A to a file in MatrixMarket format

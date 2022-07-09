@@ -71,6 +71,13 @@ private:
 
   //@}
 
+  // debug functions
+  void dumpToFile(const Teuchos::RCP<const TOP> JRcp, 
+                  const Teuchos::RCP<const TV> xRcp, 
+                  const Teuchos::RCP<const TCMAT> DMatTransRcp,
+                  const Teuchos::RCP<const TOP> mobOpRcp) const;
+
+
 private: // data members
 
   double dt_;
@@ -125,6 +132,8 @@ public:
   virtual Teuchos::RCP<const TMAP> getDomainMap() const;
 
   virtual Teuchos::RCP<const TMAP> getRangeMap() const;
+
+  virtual bool hasTransposeApply() const;
 
   virtual void
   apply(const TMV& X,
