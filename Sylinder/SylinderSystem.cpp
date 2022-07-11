@@ -91,11 +91,7 @@ void SylinderSystem::initialize(const SylinderConfig &runConfig_, const std::str
         spdlog::warn("Initial Collision Resolution Begin");
         for (int i = 0; i < runConfig.initPreSteps; i++) {
             prepareStep();
-            calcVelocityNonCon();
-            resolveConstraints();
-            saveForceVelocityConstraints();
-            sumForceVelocity();
-            stepEuler();
+            runStep(true);
         }
         spdlog::warn("Initial Collision Resolution End");
     }
@@ -947,26 +943,26 @@ void SylinderSystem::setVelocityNonBrown(const std::vector<double> &velNonBrown)
     velocityPartNonBrownRcp = getTVFromVector(velNonBrown, commRcp);
 }
 
-void SylinderSystem::runStep() {
-
-    if (runConfig.KBT > 0) {
-        calcVelocityBrown();
-    }
-
+void SylinderSystem::runStep(const bool pseudoStep) {
+    // for pseudo-steps don't write results or increment the step count 
     calcVelocityNonCon();
 
     resolveConstraints();
 
     sumForceVelocity();
 
-    if (getIfWriteResultCurrentStep()) {
-        // write result before moving. guarantee data written is consistent to geometry
-        writeResult();
+    if (pseudoStep == false) {
+        if (getIfWriteResultCurrentStep()) {
+            // write result before moving. guarantee data written is consistent to geometry
+            writeResult();
+        }
     }
 
     stepEuler();
 
-    stepCount++;
+    if (pseudoStep == false) {
+        stepCount++;
+    }
 }
 
 void SylinderSystem::saveForceVelocityConstraints() {
@@ -1029,6 +1025,11 @@ void SylinderSystem::saveForceVelocityConstraints() {
 }
 
 void SylinderSystem::calcVelocityBrown() {
+    // Skip if KBT isn't positive
+    if (runConfig.KBT <= 0.0) {
+        return;
+    }
+
     const int nLocal = sylinderContainer.getNumberOfParticleLocal();
     const double Pi = 3.1415926535897932384626433;
     const double mu = runConfig.viscosity;

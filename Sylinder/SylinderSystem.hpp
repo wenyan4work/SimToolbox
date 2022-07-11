@@ -336,7 +336,7 @@ class SylinderSystem {
      * @brief resolve collision with given nonBrownian motion and advance the system configuration
      *
      */
-    void runStep();
+    void runStep(const bool pseudoStep);
 
     // These should run after runStep()
     /**
