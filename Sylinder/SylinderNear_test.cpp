@@ -89,19 +89,21 @@ void testFixedPair() {
     ForceNear fnear;
     calc(sylinderP.data(), 1, sylinderQ.data(), 1, &fnear);
     printf("%zu collisions recorded\n", calc.conPoolPtr->front().size());
-    auto stress = calc.conPoolPtr->front().front().stress;
+    auto stressI = calc.conPoolPtr->front().front().stressI;
+    auto stressJ = calc.conPoolPtr->front().front().stressJ;
+
     printf("stress:\n");
     printMat3(stress);
     bool pass = true;
-    pass = pass && fabs(stress[0] - 0) < 1e-6;
-    pass = pass && fabs(stress[1] - 0) < 1e-6;
-    pass = pass && fabs(stress[2] - 0.0160681) < 1e-6;
-    pass = pass && fabs(stress[3] - 0) < 1e-6;
-    pass = pass && fabs(stress[4] - 0) < 1e-6;
-    pass = pass && fabs(stress[5] - 0.0278307) < 1e-6;
-    pass = pass && fabs(stress[6] - 0.0160681) < 1e-6;
-    pass = pass && fabs(stress[7] - 0.0278307) < 1e-6;
-    pass = pass && fabs(stress[8] - 1) < 1e-6;
+    pass = pass && fabs(stressI[0] + stressJ[0] - 0) < 1e-6;
+    pass = pass && fabs(stressI[1] + stressJ[1] - 0) < 1e-6;
+    pass = pass && fabs(stressI[2] + stressJ[2] - 0.0160681) < 1e-6;
+    pass = pass && fabs(stressI[3] + stressJ[3] - 0) < 1e-6;
+    pass = pass && fabs(stressI[4] + stressJ[4] - 0) < 1e-6;
+    pass = pass && fabs(stressI[5] + stressJ[5] - 0.0278307) < 1e-6;
+    pass = pass && fabs(stressI[6] + stressJ[6] - 0.0160681) < 1e-6;
+    pass = pass && fabs(stressI[7] + stressJ[7] - 0.0278307) < 1e-6;
+    pass = pass && fabs(stressI[8] + stressJ[8] - 1) < 1e-6;
 
     if (pass) {
     } else {
@@ -159,10 +161,11 @@ void testParallel() {
     ForceNear fnear;
     calc(sylinderP.data(), 1, sylinderQ.data(), 1, &fnear);
     printf("%zu collisions recorded\n", calc.conPoolPtr->front().size());
-    auto stress = calc.conPoolPtr->front().front().stress;
+    auto stressI = calc.conPoolPtr->front().front().stressI;
+    auto stressJ = calc.conPoolPtr->front().front().stressJ;
     auto block = calc.conPoolPtr->front().front();
     printf("stress:\n");
-    printMat3(stress);
+    printMat3(stressI + stressJ);
     printf("posI:\n");
     printVec3(block.posI);
     printf("posJ:\n");
@@ -218,10 +221,11 @@ void testSphere() {
     ForceNear fnear;
     calc(sylinderP.data(), 1, sylinderQ.data(), 1, &fnear);
     printf("%zu collisions recorded\n", calc.conPoolPtr->front().size());
-    auto stress = calc.conPoolPtr->front().front().stress;
+    auto stressI = calc.conPoolPtr->front().front().stressI;
+    auto stressJ = calc.conPoolPtr->front().front().stressJ;
     auto block = calc.conPoolPtr->front().front();
     printf("stress:\n");
-    printMat3(stress);
+    printMat3(stressI + stressJ);
     printf("posI:\n");
     printVec3(block.posI);
     printf("posJ:\n");
@@ -292,10 +296,11 @@ void testSylinderSphere() {
     ForceNear fnear;
     calc(sylinderP.data(), 1, sylinderQ.data(), 1, &fnear);
     printf("%zu collisions recorded\n", calc.conPoolPtr->front().size());
-    auto stress = calc.conPoolPtr->front().front().stress;
+    auto stressI = calc.conPoolPtr->front().front().stressI;
+    auto stressJ = calc.conPoolPtr->front().front().stressJ;
     auto block = calc.conPoolPtr->front().front();
     printf("stress:\n");
-    printMat3(stress);
+    printMat3(stressI + stressJ);
     printf("posI:\n");
     printVec3(block.posI);
     printf("posJ:\n");

@@ -252,6 +252,9 @@ class CalcSylinderNearForce {
         // sphere collide with sphere
         const Evec3 centerI = ECmap3(spI.pos);
         const Evec3 centerJ = ECmap3(spJ.pos);
+        const Evec3 directionI = ECmap3(spI.direction);
+        const Evec3 directionJ = ECmap3(spJ.direction);
+
         // effective radius of sphere = sp.lengthCollision*0.5 + sp.radiusCollision
         const double radI = spI.lengthCollision * 0.5 + spI.radiusCollision;
         const double radJ = spJ.lengthCollision * 0.5 + spJ.radiusCollision;
@@ -273,18 +276,23 @@ class CalcSylinderNearForce {
             const Evec3 normJ = -normI;
             const Evec3 posI = Ploc - centerI;
             const Evec3 posJ = Qloc - centerJ;
+            const bool sideI = directionI.dot(posI) > 0; // False -> LHS or True -> RHS
+            const bool sideJ = directionJ.dot(posJ) > 0; // False -> LHS or True -> RHS
             conBlock = ConstraintBlock(delta0, gamma,              // current separation, initial guess of gamma
                                        spI.gid, spJ.gid,           //
                                        spI.globalIndex,            //
                                        spJ.globalIndex,            //
+                                       sideI, sideJ,               //
                                        normI.data(), normJ.data(), // direction of collision force
                                        posI.data(), posJ.data(),   // location of collision relative to particle center
                                        Ploc.data(), Qloc.data(),   // location of collision in lab frame
                                        false, false, 0.0, 0.0);
-            Emat3 stressIJ = Emat3::Zero();
-            collideStress(Evec3(0, 0, 1), Evec3(0, 0, 1), centerI, centerJ, 0, 0, // length = 0, degenerates to sphere
-                          radI, radJ, 1.0, Ploc, Qloc, stressIJ);
-            conBlock.setStress(stressIJ);
+            Emat3 stressI = Emat3::Zero();
+            Emat3 stressJ = Emat3::Zero();
+            collideStress(directionI, directionJ, centerI, centerJ, 0, 0, // length = 0, degenerates to sphere
+                          radI, radJ, 1.0, Ploc, Qloc, stressI, stressJ);
+            conBlock.setStressI(stressI);
+            conBlock.setStressJ(stressJ);
         }
         return collision;
     }
@@ -306,10 +314,10 @@ class CalcSylinderNearForce {
         // effective radius of sphere = sp.lengthCollision*0.5 + sp.radiusCollision
 
         const Evec3 centerI = ECmap3(spI.pos);
+        const Evec3 centerJ = ECmap3(syJ.pos);
         const double radI = spI.lengthCollision * 0.5 + spI.radiusCollision;
 
-        const Evec3 centerJ = ECmap3(syJ.pos);
-
+        const Evec3 directionI = ECmap3(spI.direction);
         const Evec3 directionJ = ECmap3(syJ.direction);
         const Evec3 Qm = centerJ - directionJ * (0.5 * syJ.lengthCollision); // minus end
         const Evec3 Qp = centerJ + directionJ * (0.5 * syJ.lengthCollision); // plus end
@@ -330,11 +338,13 @@ class CalcSylinderNearForce {
             const Evec3 normJ = -normI;
             const Evec3 posI = Ploc - centerI;
             const Evec3 posJ = Qloc - centerJ;
-            Emat3 stressIJ;
+            const bool sideI = directionI.dot(posI) > 0; // False -> LHS or True -> RHS
+            const bool sideJ = directionJ.dot(posJ) > 0; // False -> LHS or True -> RHS
             conBlock = ConstraintBlock(delta0, gamma,              // current separation, initial guess of gamma
                                        spI.gid, syJ.gid,           //
                                        spI.globalIndex,            //
                                        syJ.globalIndex,            //
+                                       sideI, sideJ,               //
                                        normI.data(), normJ.data(), // direction of collision force
                                        posI.data(), posJ.data(),   // location of collision relative to particle center
                                        Ploc.data(), Qloc.data(),   // location of collision in lab frame
@@ -342,9 +352,12 @@ class CalcSylinderNearForce {
             if (reverseIJ) {
                 conBlock.reverseIJ();
             }
-            collideStress(Evec3(0, 0, 1), directionJ, centerI, centerJ, 0, syJ.lengthCollision, radI,
-                          syJ.radiusCollision, 1.0, Ploc, Qloc, stressIJ);
-            conBlock.setStress(stressIJ);
+            Emat3 stressI = Emat3::Zero();
+            Emat3 stressJ = Emat3::Zero();
+            collideStress(directionI, directionJ, centerI, centerJ, 0, syJ.lengthCollision, radI,
+                          syJ.radiusCollision, 1.0, Ploc, Qloc, stressI, stressJ);
+            conBlock.setStressI(stressI);
+            conBlock.setStressJ(stressJ);
         }
         return collision;
     }
@@ -365,11 +378,11 @@ class CalcSylinderNearForce {
         DCPQuery<3, double, Evec3> DistSegSeg3;
 
         const Evec3 centerI = ECmap3(syI.pos);
+        const Evec3 centerJ = ECmap3(syJ.pos);
         const Evec3 directionI = ECmap3(syI.direction);
         const Evec3 Pm = centerI - directionI * (0.5 * syI.lengthCollision); // minus end
         const Evec3 Pp = centerI + directionI * (0.5 * syI.lengthCollision); // plus end
 
-        const Evec3 centerJ = ECmap3(syJ.pos);
         Evec3 Ploc = Evec3::Zero();
         Evec3 Qloc = Evec3::Zero();
 
@@ -391,18 +404,23 @@ class CalcSylinderNearForce {
             const Evec3 normJ = -normI;
             const Evec3 posI = Ploc - centerI;
             const Evec3 posJ = Qloc - centerJ;
+            const bool sideI = directionI.dot(posI) > 0; // False -> LHS or True -> RHS
+            const bool sideJ = directionJ.dot(posJ) > 0; // False -> LHS or True -> RHS
             conBlock = ConstraintBlock(delta0, gamma,              // current separation, initial guess of gamma
                                        syI.gid, syJ.gid,           //
                                        syI.globalIndex,            //
                                        syJ.globalIndex,            //
+                                       sideI, sideJ,               //
                                        normI.data(), normJ.data(), // direction of collision force
                                        posI.data(), posJ.data(),   // location of collision relative to particle center
                                        Ploc.data(), Qloc.data(),   // location of collision in lab frame
                                        false, false, 0.0, 0.0);
-            Emat3 stressIJ;
+            Emat3 stressI = Emat3::Zero();
+            Emat3 stressJ = Emat3::Zero();
             collideStress(directionI, directionJ, centerI, centerJ, syI.lengthCollision, syJ.lengthCollision,
-                          syI.radiusCollision, syJ.radiusCollision, 1.0, Ploc, Qloc, stressIJ);
-            conBlock.setStress(stressIJ);
+                          syI.radiusCollision, syJ.radiusCollision, 1.0, Ploc, Qloc, stressI, stressJ);
+            conBlock.setStressI(stressI);
+            conBlock.setStressJ(stressJ);
         }
         return collision;
     }
@@ -427,7 +445,8 @@ class CalcSylinderNearForce {
                               const Evec3 &centerI, const Evec3 &centerJ,             //
                               double hI, double hJ, const double rI, const double rJ, //
                               const double rho,                                       //
-                              const Evec3 &Ploc, const Evec3 &Qloc, Emat3 &StressIJ) {
+                              const Evec3 &Ploc, const Evec3 &Qloc, 
+                              Emat3 &StressI, Emat3 &StressJ) {
         Emat3 NI, GAMMAI, NJ, GAMMAJ, InvGAMMAI, InvGAMMAJ;
         InitializeSyN(NI, rI, hI, rho);
         InitializeSyGA(GAMMAI, rI, hI, rho);
@@ -474,7 +493,8 @@ class CalcSylinderNearForce {
             }
         }
 
-        StressIJ = rIf + rJf + SGI + SGJ;
+        StressI = rIf + SGI;
+        StressJ = rJf + SGJ;
     }
 
     /**

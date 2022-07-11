@@ -129,7 +129,8 @@ class ConstraintCollector {
      * @param DTransRcp D^Trans matrix
      * @param delta0Rcp delta_0 vector
      * @param invKappaRcp K^{-1} vector
-     * @param biFlagRcp 1 for bilateral, 1 for unilateral
+     * @param biFlagRcp 1 for bilateral, 0 for unilateral
+     * @param ulFlagRcp 0 for bilateral, 1 for unilateral TODO: remove
      * @param gammaGuessRcp initial guess of gamma
      * @return int error code (TODO:)
      */
@@ -138,7 +139,29 @@ class ConstraintCollector {
                                     Teuchos::RCP<TV> &delta0Rcp,               //
                                     Teuchos::RCP<TV> &invKappaRcp,             //
                                     Teuchos::RCP<TV> &biFlagRcp,               //
+                                    Teuchos::RCP<TV> &ulFlagRcp,               //
                                     Teuchos::RCP<TV> &gammaGuessRcp) const;
+
+    /**
+     * @brief build the matrix and vectors used in constraint solver
+     *
+     * @param [in] endptMapRcp  endpoint map
+     * @param EMatTransRcp E^Trans matrix
+     * @return int error code (TODO:)
+     */
+    int buildGammaToProjEndptForceMatrix(const Teuchos::RCP<const TMAP> &endptMapRcp, //
+                                         Teuchos::RCP<TCMAT> &EMatTransRcp) const;
+
+    /**
+     * @brief build the matrix and vectors used in constraint solver
+     *
+     * @param [in] ptcMapRcp  center of mass map
+     * @param SMatTransRcp S^Trans matrix
+     * @return int error code (TODO:)
+     */
+    int buildGammaToVirialStressMatrix(const Teuchos::RCP<const TMAP> &ptcMapRcp, //
+                                       Teuchos::RCP<TCMAT> &SMatTransRcp) const;
+
 
     // /**
     //  * @brief build the K^{-1} diagonal matrix

@@ -78,10 +78,22 @@ class Sylinder {
     double torqueBi[3];   ///< bilateral constraint torque
     double forceNonB[3];  ///< all non-Brownian deterministic force before constraint resolution
     double torqueNonB[3]; ///< all non-Brownian deterministic torque before constraint resolution
+    double projEndptForce[2]; ///< total endpoint forces projected onto the director
+
+    // stress
+    double virialStress[9]; ///< virial stress induced on the particle by collisions
 
     // Brownian displacement
     double velBrown[3];   ///< Brownian velocity
     double omegaBrown[3]; ///< Brownian angular velocity
+
+    // growth
+    double tg;
+    double t;
+    double L0;
+	double deltaL;
+	double tauD;
+	double sigma;
 
     /**
      * @brief Construct a new Sylinder object
@@ -248,6 +260,9 @@ class Sylinder {
         cellDataFields.emplace_back(3, IOHelper::IOTYPE::Float32, "torqueBilateral");
         cellDataFields.emplace_back(3, IOHelper::IOTYPE::Float32, "forceNonBrown");
         cellDataFields.emplace_back(3, IOHelper::IOTYPE::Float32, "torqueNonBrown");
+    
+        cellDataFields.emplace_back(2, IOHelper::IOTYPE::Float32, "projEndptForce");
+        cellDataFields.emplace_back(9, IOHelper::IOTYPE::Float32, "virialStress");
 
         cellDataFields.emplace_back(3, IOHelper::IOTYPE::Float32, "velBrown");
         cellDataFields.emplace_back(3, IOHelper::IOTYPE::Float32, "omegaBrown");
@@ -323,6 +338,10 @@ class Sylinder {
         std::vector<float> torqueBi(3 * sylinderNumber);
         std::vector<float> forceNonB(3 * sylinderNumber);
         std::vector<float> torqueNonB(3 * sylinderNumber);
+        std::vector<float> projEndptForce(2 * sylinderNumber);
+
+        // stress 
+        std::vector<float> virialStress(9 * sylinderNumber);
 
         // Brownian motion
         std::vector<float> velBrown(3 * sylinderNumber);
@@ -390,6 +409,14 @@ class Sylinder {
                 xnorm[3 * i + j] = nx[j];
                 znorm[3 * i + j] = nz[j];
             }
+
+            for (int j = 0; j < 2; j++) {
+                projEndptForce[2 * i + j] = sy.projEndptForce[j];
+            }
+
+            for (int j = 0; j < 9; j++) {
+                virialStress[9 * i + j] = sy.virialStress[j];
+            }
         }
 
         std::ofstream file(prefix + std::string("Sylinder_") + "r" + std::to_string(rank) + std::string("_") + postfix +
@@ -439,6 +466,8 @@ class Sylinder {
         IOHelper::writeDataArrayBase64(torqueBi, "torqueBilateral", 3, file);
         IOHelper::writeDataArrayBase64(forceNonB, "forceNonBrown", 3, file);
         IOHelper::writeDataArrayBase64(torqueNonB, "torqueNonBrown", 3, file);
+        IOHelper::writeDataArrayBase64(projEndptForce, "projEndptForce", 2, file);
+        IOHelper::writeDataArrayBase64(virialStress, "virialStress", 9, file);
 
         IOHelper::writeDataArrayBase64(velBrown, "velBrown", 3, file);
         IOHelper::writeDataArrayBase64(omegaBrown, "omegaBrown", 3, file);

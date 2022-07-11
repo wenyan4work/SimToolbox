@@ -50,6 +50,9 @@ void Sylinder::clear() {
     Emap3(forceNonB).setZero();
     Emap3(torqueNonB).setZero();
 
+    std::fill(projEndptForce, projEndptForce + 2, 0);
+    std::fill(virialStress, virialStress + 9, 0);
+    
     Emap3(velBrown).setZero();
     Emap3(omegaBrown).setZero();
 

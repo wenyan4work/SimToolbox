@@ -30,11 +30,12 @@ class ConstraintOperator : public TOP {
      * @brief Construct a new ConstraintOperator object
      *
      * @param mobOp
-     * @param uniDuMat
-     * @param biDbMat
+     * @param DMatTransRcp
+     * @param DMatRcp
      * @param invKappaDiagMat
      */
-    ConstraintOperator(Teuchos::RCP<TOP> &mobOp_, Teuchos::RCP<TCMAT> &DMatTransRcp_, Teuchos::RCP<TV> &invKappa_);
+    ConstraintOperator(Teuchos::RCP<TOP> &mobOp_, Teuchos::RCP<TCMAT> &DMatTransRcp_, 
+                       Teuchos::RCP<TCMAT> &DMatRcp_, Teuchos::RCP<TV> &invKappa_);
 
     /**
      * @brief apply this operator, ensuring the block structure

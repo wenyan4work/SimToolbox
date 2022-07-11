@@ -1,23 +1,16 @@
 #include "ConstraintOperator.hpp"
 #include "Util/Logger.hpp"
 
-ConstraintOperator::ConstraintOperator(Teuchos::RCP<TOP> &mobOp_, Teuchos::RCP<TCMAT> &DMatTransRcp_,
-                                       Teuchos::RCP<TV> &invKappa_)
-    : commRcp(mobOp_->getDomainMap()->getComm()), mobOpRcp(mobOp_), DMatTransRcp(DMatTransRcp_), invKappa(invKappa_) {
+ConstraintOperator::ConstraintOperator(Teuchos::RCP<TOP> &mobOp_, Teuchos::RCP<TCMAT> &DMatTransRcp_, 
+                                       Teuchos::RCP<TCMAT> &DMatRcp_, Teuchos::RCP<TV> &invKappa_)
+    : commRcp(mobOp_->getDomainMap()->getComm()), mobOpRcp(mobOp_), DMatTransRcp(DMatTransRcp_), 
+      DMatRcp(DMatRcp_), invKappa(invKappa_) {
     // timer
-    transposeDMat = Teuchos::TimeMonitor::getNewCounter("ConstraintOperator::TransposeDMat");
     applyMobMat = Teuchos::TimeMonitor::getNewCounter("ConstraintOperator::ApplyMobility");
     applyDMat = Teuchos::TimeMonitor::getNewCounter("ConstraintOperator::ApplyDMat");
     applyDTransMat = Teuchos::TimeMonitor::getNewCounter("ConstraintOperator::ApplyDMatTrans");
 
     enableTimer();
-
-    // explicit transpose
-    {
-        Teuchos::TimeMonitor mon(*transposeDMat);
-        Tpetra::RowMatrixTransposer<double, int, int> transposerDu(DMatTransRcp);
-        DMatRcp = transposerDu.createTranspose();
-    }
 
     mobMapRcp = mobOpRcp->getDomainMap(); // symmetric & domainmap=rangemap
     gammaMapRcp = invKappa->getMap();
@@ -81,14 +74,12 @@ Teuchos::RCP<const TMAP> ConstraintOperator::getRangeMap() const {
 }
 
 void ConstraintOperator::enableTimer() {
-    transposeDMat->enable();
     applyMobMat->enable();
     applyDMat->enable();
     applyDTransMat->enable();
 }
 
 void ConstraintOperator::disableTimer() {
-    transposeDMat->disable();
     applyMobMat->disable();
     applyDMat->disable();
     applyDTransMat->disable();

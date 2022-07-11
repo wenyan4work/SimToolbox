@@ -53,6 +53,8 @@ class SylinderSystem {
     Teuchos::RCP<const TV> velocityUniRcp;                ///< unilateral constraint velocity
     Teuchos::RCP<const TV> forceBiRcp;                    ///< bilateral constraint force
     Teuchos::RCP<const TV> velocityBiRcp;                 ///< bilateral constraint velocity
+    Teuchos::RCP<const TV> stressUniRcp;                  ///< unilateral constraint virial stess
+    Teuchos::RCP<const TV> projEndptForceUniRcp;          ///< unilateral projected force vec
 
     // computed without knowledge of constraints
     Teuchos::RCP<TV> forcePartNonBrownRcp;    ///< force specified by setForceNonBrown()
@@ -65,6 +67,7 @@ class SylinderSystem {
     std::shared_ptr<TRngPool> rngPoolPtr;      ///< TRngPool object for thread-safe random number generation
     Teuchos::RCP<const TCOMM> commRcp;         ///< TCOMM, set as a Teuchos::MpiComm object in constrctor
     Teuchos::RCP<TMAP> sylinderMapRcp;         ///< TMAP, contiguous and sequentially ordered 1 dof per sylinder
+    Teuchos::RCP<TMAP> sylinderEndpointMapRcp; ///< TMAP, contiguous and sequentially ordered 2 dof per sylinder
     Teuchos::RCP<TMAP> sylinderMobilityMapRcp; ///< TMAP, contiguous and sequentially ordered 6 dofs per sylinder
     Teuchos::RCP<TCMAT> mobilityMatrixRcp;     ///< block-diagonal mobility matrix
     Teuchos::RCP<TOP> mobilityOperatorRcp;     ///< full mobility operator (matrix-free), to be implemented

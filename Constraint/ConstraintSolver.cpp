@@ -2,6 +2,8 @@
 #include "Util/Logger.hpp"
 
 void ConstraintSolver::setup(ConstraintCollector &conCollector_, Teuchos::RCP<TOP> &mobOpRcp_,
+                             Teuchos::RCP<TMAP> &endptMapRcp_, 
+                             Teuchos::RCP<TMAP> &ptcMapRcp_,
                              Teuchos::RCP<TV> &velncRcp_, double dt_) {
     reset();
 
@@ -9,11 +11,22 @@ void ConstraintSolver::setup(ConstraintCollector &conCollector_, Teuchos::RCP<TO
 
     dt = dt_;
     mobOpRcp = mobOpRcp_;
+    endptMapRcp = endptMapRcp_;
+    ptcMapRcp = ptcMapRcp_;
     velncRcp = velncRcp_;
 
     mobMapRcp = mobOpRcp->getDomainMap();
 
-    conCollector.buildConstraintMatrixVector(mobMapRcp, DMatTransRcp, delta0Rcp, invKappaRcp, biFlagRcp, gammaRcp);
+    conCollector.buildConstraintMatrixVector(mobMapRcp, DMatTransRcp, delta0Rcp, invKappaRcp, biFlagRcp, ulFlagRcp, gammaRcp);
+    conCollector.buildGammaToProjEndptForceMatrix(endptMapRcp, EMatTransRcp);
+    conCollector.buildGammaToVirialStressMatrix(ptcMapRcp, SMatTransRcp);
+
+    Tpetra::RowMatrixTransposer<double, int, int> transposerDu(DMatTransRcp);
+    DMatRcp = transposerDu.createTranspose();
+    Tpetra::RowMatrixTransposer<double, int, int> transposerSu(SMatTransRcp);
+    SMatRcp = transposerSu.createTranspose();
+    Tpetra::RowMatrixTransposer<double, int, int> transposerEu(EMatTransRcp);
+    EMatRcp = transposerEu.createTranspose();
 
     delta0Rcp->scale(1.0 / dt);
     invKappaRcp->scale(1.0 / dt);
@@ -22,7 +35,7 @@ void ConstraintSolver::setup(ConstraintCollector &conCollector_, Teuchos::RCP<TO
     DMatTransRcp->apply(*velncRcp, *deltancRcp);
 
     // the BCQP problem
-    MOpRcp = Teuchos::rcp(new ConstraintOperator(mobOpRcp, DMatTransRcp, invKappaRcp));
+    MOpRcp = Teuchos::rcp(new ConstraintOperator(mobOpRcp, DMatTransRcp, DMatRcp, invKappaRcp));
     qRcp = Teuchos::rcp(new TV(delta0Rcp->getMap(), true));
     qRcp->update(1.0, *delta0Rcp, 1.0, *deltancRcp, 0.0);
 
@@ -31,6 +44,8 @@ void ConstraintSolver::setup(ConstraintCollector &conCollector_, Teuchos::RCP<TO
     forceuRcp = Teuchos::rcp(new TV(mobMapRcp, true));
     velbRcp = Teuchos::rcp(new TV(mobMapRcp, true));
     veluRcp = Teuchos::rcp(new TV(mobMapRcp, true));
+    stressuRcp = Teuchos::rcp(new TV(ptcMapRcp, true));
+    projEndptForceuRcp = Teuchos::rcp(new TV(endptMapRcp, true));
 }
 
 void ConstraintSolver::reset() {
@@ -43,11 +58,20 @@ void ConstraintSolver::reset() {
     veluRcp.reset();   ///< velocity vec, 6 dof per obj. due to unilateral constraints
     velbRcp.reset();   ///< velocity vec, 6 dof per obj. due to bilateral constraints
     velncRcp.reset();  ///< the non-constraint velocity vel_nc
+    stressuRcp.reset(); ///< virial stess, 9 dof per obj, due to unilateral constraints 
+    projEndptForceuRcp.reset(); ///< projected force vec, 2 dof per obj, 1 per endpoint, unilaterial
 
     // composite vectors and operators
     DMatTransRcp.reset(); ///< D^Trans matrix
+    EMatTransRcp.reset(); ///< E^Trans matrix
+    SMatTransRcp.reset(); ///< S^Trans matrix
+    DMatRcp.reset(); ///< D matrix
+    EMatRcp.reset(); ///< E matrix
+    SMatRcp.reset(); ///< S matrix
+
     invKappaRcp.reset();  ///< K^{-1} diagonal matrix
     biFlagRcp.reset();    ///< bilateral flag vector
+    ulFlagRcp.reset();    ///< bilateral flag vector
     delta0Rcp.reset();    ///< the current (geometric) delta vector delta_0 = [delta_0u ; delta_0b]
     deltancRcp.reset();   ///< delta_nc = [Du^Trans vel_nc,u ; Db^Trans vel_nc,b]
 
@@ -92,16 +116,24 @@ void ConstraintSolver::solveConstraints() {
 
     // calculate unilateral and bilateral vel/force with solution
     Teuchos::RCP<TCMAT> DMatRcp = MOpRcp->getDMat();
+
     // bilateral first
     Teuchos::RCP<TV> gammaBiRcp = Teuchos::rcp(new TV(gammaRcp->getMap(), true));
     gammaBiRcp->elementWiseMultiply(1.0, *gammaRcp, *biFlagRcp, 0.0);
     DMatRcp->apply(*gammaBiRcp, *forcebRcp);
     mobOpRcp->apply(*forcebRcp, *velbRcp);
+
     // unilateral second
+    Teuchos::RCP<TV> gammaUlRcp = Teuchos::rcp(new TV(gammaRcp->getMap(), true));
+    gammaUlRcp->elementWiseMultiply(1.0, *gammaRcp, *ulFlagRcp, 0.0);
     Teuchos::RCP<TV> forceRcp = MOpRcp->getForce();
     Teuchos::RCP<TV> velRcp = MOpRcp->getVel();
     forceuRcp->update(1.0, *forceRcp, -1.0, *forcebRcp, 0.0); // force_u = force - force_b
     veluRcp->update(1.0, *velRcp, -1.0, *velbRcp, 0.0);       // vel_u = vel - vel_b
+
+    // calculate the induced particle stress and induced compressive force
+    SMatRcp->apply(*gammaUlRcp, *stressuRcp);
+    EMatRcp->apply(*gammaUlRcp, *projEndptForceuRcp);
 }
 
 void ConstraintSolver::writebackGamma() { conCollector.writeBackGamma(gammaRcp.getConst()); }

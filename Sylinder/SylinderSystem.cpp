@@ -853,7 +853,8 @@ void SylinderSystem::resolveConstraints() {
         Teuchos::TimeMonitor mon(*solveTimer);
         const double buffer = 0;
         spdlog::debug("constraint solver setup");
-        conSolverPtr->setup(*conCollectorPtr, mobilityOperatorRcp, velocityNonConRcp, runConfig.dt);
+        conSolverPtr->setup(*conCollectorPtr, mobilityOperatorRcp, sylinderEndpointMapRcp, 
+                            sylinderMapRcp, velocityNonConRcp, runConfig.dt);
         spdlog::debug("setControl");
         conSolverPtr->setControlParams(runConfig.conResTol, runConfig.conMaxIte, runConfig.conSolverChoice);
         spdlog::debug("solveConstraints");
@@ -869,6 +870,7 @@ void SylinderSystem::updateSylinderMap() {
     const int nLocal = sylinderContainer.getNumberOfParticleLocal();
     // setup the new sylinderMap
     sylinderMapRcp = getTMAPFromLocalSize(nLocal, commRcp);
+    sylinderEndpointMapRcp = getTMAPFromLocalSize(nLocal * 2, commRcp);
     sylinderMobilityMapRcp = getTMAPFromLocalSize(nLocal * 6, commRcp);
 
     // setup the globalIndex
@@ -973,11 +975,15 @@ void SylinderSystem::saveForceVelocityConstraints() {
     velocityUniRcp = conSolverPtr->getVelocityUni();
     forceBiRcp = conSolverPtr->getForceBi();
     velocityBiRcp = conSolverPtr->getVelocityBi();
+    stressUniRcp = conSolverPtr->getStressUni();
+    projEndptForceUniRcp = conSolverPtr->getProjEndptForceUni();
 
     auto velUniPtr = velocityUniRcp->getLocalView<Kokkos::HostSpace>();
     auto velBiPtr = velocityBiRcp->getLocalView<Kokkos::HostSpace>();
     auto forceUniPtr = forceUniRcp->getLocalView<Kokkos::HostSpace>();
     auto forceBiPtr = forceBiRcp->getLocalView<Kokkos::HostSpace>();
+    auto stressUniPtr = stressUniRcp->getLocalView<Kokkos::HostSpace>();
+    auto projEndptForceUniPtr = projEndptForceUniRcp->getLocalView<Kokkos::HostSpace>();
 
     const int sylinderLocalNumber = sylinderContainer.getNumberOfParticleLocal();
     TEUCHOS_ASSERT(velUniPtr.dimension_0() == sylinderLocalNumber * 6);
@@ -1013,6 +1019,12 @@ void SylinderSystem::saveForceVelocityConstraints() {
         sy.torqueBi[0] = forceBiPtr(6 * i + 3, 0);
         sy.torqueBi[1] = forceBiPtr(6 * i + 4, 0);
         sy.torqueBi[2] = forceBiPtr(6 * i + 5, 0);
+        sy.projEndptForce[0] = projEndptForceUniPtr(2 * i + 0, 0);
+        sy.projEndptForce[1] = projEndptForceUniPtr(2 * i + 1, 0);
+
+        for (int j = 0; j < 9; j++) {
+            sy.virialStress[j] = stressUniPtr(9 * i + j, 0);
+        }
     }
 }
 
@@ -1117,16 +1129,17 @@ void SylinderSystem::collectBoundaryCollision() {
                     double deltanorm = Emap3(delta).norm();
                     Evec3 norm = Emap3(delta) * (1 / deltanorm);
                     Evec3 posI = Query - center;
+                    const bool sideI = norm.dot(posI) < 0; // true -> LHS or false -> RHS
 
                     if ((Query - ECmap3(Proj)).dot(ECmap3(delta)) < 0) { // outside boundary
                         que.emplace_back(-deltanorm - radius, 0, sy.gid, sy.gid, sy.globalIndex, sy.globalIndex,
-                                         norm.data(), norm.data(), posI.data(), posI.data(), Query.data(), Proj, true,
-                                         false, 0.0, 0.0);
+                                         sideI, sideI, norm.data(), norm.data(), posI.data(), posI.data(), Query.data(), 
+                                         Proj, true, false, 0.0, 0.0);
                     } else if (deltanorm <
                                (1 + runConfig.sylinderColBuf * 2) * sy.radiusCollision) { // inside boundary but close
                         que.emplace_back(deltanorm - radius, 0, sy.gid, sy.gid, sy.globalIndex, sy.globalIndex,
-                                         norm.data(), norm.data(), posI.data(), posI.data(), Query.data(), Proj, true,
-                                         false, 0.0, 0.0);
+                                         sideI, sideI, norm.data(), norm.data(), posI.data(), posI.data(), Query.data(), 
+                                         Proj, true, false, 0.0, 0.0);
                     }
                 };
 
@@ -1462,18 +1475,23 @@ void SylinderSystem::collectLinkBilateral() {
                 const Evec3 normJ = -normI;
                 const Evec3 posI = Ploc - centerI;
                 const Evec3 posJ = Qloc - centerJ;
+                const bool sideI = directionI.dot(posI) > 0; // False -> LHS or True -> RHS
+                const bool sideJ = directionJ.dot(posJ) > 0; // False -> LHS or True -> RHS
                 ConstraintBlock conBlock(delta0, gamma,              // current separation, initial guess of gamma
                                          syI.gid, syJ.gid,           //
                                          syI.globalIndex,            //
                                          syJ.globalIndex,            //
+                                         sideI, sideJ,               //
                                          normI.data(), normJ.data(), // direction of collision force
                                          posI.data(), posJ.data(), // location of collision relative to particle center
                                          Ploc.data(), Qloc.data(), // location of collision in lab frame
                                          false, true, runConfig.linkKappa, 0.0);
-                Emat3 stressIJ;
+                    Emat3 stressI;
+                    Emat3 stressJ;
                 CalcSylinderNearForce::collideStress(directionI, directionJ, centerI, centerJ, syI.length, syJ.length,
-                                                     syI.radius, syJ.radius, 1.0, Ploc, Qloc, stressIJ);
-                conBlock.setStress(stressIJ);
+                                                     syI.radius, syJ.radius, 1.0, Ploc, Qloc, stressI, stressJ);
+                conBlock.setStressI(stressI);
+                conBlock.setStressJ(stressJ);
                 conQue.push_back(conBlock);
             }
         }

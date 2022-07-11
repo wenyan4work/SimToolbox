@@ -55,7 +55,11 @@ void ConstraintCollector::sumLocalConstraintStress(Emat3 &uniStress, Emat3 &biSt
                 continue;
             } else {
                 Emat3 stressBlock;
-                cBlock.getStress(stressBlock);
+                Emat3 stressBlockI;
+                Emat3 stressBlockJ;
+                cBlock.getStressI(stressBlockI);
+                cBlock.getStressJ(stressBlockJ);
+                stressBlock = stressBlockI + stressBlockJ;
                 if (cBlock.bilateral) {
                     biStressSumQue = biStressSumQue + stressBlock;
                 } else {
@@ -178,7 +182,7 @@ void ConstraintCollector::writeVTP(const std::string &folder, const std::string 
             gamma[cIndex] = block.gamma;
             kappa[cIndex] = block.kappa;
             for (int kk = 0; kk < 9; kk++) {
-                Stress[9 * cIndex + kk] = block.stress[kk];
+                Stress[9 * cIndex + kk] = block.stressI[kk] + block.stressJ[kk];
             }
         }
     }
@@ -239,6 +243,7 @@ int ConstraintCollector::buildConstraintMatrixVector(const Teuchos::RCP<const TM
                                                      Teuchos::RCP<TV> &delta0Rcp,               //
                                                      Teuchos::RCP<TV> &invKappaRcp,             //
                                                      Teuchos::RCP<TV> &biFlagRcp,               //
+                                                     Teuchos::RCP<TV> &ulFlagRcp,               //
                                                      Teuchos::RCP<TV> &gammaGuessRcp) const {
     Teuchos::RCP<const TCOMM> commRcp = mobMapRcp->getComm();
 
@@ -392,15 +397,18 @@ int ConstraintCollector::buildConstraintMatrixVector(const Teuchos::RCP<const TM
     delta0Rcp = Teuchos::rcp(new TV(gammaMapRcp, true));
     invKappaRcp = Teuchos::rcp(new TV(gammaMapRcp, true));
     biFlagRcp = Teuchos::rcp(new TV(gammaMapRcp, true));
+    ulFlagRcp = Teuchos::rcp(new TV(gammaMapRcp, true));
     gammaGuessRcp = Teuchos::rcp(new TV(gammaMapRcp, true));
     auto delta0 = delta0Rcp->getLocalView<Kokkos::HostSpace>();
     auto gammaGuess = gammaGuessRcp->getLocalView<Kokkos::HostSpace>();
     auto invKappa = invKappaRcp->getLocalView<Kokkos::HostSpace>();
     auto biFlag = biFlagRcp->getLocalView<Kokkos::HostSpace>();
+    auto ulFlag = ulFlagRcp->getLocalView<Kokkos::HostSpace>();
     delta0Rcp->modify<Kokkos::HostSpace>();
     gammaGuessRcp->modify<Kokkos::HostSpace>();
     invKappaRcp->modify<Kokkos::HostSpace>();
     biFlagRcp->modify<Kokkos::HostSpace>();
+    ulFlagRcp->modify<Kokkos::HostSpace>();
 
 #pragma omp parallel for num_threads(cQueNum)
     for (int que = 0; que < cQueNum; que++) {
@@ -415,9 +423,328 @@ int ConstraintCollector::buildConstraintMatrixVector(const Teuchos::RCP<const TM
             if (block.bilateral) {
                 invKappa(idx, 0) = block.kappa > 0 ? 1 / block.kappa : 0;
                 biFlag(idx, 0) = 1;
+            } else {
+                ulFlag(idx, 0) = 1;
             }
         }
     }
+
+    return 0;
+}
+
+int ConstraintCollector::buildGammaToProjEndptForceMatrix(const Teuchos::RCP<const TMAP> &endptMapRcp, //
+                                                     Teuchos::RCP<TCMAT> &EMatTransRcp) const {
+    Teuchos::RCP<const TCOMM> commRcp = endptMapRcp->getComm();
+
+    const auto &cPool = *constraintPoolPtr; // the constraint pool
+    const int cQueNum = cPool.size();
+
+    // prepare 1, build the index for block queue
+    std::vector<int> cQueSize;
+    std::vector<int> cQueIndex;
+    buildConIndex(cQueSize, cQueIndex);
+
+    // prepare 2, allocate the map and vectors
+    const int localGammaSize = cQueIndex.back();
+    Teuchos::RCP<const TMAP> gammaMapRcp = getTMAPFromLocalSize(localGammaSize, commRcp);
+
+    // step 1, count the number of entries in each row
+    // each constraint block, corresponding to a gamma, occupies a row
+    // 4 entries for two sided constraint blocks
+    // 2 entries for one sided constraint blocks
+    // Instead of Force and Torque, each sided-constraint contributes 2 values 
+    // 1 for lhs signed force magnitude and 1 for rhs signed force magnitude 
+    // One of these two values will be zero, since each force constraint is either lhs or rhs
+    Kokkos::View<size_t *> rowPointers("rowPointers", localGammaSize + 1); // last entry is the total nnz in this matrix
+    rowPointers[0] = 0;
+
+    std::vector<int> colIndexPool(cQueNum + 1, 0); // The beginning index in crs columnIndices for each constraint queue
+
+    int rowPointerIndex = 0;
+    int colIndexCount = 0;
+    for (int i = 0; i < cQueNum; i++) {
+        const auto &queue = cPool[i];
+        const int jsize = queue.size();
+        for (int j = 0; j < jsize; j++) {
+            rowPointerIndex++;
+            const int cBlockNNZ = (queue[j].oneSide ? 2 : 4);
+            rowPointers[rowPointerIndex] = rowPointers[rowPointerIndex - 1] + cBlockNNZ;
+            colIndexCount += cBlockNNZ;
+        }
+        colIndexPool[i + 1] = colIndexCount;
+    }
+
+    if (rowPointerIndex != localGammaSize) {
+        printf("rowPointerIndexError in collision solver\n");
+        std::exit(1);
+    }
+
+    // step 2, fill the values to each row
+    Kokkos::View<int *> columnIndices("columnIndices", rowPointers[localGammaSize]);
+    Kokkos::View<double *> values("values", rowPointers[localGammaSize]);
+    // multi-thread filling. nThreads = poolSize, each thread process a queue
+    const int nThreads = cPool.size();
+#pragma omp parallel for num_threads(nThreads)
+    for (int threadId = 0; threadId < nThreads; threadId++) {
+        // each thread process a queue
+        const auto &cBlockQue = cPool[threadId];
+        const int cBlockNum = cBlockQue.size();
+        const int cBlockIndexBase = cQueSize[threadId];
+        int kk = colIndexPool[threadId];
+
+        for (int j = 0; j < cBlockNum; j++) {
+            // each 2nnz for an object: gx*px + gy*py + gz*pz 
+            // 2 nnz for I
+            columnIndices[kk + 0] = 2 * cBlockQue[j].globalIndexI;
+            columnIndices[kk + 1] = 2 * cBlockQue[j].globalIndexI + 1;
+            const double &gx = cBlockQue[j].normI[0];
+            const double &gy = cBlockQue[j].normI[1];
+            const double &gz = cBlockQue[j].normI[2];
+            const double &px = cBlockQue[j].posI[0];
+            const double &py = cBlockQue[j].posI[1];
+            const double &pz = cBlockQue[j].posI[2];
+            const double gParallel = (gx*px + gy*py + gz*pz) 
+                                   / std::sqrt(px*px + py*py + pz*pz);
+            if (cBlockQue[j].sideI) {
+                // LHS nonzero
+                values[kk + 0] = gParallel;
+                values[kk + 1] = 0.0;
+            } else {
+                // RHS nonzero
+                values[kk + 0] = 0.0;
+                values[kk + 1] = gParallel;
+            }
+            kk += 2;
+            if (!cBlockQue[j].oneSide) {
+                // each 2nnz for an object: gx*px + gy*py + gz*pz
+                // 2 nnz for J
+                columnIndices[kk + 0] = 2 * cBlockQue[j].globalIndexJ;
+                columnIndices[kk + 1] = 2 * cBlockQue[j].globalIndexJ + 1;
+                const double &gx = cBlockQue[j].normJ[0];
+                const double &gy = cBlockQue[j].normJ[1];
+                const double &gz = cBlockQue[j].normJ[2];
+                const double &px = cBlockQue[j].posJ[0];
+                const double &py = cBlockQue[j].posJ[1];
+                const double &pz = cBlockQue[j].posJ[2];
+                const double gParallel = (gx*px + gy*py + gz*pz) 
+                                       / std::sqrt(px*px + py*py + pz*pz);
+                if (cBlockQue[j].sideJ) {
+                    // LHS nonzero
+                    values[kk + 0] = gParallel;
+                    values[kk + 1] = 0.0;
+                } else {
+                    // RHS nonzero
+                    values[kk + 0] = 0.0;
+                    values[kk + 1] = gParallel;
+                }
+                kk += 2;
+            }
+        }
+    }
+
+    // step 3 prepare the partitioned column map
+    // Each process own some columns. In the map, processes share entries.
+    // 3.1 column map has to cover the contiguous range of the enpoint map locally owned
+    const int endptMin = endptMapRcp->getMinGlobalIndex();
+    const int endptMax = endptMapRcp->getMaxGlobalIndex();
+    std::vector<int> colMapIndex(endptMax - endptMin + 1);
+#pragma omp parallel for
+    for (int i = endptMin; i <= endptMax; i++) {
+        colMapIndex[i - endptMin] = i;
+    }
+    // this is the list of the columns that have nnz entries
+    // if the column index is out of [endptMinLID, endptMaxLID], add it to the map
+    const int colIndexNum = columnIndices.dimension_0();
+    if (colIndexNum != colIndexCount) {
+        printf("colIndexNum error");
+        std::exit(1);
+    }
+    for (int i = 0; i < colIndexNum; i++) {
+        if (columnIndices[i] < endptMin || columnIndices[i] > endptMax)
+            colMapIndex.push_back(columnIndices[i]);
+    }
+
+    // sort and unique
+    std::sort(colMapIndex.begin(), colMapIndex.end());
+    auto ip = std::unique(colMapIndex.begin(), colMapIndex.end());
+    colMapIndex.resize(std::distance(colMapIndex.begin(), ip));
+
+    // create colMap
+    Teuchos::RCP<TMAP> colMapRcp = Teuchos::rcp(
+        new TMAP(Teuchos::OrdinalTraits<int>::invalid(), colMapIndex.data(), colMapIndex.size(), 0, commRcp));
+
+    // convert columnIndices from global column index to local column index according to colMap
+    auto &colmap = *colMapRcp;
+#pragma omp parallel for
+    for (int i = 0; i < colIndexNum; i++) {
+        columnIndices[i] = colmap.getLocalElement(columnIndices[i]);
+    }
+
+    // printf("local number of cols: %d on rank %d\n", colMapRcp->getNodeNumElements(), commRcp->getRank());
+    // printf("local number of rows: %d on rank %d\n", endptMapRcp->getNodeNumElements(), commRcp->getRank());
+    // dumpTMAP(colMapRcp,"colMap");
+    // dumpTMAP(endptMapRcp,"endptMap");
+
+    // step 4, allocate the S^Trans matrix
+    EMatTransRcp = Teuchos::rcp(new TCMAT(gammaMapRcp, colMapRcp, rowPointers, columnIndices, values));
+    EMatTransRcp->fillComplete(endptMapRcp, gammaMapRcp); // domainMap, rangeMap
+
+    return 0;
+}
+
+int ConstraintCollector::buildGammaToVirialStressMatrix(const Teuchos::RCP<const TMAP> &ptcMapRcp, //
+                                                     Teuchos::RCP<TCMAT> &SMatTransRcp) const {
+    Teuchos::RCP<const TCOMM> commRcp = ptcMapRcp->getComm();
+
+    const auto &cPool = *constraintPoolPtr; // the constraint pool
+    const int cQueNum = cPool.size();
+
+    // prepare 1, build the index for block queue
+    std::vector<int> cQueSize;
+    std::vector<int> cQueIndex;
+    buildConIndex(cQueSize, cQueIndex);
+
+    // prepare 2, allocate the map and vectors
+    const int localGammaSize = cQueIndex.back();
+    Teuchos::RCP<const TMAP> gammaMapRcp = getTMAPFromLocalSize(localGammaSize, commRcp);
+
+    // step 1, count the number of entries in each row
+    // each constraint block, corresponding to a , occupies a row
+    // 18 entries for two sided constraint blocks
+    // 9 entries for one sided constraint blocks
+    // Instead of Force and Torque, each sided-constraint contributes 9 values 
+    // 1 for each component of the stress matrix  
+    Kokkos::View<size_t *> rowPointers("rowPointers", localGammaSize + 1); // last entry is the total nnz in this matrix
+    rowPointers[0] = 0;
+
+    std::vector<int> colIndexPool(cQueNum + 1, 0); // The beginning index in crs columnIndices for each constraint queue
+
+    int rowPointerIndex = 0;
+    int colIndexCount = 0;
+    for (int i = 0; i < cQueNum; i++) {
+        const auto &queue = cPool[i];
+        const int jsize = queue.size();
+        for (int j = 0; j < jsize; j++) {
+            rowPointerIndex++;
+            const int cBlockNNZ = (queue[j].oneSide ? 9 : 18);
+            rowPointers[rowPointerIndex] = rowPointers[rowPointerIndex - 1] + cBlockNNZ;
+            colIndexCount += cBlockNNZ;
+        }
+        colIndexPool[i + 1] = colIndexCount;
+    }
+
+    if (rowPointerIndex != localGammaSize) {
+        printf("rowPointerIndexError in collision solver\n");
+        std::exit(1);
+    }
+
+    // step 2, fill the values to each row
+    Kokkos::View<int *> columnIndices("columnIndices", rowPointers[localGammaSize]);
+    Kokkos::View<double *> values("values", rowPointers[localGammaSize]);
+    // multi-thread filling. nThreads = poolSize, each thread process a queue
+    const int nThreads = cPool.size();
+#pragma omp parallel for num_threads(nThreads)
+    for (int threadId = 0; threadId < nThreads; threadId++) {
+        // each thread process a queue
+        const auto &cBlockQue = cPool[threadId];
+        const int cBlockNum = cBlockQue.size();
+        const int cBlockIndexBase = cQueSize[threadId];
+        int kk = colIndexPool[threadId];
+
+        for (int j = 0; j < cBlockNum; j++) {
+            // each 9nnz for an object: 1 for each element of stressI
+            // 9 nnz for I
+            columnIndices[kk + 0] = 9 * cBlockQue[j].globalIndexI;
+            columnIndices[kk + 1] = 9 * cBlockQue[j].globalIndexI + 1;
+            columnIndices[kk + 2] = 9 * cBlockQue[j].globalIndexI + 2;
+            columnIndices[kk + 3] = 9 * cBlockQue[j].globalIndexI + 3;
+            columnIndices[kk + 4] = 9 * cBlockQue[j].globalIndexI + 4;
+            columnIndices[kk + 5] = 9 * cBlockQue[j].globalIndexI + 5;
+            columnIndices[kk + 6] = 9 * cBlockQue[j].globalIndexI + 6;
+            columnIndices[kk + 7] = 9 * cBlockQue[j].globalIndexI + 7;
+            columnIndices[kk + 8] = 9 * cBlockQue[j].globalIndexI + 8;
+            values[kk + 0] = cBlockQue[j].stressI[0];
+            values[kk + 1] = cBlockQue[j].stressI[1];
+            values[kk + 2] = cBlockQue[j].stressI[2];
+            values[kk + 3] = cBlockQue[j].stressI[3];
+            values[kk + 4] = cBlockQue[j].stressI[4];
+            values[kk + 5] = cBlockQue[j].stressI[5];
+            values[kk + 6] = cBlockQue[j].stressI[6];
+            values[kk + 7] = cBlockQue[j].stressI[7];
+            values[kk + 8] = cBlockQue[j].stressI[8];
+            kk += 9;
+            if (!cBlockQue[j].oneSide) {
+                // each 9nnz for an object: 1 for each element of stressJ
+                // 9 nnz for J
+                columnIndices[kk + 0] = 9 * cBlockQue[j].globalIndexJ;
+                columnIndices[kk + 1] = 9 * cBlockQue[j].globalIndexJ + 1;
+                columnIndices[kk + 2] = 9 * cBlockQue[j].globalIndexJ + 2;
+                columnIndices[kk + 3] = 9 * cBlockQue[j].globalIndexJ + 3;
+                columnIndices[kk + 4] = 9 * cBlockQue[j].globalIndexJ + 4;
+                columnIndices[kk + 5] = 9 * cBlockQue[j].globalIndexJ + 5;
+                columnIndices[kk + 6] = 9 * cBlockQue[j].globalIndexJ + 6;
+                columnIndices[kk + 7] = 9 * cBlockQue[j].globalIndexJ + 7;
+                columnIndices[kk + 8] = 9 * cBlockQue[j].globalIndexJ + 8;
+                values[kk + 0] = cBlockQue[j].stressJ[0];
+                values[kk + 1] = cBlockQue[j].stressJ[1];
+                values[kk + 2] = cBlockQue[j].stressJ[2];
+                values[kk + 3] = cBlockQue[j].stressJ[3];
+                values[kk + 4] = cBlockQue[j].stressJ[4];
+                values[kk + 5] = cBlockQue[j].stressJ[5];
+                values[kk + 6] = cBlockQue[j].stressJ[6];
+                values[kk + 7] = cBlockQue[j].stressJ[7];
+                values[kk + 8] = cBlockQue[j].stressJ[8];
+                kk += 9;
+            }
+        }
+    }
+
+    // step 3 prepare the partitioned column map
+    // Each process own some columns. In the map, processes share entries.
+    // 3.1 column map has to cover the contiguous range of the enpoint map locally owned
+    const int ptcMin = ptcMapRcp->getMinGlobalIndex();
+    const int ptcMax = ptcMapRcp->getMaxGlobalIndex();
+    std::vector<int> colMapIndex(ptcMax - ptcMin + 1);
+#pragma omp parallel for
+    for (int i = ptcMin; i <= ptcMax; i++) {
+        colMapIndex[i - ptcMin] = i;
+    }
+    // this is the list of the columns that have nnz entries
+    // if the column index is out of [ptcMinLID, ptcMaxLID], add it to the map
+    const int colIndexNum = columnIndices.dimension_0();
+    if (colIndexNum != colIndexCount) {
+        printf("colIndexNum error");
+        std::exit(1);
+    }
+    for (int i = 0; i < colIndexNum; i++) {
+        if (columnIndices[i] < ptcMin || columnIndices[i] > ptcMax)
+            colMapIndex.push_back(columnIndices[i]);
+    }
+
+    // sort and unique
+    std::sort(colMapIndex.begin(), colMapIndex.end());
+    auto ip = std::unique(colMapIndex.begin(), colMapIndex.end());
+    colMapIndex.resize(std::distance(colMapIndex.begin(), ip));
+
+    // create colMap
+    Teuchos::RCP<TMAP> colMapRcp = Teuchos::rcp(
+        new TMAP(Teuchos::OrdinalTraits<int>::invalid(), colMapIndex.data(), colMapIndex.size(), 0, commRcp));
+
+    // convert columnIndices from global column index to local column index according to colMap
+    auto &colmap = *colMapRcp;
+#pragma omp parallel for
+    for (int i = 0; i < colIndexNum; i++) {
+        columnIndices[i] = colmap.getLocalElement(columnIndices[i]);
+    }
+
+    // printf("local number of cols: %d on rank %d\n", colMapRcp->getNodeNumElements(), commRcp->getRank());
+    // printf("local number of rows: %d on rank %d\n", ptcMapRcp->getNodeNumElements(), commRcp->getRank());
+    // dumpTMAP(colMapRcp,"colMap");
+    // dumpTMAP(ptcMapRcp,"ptcMap");
+
+    // step 4, allocate the S^Trans matrix
+    SMatTransRcp = Teuchos::rcp(new TCMAT(gammaMapRcp, colMapRcp, rowPointers, columnIndices, values));
+    SMatTransRcp->fillComplete(ptcMapRcp, gammaMapRcp); // domainMap, rangeMap
 
     return 0;
 }
@@ -452,7 +779,8 @@ int ConstraintCollector::writeBackGamma(const Teuchos::RCP<const TV> &gammaRcp) 
         for (int j = 0; j < cQueSize; j++) {
             cPool[i][j].gamma = gammaPtr(cQueIndex[i] + j, 0);
             for (int k = 0; k < 9; k++) {
-                cPool[i][j].stress[k] *= cPool[i][j].gamma;
+                cPool[i][j].stressI[k] *= cPool[i][j].gamma;
+                cPool[i][j].stressJ[k] *= cPool[i][j].gamma;
             }
         }
     }
