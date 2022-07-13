@@ -80,6 +80,7 @@ private:
 
 private: // data members
 
+  mutable int stepCount_ = 1;
   double dt_;
 
   std::shared_ptr<ConstraintCollector> conCollectorPtr_;

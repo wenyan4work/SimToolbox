@@ -161,6 +161,7 @@ evalModelImpl(const Thyra::ModelEvaluatorBase::InArgs<Scalar> &inArgs,
   using tpetra_extract = Thyra::TpetraOperatorVectorExtraction<Scalar,LO,GO,Node>;
 
   if (fill_f || fill_W || fill_W_prec) {
+    std::cout << "fill_f: " << fill_f << " | fill_W: " << fill_W << "| fill_W_prec: " << fill_W_prec << std::endl;
 
     ///////////////////////////////////////
     // Get the underlying tpetra objects //
@@ -190,46 +191,52 @@ evalModelImpl(const Thyra::ModelEvaluatorBase::InArgs<Scalar> &inArgs,
     }
     
     //////////////////////
-    // fill the objects //
+    // Fill the objects //
     //////////////////////
+
+    // // setup D(q^k, lambda^k)
     Teuchos::RCP<const TCMAT> DMatTransRcp = conCollectorPtr_->buildConstraintMatrixVector(mobMapRcp_, xMapRcp_, xRcp);
     Tpetra::RowMatrixTransposer<double, int, int> transposerDu(DMatTransRcp);
     Teuchos::RCP<const TCMAT> DMatRcp = transposerDu.createTranspose();
 
-    // fill the constraint values
+    // step 1 solve for the induced force and velocity
+    DMatRcp_->apply(*xRcp, *forceRcp_); // F^k = D(q^k) lambda 
+    mobOpRcp_->apply(*forceRcp_, *velRcp_); // U^k = M(q^k) F^k
+
+    // step 2. update the particle system
+    // send the constraint vel and force to the particles
+    ptcSystemPtr_->saveForceVelocityConstraints(forceRcp_, velRcp_);
+    // merge the constraint and nonconstraint vel and force
+    ptcSystemPtr_->sumForceVelocity();
+    // move the particles according to the total velocity
+    ptcSystemPtr_->stepEuler(); // q^k+1 = q^k + dt G(q^k) U^k
+
+    // step 3. update all constraints
+    // this must NOT generate new constraints and MUST maintain the current constraint ordering
+    ptcSystemPtr_->updatesylinderNearDataDirectory();
+    ptcSystemPtr_->updatePairCollision();
+
+    // (optional) step 4. fill the constraint values
     if (fill_f) {
-      std::cout << "### UPDATE SYLINDERSYSTEM ###" << std::endl;
+      // fill the constraint based on the updated configuration
+      // evaluate F(q^k+1(lambda^k), lambda^k)
+      conCollectorPtr_->evalConstraintValues(xRcp, fRcp); 
 
-      ///////////////////////////////////////////////
-      // Step 1. update the particle configuration //
-      ///////////////////////////////////////////////
-      // step 1.1 solve for the induced force and velocity
-      DMatRcp->apply(*xRcp, *forceRcp_);
-      mobOpRcp_->apply(*forceRcp_, *velRcp_);
-
-      // step 1.2. update the particle system
-      // send the constraint vel and force to the particles
-      ptcSystemPtr_->saveForceVelocityConstraints(forceRcp_, velRcp_);
-      // merge the constraint and nonconstraint vel and force
-      ptcSystemPtr_->sumForceVelocity();
-      // move the particles according to the total velocity
-      ptcSystemPtr_->stepEuler();
-
-      // step 1.3. update all constraints
-      // this must NOT generate new constraints and MUST maintain the current constraint ordering
-      ptcSystemPtr_->updatesylinderNearDataDirectory();
-      ptcSystemPtr_->updatePairCollision();
-
-      ////////////////////////////////////////////////////////////////////
-      // Step 2. fill the constraint based on the updated configuration //
-      ////////////////////////////////////////////////////////////////////
-      conCollectorPtr_->evalConstraintValues(xRcp, fRcp);
+      // for debug, advance the particles and write their positions to a vtk file
+      // conCollectorPtr_->writeBackGamma(xRcp.getConst());
+      // const std::string postfix = std::to_string(stepCount_);
+      // ptcSystemPtr_->writeResult(stepCount_, "./result/result0-399/", postfix);
+      // stepCount_++;
     }
 
-    // generate the Jacobian operator using the current configuration
+    // (optional) step 5. generate the Jacobian operator using the current configuration
     if (fill_W) {
+
       conCollectorPtr_->evalConstraintDiagonal(xRcp, constraintDiagonalRcp_);
+      // setup J(q^k, lambda^k)
       JRcp->initialize(mobOpRcp_, DMatTransRcp, DMatRcp, constraintDiagonalRcp_, dt_);
+
+      // advance q^k to q^k+1  
     }
 
     // for debug, dump to file

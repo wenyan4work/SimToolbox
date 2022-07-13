@@ -89,10 +89,9 @@ void Sylinder::dumpSylinder() const {
 }
 
 void Sylinder::stepEuler(const double dt) {
-    Emap3(pos) += Emap3(vel) * dt;
-    std::cout << "stepEuler: " << pos[0] << " " << pos[1] << " " << pos[2] << " " << std::endl;
-    std::cout << "stepEuler: " << vel[0] << " " << vel[1] << " " << vel[2] << " " << std::endl;
-
+    for (int i; i < 3; i++) {
+        pos[i] = posCurrent[i] + vel[i] * dt;
+    }
     Equatn currOrient = Emapq(orientation);
     EquatnHelper::rotateEquatn(currOrient, Emap3(omega), dt);
     Emapq(orientation).x() = currOrient.x();

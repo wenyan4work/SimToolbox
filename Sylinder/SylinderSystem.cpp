@@ -716,16 +716,7 @@ void SylinderSystem::prepareStep(const int stepCount) {
     }
 
     if (runConfig.monolayer) {
-        const double monoZ = (runConfig.simBoxHigh[2] + runConfig.simBoxLow[2]) / 2;
-#pragma omp parallel for
-        for (int i = 0; i < nLocal; i++) {
-            auto &sy = sylinderContainer[i];
-            sy.pos[2] = monoZ;
-            Evec3 drt = Emapq(sy.orientation) * Evec3(0, 0, 1);
-            drt[2] = 0;
-            drt.normalize();
-            Emapq(sy.orientation).setFromTwoVectors(Evec3(0, 0, 1), drt);
-        }
+        applyMonolayer();
     }
 
     updateSylinderMap();
@@ -733,6 +724,22 @@ void SylinderSystem::prepareStep(const int stepCount) {
     buildsylinderNearDataDirectory();
 
     calcMobOperator();
+}
+
+void SylinderSystem::applyMonolayer() {
+    const double monoZ = (runConfig.simBoxHigh[2] + runConfig.simBoxLow[2]) / 2;
+    const int nLocal = sylinderContainer.getNumberOfParticleLocal();
+#pragma omp parallel for
+    for (int i = 0; i < nLocal; i++) {
+        auto &sy = sylinderContainer[i];
+        sy.vel[2] = 0.0;
+        sy.omega[2] = 0.0;
+        sy.pos[2] = monoZ;
+        Evec3 drt = Emapq(sy.orientation) * Evec3(0, 0, 1);
+        drt[2] = 0;
+        drt.normalize();
+        Emapq(sy.orientation).setFromTwoVectors(Evec3(0, 0, 1), drt);
+    }
 }
 
 void SylinderSystem::saveForceVelocityConstraints(const Teuchos::RCP<const TV> &forceRcp, 
@@ -1125,7 +1132,8 @@ void SylinderSystem::updatesylinderNearDataDirectory() {
 // TODO: move to particle-particle interaction class
 void SylinderSystem::collectPairCollision() {
 
-    CalcSylinderNearForce calcColFtr(conCollectorPtr->constraintPoolPtr, runConfig.dt, runConfig.viscosity);
+    CalcSylinderNearForce calcColFtr(conCollectorPtr->constraintPoolPtr, runConfig.dt, runConfig.viscosity, 
+                                     runConfig.simBoxPBC, runConfig.simBoxLow, runConfig.simBoxHigh);
 
     TEUCHOS_ASSERT(treeSylinderNearPtr);
     const int nLocal = sylinderContainer.getNumberOfParticleLocal();
@@ -1136,7 +1144,7 @@ void SylinderSystem::collectPairCollision() {
 // TODO: Move this into particle link interaction class
 void SylinderSystem::collectLinkBilateral() {
     // setup bilateral link constraints
-    // need special treatment of periodic boundary conditions
+    // uses special treatment for periodic boundary conditions
 
     const int nLocal = sylinderContainer.getNumberOfParticleLocal();
     auto &cPool = *(this->conCollectorPtr->constraintPoolPtr);
@@ -1212,7 +1220,8 @@ void SylinderSystem::collectLinkBilateral() {
 
                 const double Pi = 3.14159265358979323846;
                 const double mu = runConfig.viscosity;
-                const double gammaGuess = sep < 0 ? -0.5 * sep / runConfig.dt * 6 * Pi * mu : 0;
+                // const double gammaGuess = sep < 0 ? -0.5 * sep / runConfig.dt * 6 * Pi * mu : 0;
+                const double gammaGuess = sep < 0 ? -sep : 0;
 
                 const Evec3 normI = (Ploc - Qloc).normalized();
                 const Evec3 normJ = -normI;
@@ -1239,6 +1248,7 @@ void SylinderSystem::collectLinkBilateral() {
 // TODO: Move this into particle-particle interaction class
 void SylinderSystem::updatePairCollision() {
     // update the collision constraints stored in the constraintPool 
+    // uses special treatment for periodic boundary conditions
 
     const int nLocal = sylinderContainer.getNumberOfParticleLocal();
     auto &cPool = *(this->conCollectorPtr->constraintPoolPtr);
@@ -1285,7 +1295,8 @@ void SylinderSystem::updatePairCollision() {
     // Step 2. Update each constraint
     //TODO: rewrite CalcSylinderNearForce/SylinderNear to be more of a utils class without memory storage
     //      we need a function that generates the constraint info using two particles/links/walls and the constraint type between them
-    CalcSylinderNearForce calcColFtr(conCollectorPtr->constraintPoolPtr, runConfig.dt, runConfig.viscosity);
+    CalcSylinderNearForce calcColFtr(conCollectorPtr->constraintPoolPtr, runConfig.dt, runConfig.viscosity, 
+                                     runConfig.simBoxPBC, runConfig.simBoxLow, runConfig.simBoxHigh);
 
     // multi-thread filling. nThreads = poolSize, each thread process a queue
 #pragma omp parallel for num_threads(nThreads)

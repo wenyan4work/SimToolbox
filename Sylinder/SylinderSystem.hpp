@@ -294,6 +294,12 @@ class SylinderSystem {
      */
     void applyBoxBC();
 
+    /**
+     * @brief apply periodic boundary condition
+     *
+     */
+    void applyMonolayer();
+
     // compute non-collision velocity and mobility, before collision resolution
     /**
      * @brief calculate translational and rotational Brownian motion as specified in runConfig

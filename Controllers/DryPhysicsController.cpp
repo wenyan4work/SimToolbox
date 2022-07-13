@@ -12,6 +12,7 @@
 #include <memory>
 #include <random>
 #include <vector>
+#include <chrono>
 
 #include <vtkCellData.h>
 #include <vtkPolyData.h>
@@ -92,8 +93,16 @@ void DryPhysicsController::initialize(const SylinderConfig &runConfig_, const st
     ptcSystemPtr->writeResult(stepCount, baseFolder, postfix); //TODO: split this function into two: one for ptcSystem and one for ConCollector
     writeTimeStepInfo(baseFolder, postfix);
 
-    conSolverPtr->solveConstraints(); 
+    std::chrono::steady_clock::time_point begin = std::chrono::steady_clock::now();
+    conSolverPtr->solveConstraints(); //TODO: move this before the initial write. 
     ptcSystemPtr->advanceParticles();
+
+    std::chrono::steady_clock::time_point end = std::chrono::steady_clock::now();
+
+    std::cout << "Time difference = " << std::chrono::duration_cast<std::chrono::microseconds>(end - begin).count() << "[µs]" << std::endl;
+
+    const std::string postfix2 = std::to_string(99);
+    ptcSystemPtr->writeResult(stepCount, baseFolder, postfix2); //TODO: split this function into two: one for ptcSystem and one for ConCollector
 
     spdlog::warn("Initial Collision Resolution End");
 }

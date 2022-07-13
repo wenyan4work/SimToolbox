@@ -18,6 +18,7 @@
 #include "FDPS/particle_simulator.hpp"
 #include "Util/EigenDef.hpp"
 #include "Util/Logger.hpp"
+#include "Util/GeoUtil.hpp"
 
 #include <cassert>
 #include <deque>
@@ -163,6 +164,9 @@ class CalcSylinderNearForce {
     std::shared_ptr<ConstraintBlockPool> conPoolPtr; ///< shared object for collecting collision constraints
     double dt;
     double viscosity;
+    bool simBoxPBC[3];
+    double simBoxLow[3];
+    double simBoxHigh[3];
 
     /**
      * @brief Construct a new CalcSylinderNearForce object
@@ -175,11 +179,17 @@ class CalcSylinderNearForce {
      *
      * @param colPoolPtr_ the CollisionBlockPool object to write to
      */
-    CalcSylinderNearForce(std::shared_ptr<ConstraintBlockPool> &conPoolPtr_, const double dt_, const double viscosity_) {
+    CalcSylinderNearForce(std::shared_ptr<ConstraintBlockPool> &conPoolPtr_, const double dt_, const double viscosity_, 
+                          const bool *simBoxPBC_, const double *simBoxLow_, const double *simBoxHigh_) {
         spdlog::debug("stress recoder size: {}", conPoolPtr_->size());
 
         dt = dt_;
         viscosity = viscosity_;
+        for (int i = 0; i < 3; i++) {
+            simBoxPBC[i] = simBoxPBC_[i];
+            simBoxLow[i] = simBoxLow_[i];
+            simBoxHigh[i] = simBoxHigh_[i];
+        }
         conPoolPtr = conPoolPtr_;
         assert(conPoolPtr);
     }
@@ -280,8 +290,23 @@ class CalcSylinderNearForce {
     bool sp_sp(const SylinderNearEP &spI, const SylinderNearEP &spJ, ForceNear &forceI,
                ConstraintBlock &conBlock, bool update=false) const {
         // sphere collide with sphere
+        // apply PBC on centerJ
         const Evec3 centerI = ECmap3(spI.pos);
-        const Evec3 centerJ = ECmap3(spJ.pos);
+        Evec3 centerJ;
+        for (int k = 0; k < 3; k++) {
+            if (!simBoxPBC[k])
+                continue;
+            double trg = centerI[k];
+            double xk = spJ.pos[k];
+            findPBCImage(simBoxLow[k], simBoxHigh[k], xk, trg);
+            centerJ[k] = xk;
+            // error check
+            if (fabs(trg - xk) > 0.5 * (simBoxHigh[k] - simBoxLow[k])) {
+                spdlog::critical("pbc image error in near collision");
+                std::exit(1);
+            }
+        }
+       
         // effective radius of sphere = sp.lengthCollision*0.5 + sp.radiusCollision
         const double radI = spI.lengthCollision * 0.5 + spI.radiusCollision;
         const double radJ = spJ.lengthCollision * 0.5 + spJ.radiusCollision;
@@ -291,7 +316,7 @@ class CalcSylinderNearForce {
 
         bool collision = false;
 
-        const double sep = rnorm - (radI + radJ); // goal of constraint is sep >=0
+        const double sep = rnorm - (radI + radJ); // goal of collision constraint is sep >=0
 
         if (update) { // create a constraint no matter the sep
             const Evec3 &Ploc = centerI;
@@ -299,7 +324,8 @@ class CalcSylinderNearForce {
             collision = true;
             // TODO MODULARIZE! 
             const double Pi = 3.14159265358979323846;
-            const double gammaGuess = sep < 0 ? -0.5 * sep / dt * 6 * Pi * viscosity : 0;
+            // const double gammaGuess = sep < 0 ? -0.5 * sep / dt * 6 * Pi * viscosity : 0;
+            const double gammaGuess = sep < 0 ? -sep : 0;
             const Evec3 normI = (Ploc - Qloc).normalized();
             const Evec3 normJ = -normI;
             const Evec3 posI = Ploc - centerI;
@@ -317,14 +343,15 @@ class CalcSylinderNearForce {
             collideStress(Evec3(0, 0, 1), Evec3(0, 0, 1), centerI, centerJ, 0, 0, // length = 0, degenerates to sphere
                         radI, radJ, 1.0, Ploc, Qloc, stressIJ);
             conBlock.setStress(stressIJ);
-        } else {
+        } else { // check if the two particles are within sep cutoff before creating constraint
             if (sep < (radI * spI.colBuf + radJ * spJ.colBuf)) {
                 const Evec3 &Ploc = centerI;
                 const Evec3 &Qloc = centerJ;
                 collision = true;
                 // TODO MODULARIZE! 
                 const double Pi = 3.14159265358979323846;
-                const double gammaGuess = sep < 0 ? -0.5 * sep / dt * 6 * Pi * viscosity : 0;
+                // const double gammaGuess = sep < 0 ? -0.5 * sep / dt * 6 * Pi * viscosity : 0;
+                const double gammaGuess = sep < 0 ? -sep : 0;
                 const Evec3 normI = (Ploc - Qloc).normalized();
                 const Evec3 normJ = -normI;
                 const Evec3 posI = Ploc - centerI;
@@ -361,13 +388,26 @@ class CalcSylinderNearForce {
     bool sp_sy(const SylinderNearEP &spI, const SylinderNearEP &syJ, ForceNear &forceI, ConstraintBlock &conBlock,
                bool update=false, const bool reverseIJ = false) const {
         // sphere collide with sylinder
-        // effective radius of sphere = sp.lengthCollision*0.5 + sp.radiusCollision
 
+        // apply PBC on centerJ
         const Evec3 centerI = ECmap3(spI.pos);
+        Evec3 centerJ;
+        for (int k = 0; k < 3; k++) {
+            if (!simBoxPBC[k])
+                continue;
+            double trg = centerI[k];
+            double xk = syJ.pos[k];
+            findPBCImage(simBoxLow[k], simBoxHigh[k], xk, trg);
+            centerJ[k] = xk;
+            // error check
+            if (fabs(trg - xk) > 0.5 * (simBoxHigh[k] - simBoxLow[k])) {
+                spdlog::critical("pbc image error in near collision");
+                std::exit(1);
+            }
+        }
+
+        // effective radius of sphere = sp.lengthCollision*0.5 + sp.radiusCollision
         const double radI = spI.lengthCollision * 0.5 + spI.radiusCollision;
-
-        const Evec3 centerJ = ECmap3(syJ.pos);
-
         const Evec3 directionJ = ECmap3(syJ.direction);
         const Evec3 Qm = centerJ - directionJ * (0.5 * syJ.lengthCollision); // minus end
         const Evec3 Qp = centerJ + directionJ * (0.5 * syJ.lengthCollision); // plus end
@@ -384,7 +424,8 @@ class CalcSylinderNearForce {
             collision = true;
             // TODO MODULARIZE! 
             const double Pi = 3.14159265358979323846;
-            const double gammaGuess = sep < 0 ? -0.5 * sep / dt * 6 * Pi * viscosity : 0;
+            // const double gammaGuess = sep < 0 ? -0.5 * sep / dt * 6 * Pi * viscosity : 0;
+            const double gammaGuess = sep < 0 ? -sep : 0;
             const Evec3 normI = (Ploc - Qloc).normalized();
             const Evec3 normJ = -normI;
             const Evec3 posI = Ploc - centerI;
@@ -410,7 +451,8 @@ class CalcSylinderNearForce {
                 collision = true;
                 // TODO MODULARIZE! 
                 const double Pi = 3.14159265358979323846;
-                const double gammaGuess = sep < 0 ? -0.5 * sep / dt * 6 * Pi * viscosity : 0;
+                // const double gammaGuess = sep < 0 ? -0.5 * sep / dt * 6 * Pi * viscosity : 0;
+                const double gammaGuess = sep < 0 ? -sep : 0;
                 const Evec3 normI = (Ploc - Qloc).normalized();
                 const Evec3 normJ = -normI;
                 const Evec3 posI = Ploc - centerI;
@@ -451,12 +493,28 @@ class CalcSylinderNearForce {
         // sylinder collide with sylinder
         DCPQuery<3, double, Evec3> DistSegSeg3;
 
+        // apply PBC on centerJ
         const Evec3 centerI = ECmap3(syI.pos);
+        Evec3 centerJ;
+        for (int k = 0; k < 3; k++) {
+            if (!simBoxPBC[k])
+                continue;
+            double trg = centerI[k];
+            double xk = syJ.pos[k];
+            findPBCImage(simBoxLow[k], simBoxHigh[k], xk, trg);
+            centerJ[k] = xk;
+            // error check
+            if (fabs(trg - xk) > 0.5 * (simBoxHigh[k] - simBoxLow[k])) {
+                spdlog::critical("pbc image error in near collision");
+                std::exit(1);
+            }
+        }
+
+        // compute the separation
         const Evec3 directionI = ECmap3(syI.direction);
         const Evec3 Pm = centerI - directionI * (0.5 * syI.lengthCollision); // minus end
         const Evec3 Pp = centerI + directionI * (0.5 * syI.lengthCollision); // plus end
 
-        const Evec3 centerJ = ECmap3(syJ.pos);
         Evec3 Ploc = Evec3::Zero();
         Evec3 Qloc = Evec3::Zero();
 
@@ -474,7 +532,8 @@ class CalcSylinderNearForce {
             collision = true;
             // TODO MODULARIZE! 
             const double Pi = 3.14159265358979323846;
-            const double gammaGuess = sep < 0 ? -0.5 * sep / dt * 6 * Pi * viscosity : 0;
+            // const double gammaGuess = sep < 0 ? -0.5 * sep / dt * 6 * Pi * viscosity : 0;
+            const double gammaGuess = sep < 0 ? -sep : 0;
             const Evec3 normI = (Ploc - Qloc).normalized();
             const Evec3 normJ = -normI;
             const Evec3 posI = Ploc - centerI;
@@ -497,7 +556,8 @@ class CalcSylinderNearForce {
                 collision = true;
                 // TODO MODULARIZE! 
                 const double Pi = 3.14159265358979323846;
-                const double gammaGuess = sep < 0 ? -0.5 * sep / dt * 6 * Pi * viscosity : 0;
+                // const double gammaGuess = sep < 0 ? -0.5 * sep / dt * 6 * Pi * viscosity : 0;
+                const double gammaGuess = sep < 0 ? -sep : 0;
                 const Evec3 normI = (Ploc - Qloc).normalized();
                 const Evec3 normJ = -normI;
                 const Evec3 posI = Ploc - centerI;

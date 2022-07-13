@@ -92,6 +92,7 @@ void ConstraintCollector::writePVTP(const std::string &folder, const std::string
     cellDataFields.emplace_back(1, IOHelper::IOTYPE::Int32, "oneSide");
     cellDataFields.emplace_back(1, IOHelper::IOTYPE::Int32, "bilateral");
     cellDataFields.emplace_back(1, IOHelper::IOTYPE::Float32, "value");
+    cellDataFields.emplace_back(1, IOHelper::IOTYPE::Float32, "sep");
     cellDataFields.emplace_back(1, IOHelper::IOTYPE::Float32, "gamma");
     cellDataFields.emplace_back(1, IOHelper::IOTYPE::Float32, "diagonal");
     cellDataFields.emplace_back(9, IOHelper::IOTYPE::Float32, "Stress");
@@ -133,6 +134,7 @@ void ConstraintCollector::writeVTP(const std::string &folder, const std::string 
     std::vector<int32_t> oneSide(cBlockNum);
     std::vector<int32_t> bilateral(cBlockNum);
     std::vector<float> constraintValue(cBlockNum);
+    std::vector<float> sepDist(cBlockNum);
     std::vector<float> gamma(cBlockNum);
     std::vector<float> constraintDiagonal(cBlockNum);
     std::vector<float> Stress(9 * cBlockNum);
@@ -181,6 +183,7 @@ void ConstraintCollector::writeVTP(const std::string &folder, const std::string 
             oneSide[cIndex] = block.oneSide ? 1 : 0;
             bilateral[cIndex] = block.bilateral ? 1 : 0;
             constraintValue[cIndex] = block.constraintValue;
+            sepDist[cIndex] = block.sepDist;
             gamma[cIndex] = block.gamma;
             constraintDiagonal[cIndex] = block.constraintDiagonal;
             for (int kk = 0; kk < 9; kk++) {
@@ -218,6 +221,7 @@ void ConstraintCollector::writeVTP(const std::string &folder, const std::string 
     IOHelper::writeDataArrayBase64(oneSide, "oneSide", 1, file);
     IOHelper::writeDataArrayBase64(bilateral, "bilateral", 1, file);
     IOHelper::writeDataArrayBase64(constraintValue, "value", 1, file);
+    IOHelper::writeDataArrayBase64(sepDist, "sep", 1, file);
     IOHelper::writeDataArrayBase64(gamma, "gamma", 1, file);
     IOHelper::writeDataArrayBase64(constraintDiagonal, "diagonal", 1, file);
     IOHelper::writeDataArrayBase64(Stress, "Stress", 9, file);
@@ -315,7 +319,12 @@ Teuchos::RCP<TCMAT> ConstraintCollector::buildConstraintMatrixVector(const Teuch
             } else {
                 // collision constraint using Ficher Bermiester function
                 // this is the partial derivative of the FB function (sep^k, gamma^k) w.r.t sep^k
-                scale = 1.0 - cBlock.sepDist / std::sqrt(std::pow(cBlock.sepDist , 2) + std::pow(gammaPtr(idx, 0) , 2));
+                // TODO: what number should be used here?
+                if ((std::abs(cBlock.sepDist) < 1e-6) && (std::abs(gammaPtr(idx, 0)) < 1e-6)) {
+                    scale = 0.0;
+                } else {
+                    scale = 1.0 - cBlock.sepDist / std::sqrt(std::pow(cBlock.sepDist , 2) + std::pow(gammaPtr(idx, 0) , 2));
+                }
             }
 
             columnIndices[kk + 0] = 6 * cBlock.globalIndexI;
@@ -445,8 +454,13 @@ int ConstraintCollector::evalConstraintDiagonal(const Teuchos::RCP<const TV> &ga
             } else {
                 // collision constraint using Ficher Bermiester function
                 // this is the partial derivative of the FB function (sep^k, gamma^k) w.r.t gamma^k
-                constraintDiagonalPtr(idx, 0) = 1.0 
-                    - gammaPtr(idx, 0) / std::sqrt(std::pow(cBlock.sepDist , 2) + std::pow(gammaPtr(idx, 0) , 2));
+                // TODO: what number should be used here?
+                if ((std::abs(cBlock.sepDist) < 1e-6) && (std::abs(gammaPtr(idx, 0)) < 1e-6)) {
+                    constraintDiagonalPtr(idx, 0) = 1.0;
+                } else {
+                    constraintDiagonalPtr(idx, 0) = 1.0 
+                        - gammaPtr(idx, 0) / std::sqrt(std::pow(cBlock.sepDist , 2) + std::pow(gammaPtr(idx, 0) , 2));
+                }
             }
         }
     }
@@ -460,7 +474,7 @@ int ConstraintCollector::evalConstraintValues(const Teuchos::RCP<const TV> &gamm
     TEUCHOS_ASSERT(nonnull(gammaRcp));
     TEUCHOS_ASSERT(nonnull(constraintValueRcp));
 
-    const auto &cPool = *constraintPoolPtr; // the constraint pool
+    auto &cPool = *constraintPoolPtr; // the constraint pool
     const int cQueNum = cPool.size();
 
     // prepare 1, build the index for block queue
@@ -475,22 +489,23 @@ int ConstraintCollector::evalConstraintValues(const Teuchos::RCP<const TV> &gamm
 
 #pragma omp parallel for num_threads(cQueNum)
     for (int threadId = 0; threadId < cQueNum; threadId++) {
-        const auto &cQue = cPool[threadId];
+        auto &cQue = cPool[threadId];
         const int cIndexBase = cQueIndex[threadId];
         const int queSize = cQue.size();
         for (int j = 0; j < queSize; j++) {
-            const auto &block = cQue[j];
+            auto &cblock = cQue[j];
             const auto idx = cIndexBase + j;
-            if (cQue[j].bilateral) {
+            if (cblock.bilateral) {
                 // spring constraint
                 // this is the value of linear spring constraint evaluated at gamma^k, q^k
-                constraintValuePtr(idx, 0) = cQue[j].sepDist + 1.0 / cQue[j].kappa * gammaPtr(idx, 0);
+                constraintValuePtr(idx, 0) = cblock.sepDist + 1.0 / cblock.kappa * gammaPtr(idx, 0);
             } else {
                 // collision constraint using Ficher Bermiester function
                 // this is the value of the FB function evaluated at gamma^k, sep(q^k)
-                constraintValuePtr(idx, 0) = cQue[j].sepDist + gammaPtr(idx, 0) 
-                    - std::sqrt(std::pow(cQue[j].sepDist , 2) + std::pow(gammaPtr(idx, 0) , 2));
+                constraintValuePtr(idx, 0) = cblock.sepDist + gammaPtr(idx, 0) 
+                    - std::sqrt(std::pow(cblock.sepDist , 2) + std::pow(gammaPtr(idx, 0) , 2));
             }
+            cblock.constraintValue = constraintValuePtr(idx, 0);
         }
     }
 

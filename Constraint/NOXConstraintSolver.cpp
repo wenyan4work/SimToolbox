@@ -1,5 +1,8 @@
+
 #include "NOXConstraintSolver.hpp"
 #include "Util/Logger.hpp"
+
+#include <NOX_StatusTest_NormF.H>
 #include <mpi.h>
 
 ConstraintSolver::ConstraintSolver(const Teuchos::RCP<const Teuchos::Comm<int> >& commRcp,
@@ -35,28 +38,29 @@ ConstraintSolver::ConstraintSolver(const Teuchos::RCP<const Teuchos::Comm<int> >
     // Create the NOX status tests //
     /////////////////////////////////
     // TODO: play around with these params
-    Teuchos::RCP<NOX::StatusTest::NormF> absresid = Teuchos::rcp(new NOX::StatusTest::NormF(1.0e-8));
-    Teuchos::RCP<NOX::StatusTest::NormWRMS> wrms = Teuchos::rcp(new NOX::StatusTest::NormWRMS(1.0e-2, 1.0e-8));
-    Teuchos::RCP<NOX::StatusTest::Combo> converged =
-        Teuchos::rcp(new NOX::StatusTest::Combo(NOX::StatusTest::Combo::AND));
-    converged->addStatusTest(absresid);
-    converged->addStatusTest(wrms);
-    Teuchos::RCP<NOX::StatusTest::MaxIters> maxiters = Teuchos::rcp(new NOX::StatusTest::MaxIters(20));
+    NOX::Abstract::Vector::NormType normType = NOX::Abstract::Vector::NormType::MaxNorm; // OneNorm, TwoNorm, MaxNorm
+    NOX::StatusTest::NormF::ScaleType scaleType = NOX::StatusTest::NormF::Unscaled;
+    Teuchos::RCP<NOX::StatusTest::NormF> absresid = 
+        Teuchos::rcp(new NOX::StatusTest::NormF(1.0e-6, normType, scaleType));
+    Teuchos::RCP<NOX::StatusTest::MaxIters> maxiters = Teuchos::rcp(new NOX::StatusTest::MaxIters(1000));
     Teuchos::RCP<NOX::StatusTest::FiniteValue> fv = Teuchos::rcp(new NOX::StatusTest::FiniteValue);
     
     statusTests_ = Teuchos::rcp(new NOX::StatusTest::Combo(NOX::StatusTest::Combo::OR));
     statusTests_->addStatusTest(fv);
-    statusTests_->addStatusTest(converged);
+    statusTests_->addStatusTest(absresid);
     statusTests_->addStatusTest(maxiters);
 
     ///////////////////////////////
     // Create nox parameter list //
     ///////////////////////////////
     nonlinearParams_ = Teuchos::parameterList();
-    nonlinearParams_->set("Nonlinear Solver", "Line Search Based");
+    
+    // set solver params
+    nonlinearParams_->set("Nonlinear Solver", "Line Search Based"); // Line Search Based or Trust Region Based
     nonlinearParams_->sublist("Direction").sublist("Newton").sublist("Linear Solver").set("Tolerance", 1.0e-4);
+    nonlinearParams_->sublist("Line Search").set("Method", "Full Step");
 
-    // Set output parameters
+    // Set output params
     nonlinearParams_->sublist("Printing").sublist("Output Information").set("Debug", true);
     nonlinearParams_->sublist("Printing").sublist("Output Information").set("Warning", true);
     nonlinearParams_->sublist("Printing").sublist("Output Information").set("Error", true);
@@ -79,66 +83,6 @@ void ConstraintSolver::setup(double dt) {
 void ConstraintSolver::reset() {
     mobOpRcp_.reset();
 }
-
-// void ConstraintSolver::dumpConstraints() {
-//     /////////////////////////////////////////////////
-//     // Check if there are any constraints to solve //
-//     /////////////////////////////////////////////////
-//     const int numLocalConstraints = conCollectorPtr_->getLocalNumberOfConstraints();
-//     int numGlobalConstraints;
-//     MPI_Allreduce(&numLocalConstraints, &numGlobalConstraints, 1, MPI_INT, MPI_SUM, MPI_COMM_WORLD);
-
-//     if (numGlobalConstraints == 0) { 
-//         return;
-//     }
-
-//     ///////////////////////////////////////
-//     // Create the model evaluator object //
-//     ///////////////////////////////////////
-//     Teuchos::RCP<EvaluatorTpetraConstraint> model = Teuchos::rcp(new EvaluatorTpetraConstraint(commRcp_, mobOpRcp_, conCollectorPtr_, ptcSystemPtr_, dt_));
-//     model->set_W_factory(lowsFactory_);
-
-//     //////////////////////////////
-//     // Create the JFNK operator //
-//     //////////////////////////////
-//     Teuchos::ParameterList printParams;
-//     Teuchos::RCP<Teuchos::ParameterList> jfnkParams = Teuchos::parameterList();
-//     jfnkParams->set("Difference Type", "Forward");
-//     jfnkParams->set("Perturbation Algorithm", "KSP NOX 2001");
-//     jfnkParams->set("lambda", 1.0e-4);
-//     Teuchos::RCP<NOX::Thyra::MatrixFreeJacobianOperator<Scalar> > jfnkOp =
-//         Teuchos::rcp(new NOX::Thyra::MatrixFreeJacobianOperator<Scalar>(printParams));
-//     jfnkOp->setParameterList(jfnkParams);
-
-//     // Wrap the model evaluator in a JFNK Model Evaluator
-//     Teuchos::RCP<Thyra::ModelEvaluator<Scalar> > thyraModel =
-//         Teuchos::rcp(new NOX::MatrixFreeModelEvaluatorDecorator<Scalar>(model));
-
-//     //////////////////////////////
-//     // Create the initial guess //
-//     //////////////////////////////
-//     Teuchos::RCP<Thyra::VectorBase<Scalar>> initial_guess = model->getNominalValues().get_x()->clone_v();
-
-//     Teuchos::RCP<NOX::Thyra::Group> noxGroup = Teuchos::rcp(new NOX::Thyra::Group(
-//         *initial_guess, model, model->create_W_op(), lowsFactory_, Teuchos::null, Teuchos::null, Teuchos::null));
-
-//     // model, model->create_W_op()
-
-//     noxGroup->computeF(); //TODO: is this necessary?
-//     noxGroup->computeJacobian(); //TODO: is this necessary?
-
-//     // VERY IMPORTANT!!!  jfnk object needs base evaluation objects.
-//     // This creates a circular dependency, so use a weak pointer.
-//     jfnkOp->setBaseEvaluationToNOXGroup(noxGroup.create_weak());
-
-//     ///////////////////////////////
-//     // Get the Jacobian as a TOP //
-//     /////////////////////////////// 
-//     // Thyra::LinearOpBase -> Thyra::TpetraLinearOp -> Tpetra::Operator
-//     Teuchos::RCP<Thyra::LinearOpBase<Scalar> > jacThyraOpBaseRcp = noxGroup->getNonconstJacobianOperator();
-//     Teuchos::RCP<TOP> jacTOP = Teuchos::rcp_dynamic_cast<Thyra::TpetraLinearOp<Scalar, LO, GO, Node> >(jacThyraOpBaseRcp, true)->getTpetraOperator();
-//     dumpTOP(jacTOP, "Jacobian");
-// }
 
 void ConstraintSolver::solveConstraints() {
     /////////////////////////////////////////////////
@@ -185,8 +129,8 @@ void ConstraintSolver::solveConstraints() {
     // model, model->create_W_op(),
     // thyraModel, jfnkOp,
 
-    noxGroup->computeF(); //TODO: is this necessary? No, I don't think so
-    noxGroup->computeJacobian(); //TODO: is this necessary? No, I know think so
+    // noxGroup->computeF(); //TODO: is this necessary? No, I don't think so
+    // noxGroup->computeJacobian(); //TODO: is this necessary? No, I know think so
 
     // VERY IMPORTANT!!!  jfnk object needs base evaluation objects.
     // This creates a circular dependency, so use a weak pointer.
