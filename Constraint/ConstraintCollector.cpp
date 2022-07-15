@@ -547,10 +547,13 @@ int ConstraintCollector::evalConstraintValues(const Teuchos::RCP<const TV> &gamm
 
 
 int ConstraintCollector::fillConstraintInformation(const Teuchos::RCP<const TCOMM>& commRcp,
-                                                   const Teuchos::RCP<TV> &gammaGuessRcp,         
+                                                   const Teuchos::RCP<TV> &gammaGuessRcp,
+                                                   const Teuchos::RCP<TV> &initialSepRcp,
+                                                   const Teuchos::RCP<TV> &constraintKappaRcp,
                                                    const Teuchos::RCP<TV> &constraintFlagRcp) const {
     TEUCHOS_ASSERT(nonnull(commRcp));
     TEUCHOS_ASSERT(nonnull(gammaGuessRcp));
+    TEUCHOS_ASSERT(nonnull(constraintKappaRcp));
     TEUCHOS_ASSERT(nonnull(constraintFlagRcp));
 
     const auto &cPool = *constraintPoolPtr; // the constraint pool
@@ -561,10 +564,14 @@ int ConstraintCollector::fillConstraintInformation(const Teuchos::RCP<const TCOM
     std::vector<int> cQueIndex;
     buildConIndex(cQueSize, cQueIndex);
 
-    // fill the gammaGuessRcp and constraintFlagRcp vectors
+    // fill the vectors from the constraint pool
     auto gammaGuessPtr = gammaGuessRcp->getLocalView<Kokkos::HostSpace>();
+    auto initialSepPtr = initialSepRcp->getLocalView<Kokkos::HostSpace>();
+    auto constraintKappaPtr = constraintKappaRcp->getLocalView<Kokkos::HostSpace>();
     auto constraintFlagPtr = constraintFlagRcp->getLocalView<Kokkos::HostSpace>();
     gammaGuessRcp->modify<Kokkos::HostSpace>();
+    initialSepRcp->modify<Kokkos::HostSpace>();
+    constraintKappaRcp->modify<Kokkos::HostSpace>();
     constraintFlagRcp->modify<Kokkos::HostSpace>();
 
 #pragma omp parallel for num_threads(cQueNum)
@@ -576,6 +583,8 @@ int ConstraintCollector::fillConstraintInformation(const Teuchos::RCP<const TCOM
             const auto &block = cQue[j];
             const auto idx = cIndexBase + j;
             gammaGuessPtr(idx, 0) = block.gammaGuess;
+            initialSepPtr(idx, 0) = block.sepDist;
+            constraintKappaPtr(idx, 0) = block.kappa;
             if (block.bilateral) {
                 constraintFlagPtr(idx, 0) = 1;
             }

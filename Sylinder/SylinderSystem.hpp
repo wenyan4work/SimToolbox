@@ -354,8 +354,13 @@ class SylinderSystem {
     void collectLinkBilateral();     ///< setup link constraints
     void updatePairCollision();     ///< collect pair collision constraints
 
+    void getForceVelocityNonConstraint(const Teuchos::RCP<TV> &forceNCRcp, 
+                                      const Teuchos::RCP<TV> &velocityNCRcp) const; ///< fill force and velocity nonconstraint
+
     void saveForceVelocityConstraints(const Teuchos::RCP<const TV> &forceRcp, 
                                       const Teuchos::RCP<const TV> &velocityRcp); ///< write back to sylinder.velCol and velBi
+
+                                      
     void stepEuler(); ///< Euler step update position and orientation, with both collision and non-collision velocity
     void resetConfiguration(); ///< reset position and orientation, to the stores position/orientation
     void advanceParticles(); ///< Euler step update position and orientation, with both collision and non-collision velocity

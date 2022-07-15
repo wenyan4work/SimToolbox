@@ -754,6 +754,37 @@ void SylinderSystem::applyMonolayer() {
     }
 }
 
+void SylinderSystem::getForceVelocityNonConstraint(const Teuchos::RCP<TV> &forceNCRcp, 
+                                                   const Teuchos::RCP<TV> &velocityNCRcp) const {
+    // save results
+    auto forceNCPtr = forceNCRcp->getLocalView<Kokkos::HostSpace>();
+    auto velocityNCPtr = velocityNCRcp->getLocalView<Kokkos::HostSpace>();
+    forceNCRcp->modify<Kokkos::HostSpace>();
+    velocityNCRcp->modify<Kokkos::HostSpace>();
+
+    const int sylinderLocalNumber = sylinderContainer.getNumberOfParticleLocal();
+    TEUCHOS_ASSERT(velocityNCPtr.dimension_0() == sylinderLocalNumber * 6);
+    TEUCHOS_ASSERT(velocityNCPtr.dimension_1() == 1);
+
+#pragma omp parallel for
+    for (int i = 0; i < sylinderLocalNumber; i++) {
+        auto &sy = sylinderContainer[i];
+        velocityNCPtr(6 * i + 0, 0) = sy.velNonB[0] + sy.velBrown[0];
+        velocityNCPtr(6 * i + 1, 0) = sy.velNonB[1] + sy.velBrown[1];
+        velocityNCPtr(6 * i + 2, 0) = sy.velNonB[2] + sy.velBrown[2];
+        velocityNCPtr(6 * i + 3, 0) = sy.omegaNonB[0] + sy.omegaBrown[0];
+        velocityNCPtr(6 * i + 4, 0) = sy.omegaNonB[1] + sy.omegaBrown[1];
+        velocityNCPtr(6 * i + 5, 0) = sy.omegaNonB[2] + sy.omegaBrown[2];
+
+        forceNCPtr(6 * i + 0, 0) = sy.forceNonB[0];
+        forceNCPtr(6 * i + 1, 0) = sy.forceNonB[1];
+        forceNCPtr(6 * i + 2, 0) = sy.forceNonB[2];
+        forceNCPtr(6 * i + 3, 0) = sy.torqueNonB[0];
+        forceNCPtr(6 * i + 4, 0) = sy.torqueNonB[1];
+        forceNCPtr(6 * i + 5, 0) = sy.torqueNonB[2];
+    }
+}
+
 void SylinderSystem::saveForceVelocityConstraints(const Teuchos::RCP<const TV> &forceRcp, 
                                                   const Teuchos::RCP<const TV> &velocityRcp) {
     // save results
@@ -1281,13 +1312,15 @@ void SylinderSystem::updatePairCollision() {
     std::vector<int> threadOffset(nThreads + 1, 0); // last entry is the total GID's to find (2 per constraint)
     for (int threadId = 0; threadId < nThreads; threadId++) {
         const auto &cBlockQue = cPool[threadId];
-        threadOffset[threadId + 1] += 2 * cBlockQue.size();
+        threadOffset[threadId + 1] = threadOffset[threadId] + 2 * cBlockQue.size();
     }
+    assert(threadOffset.back() == 2 * conCollectorPtr->getLocalNumberOfConstraints());
+
 
     // Step 1.2 loop over all constraints and add gidI and gidJ to gidToFind 
     auto &gidToFind = sylinderNearDataDirectoryPtr->gidToFind;
     gidToFind.clear();
-    gidToFind.resize(2 * threadOffset.back());
+    gidToFind.resize(threadOffset.back());
 
     // multi-thread filling. nThreads = poolSize, each thread process a queue
 #pragma omp parallel for num_threads(nThreads)

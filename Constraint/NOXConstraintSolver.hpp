@@ -82,18 +82,31 @@ class ConstraintSolver {
     void solveConstraints();
 
     /**
-     * @brief write the solution constraint force magnitude back to uniConstraints and biConstraints
+     * @brief write the solution constraint force Lagrange multiplyer back to the constraint blocks
      *
      */
     void writebackGamma();
 
+    /**
+     * @brief write the solution constraint force and velocity to the particles
+     *
+     */
+    void writebackForceVelocity();
+
+
   private:
     double dt_; ///< timestep size
-    const Teuchos::RCP<const TCOMM> commRcp_;   ///< TCOMM, set as a Teuchos::MpiComm object in constructor
-    Teuchos::RCP<const TOP> mobOpRcp_;         ///< mobility operator, 6 dof per obj to 6 dof per obj
+    const Teuchos::RCP<const TCOMM> commRcp_; ///< TCOMM, set as a Teuchos::MpiComm object in constructor
+    Teuchos::RCP<const TOP> mobOpRcp_;        ///< mobility operator, 6 dof per obj to 6 dof per obj
+    Teuchos::RCP<const TMAP> mobMapRcp_;      ///< map for mobility matrix. 6 DOF per obj
+
     std::shared_ptr<ConstraintCollector> conCollectorPtr_; ///< pointer to ConstraintCollector
     std::shared_ptr<SylinderSystem> ptcSystemPtr_;         ///< pointer to SylinderSystem
-    Teuchos::RCP<const TV> gammaRcp_; ///< constraint Lagrange multiplier
+    Teuchos::RCP<const TV> gammaRcp_;   ///< constraint Lagrange multiplier
+    Teuchos::RCP<TV> velExternalRcp_;   ///< external, nonconstraint velocity
+    Teuchos::RCP<TV> forceExternalRcp_; ///< external, nonconstraint force
+    Teuchos::RCP<TV> velConRcp_; ///< constraint velocity
+    Teuchos::RCP<TV> forceConRcp_; ///< constraint force
 
     // NOX stuff
     Teuchos::RCP<Thyra::LinearOpWithSolveFactoryBase<Scalar>> lowsFactory_; ///< linear operator params/factory

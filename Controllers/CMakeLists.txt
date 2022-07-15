@@ -10,6 +10,7 @@ add_executable(
   ${PROJECT_SOURCE_DIR}/Constraint/ConstraintCollector.cpp
   ${PROJECT_SOURCE_DIR}/Constraint/NOXConstraintSolver.cpp
   ${PROJECT_SOURCE_DIR}/Constraint/NOXConstraintEvaluator.cpp
+  ${PROJECT_SOURCE_DIR}/Constraint/PartialSepPartialGammaOp.cpp
   ${PROJECT_SOURCE_DIR}/Util/Base64.cpp)
 target_compile_options(main PRIVATE ${OpenMP_CXX_FLAGS})
 target_compile_definitions(

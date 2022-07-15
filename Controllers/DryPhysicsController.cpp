@@ -74,35 +74,37 @@ void DryPhysicsController::initialize(const SylinderConfig &runConfig_, const st
     conSolverPtr = std::make_shared<ConstraintSolver>(commRcp, conCollectorPtr, ptcSystemPtr); 
     ptcSystemPtr->initialize(posFile);
     
-
     // prepare the output directory
     if (commRcp->getRank() == 0) {
         IOHelper::makeSubFolder("./result"); 
     }
 
     // Collect and resolve the initial constraints 
-    // Don't output files or update step count
     spdlog::warn("Initial Constraint Resolution Begin");
     ptcSystemPtr->prepareStep(stepCount);
     ptcSystemPtr->collectConstraints(); 
     conSolverPtr->setup(runConfig.dt);
 
+    std::chrono::steady_clock::time_point begin = std::chrono::steady_clock::now();
+    conSolverPtr->solveConstraints(); 
+    std::chrono::steady_clock::time_point end = std::chrono::steady_clock::now();
+    std::cout << "Time difference = " << std::chrono::duration_cast<std::chrono::microseconds>(end - begin).count() << "[µs]" << std::endl;
+    
+    conSolverPtr->writebackGamma();
+    conSolverPtr->writebackForceVelocity();
+
+    // merge the constraint and nonconstraint vel and force
+    ptcSystemPtr->sumForceVelocity();
+
+    // write the initial, potentially overlapped results
     std::string baseFolder = getCurrentResultFolder();
     IOHelper::makeSubFolder(baseFolder);
-    const std::string postfix = std::to_string(snapID);
+    const std::string postfix = std::to_string(-1);
     ptcSystemPtr->writeResult(stepCount, baseFolder, postfix); //TODO: split this function into two: one for ptcSystem and one for ConCollector
-    writeTimeStepInfo(baseFolder, postfix);
 
-    std::chrono::steady_clock::time_point begin = std::chrono::steady_clock::now();
-    conSolverPtr->solveConstraints(); //TODO: move this before the initial write. 
+    // update the configuration
+    ptcSystemPtr->stepEuler(); // TODO: make sure this should be here since the collision may need to run this type of update
     ptcSystemPtr->advanceParticles();
-
-    std::chrono::steady_clock::time_point end = std::chrono::steady_clock::now();
-
-    std::cout << "Time difference = " << std::chrono::duration_cast<std::chrono::microseconds>(end - begin).count() << "[µs]" << std::endl;
-
-    const std::string postfix2 = std::to_string(99);
-    ptcSystemPtr->writeResult(stepCount, baseFolder, postfix2); //TODO: split this function into two: one for ptcSystem and one for ConCollector
 
     spdlog::warn("Initial Collision Resolution End");
 }
@@ -178,6 +180,11 @@ void DryPhysicsController::run() {
         // constraint solve
         conSolverPtr->setup(runConfig.dt);
         conSolverPtr->solveConstraints(); 
+        conSolverPtr->writebackGamma();
+        conSolverPtr->writebackForceVelocity();
+
+        // merge the constraint and nonconstraint vel and force
+        ptcSystemPtr->sumForceVelocity();
 
         // data output stuff
         if (getIfWriteResultCurrentStep()) {
@@ -189,6 +196,7 @@ void DryPhysicsController::run() {
         }
 
         // post-step stuff
+        ptcSystemPtr->stepEuler(); // TODO: make sure this should be here since the collision may need to run this type of update
         ptcSystemPtr->advanceParticles(); 
         ptcSystemPtr->calcOrderParameter();
         ptcSystemPtr->calcConStress();

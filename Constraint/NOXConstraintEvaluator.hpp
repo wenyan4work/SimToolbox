@@ -3,6 +3,7 @@
 
 // Our stuff
 #include "ConstraintCollector.hpp"
+#include "PartialSepPartialGammaOp.hpp"
 #include "Trilinos/TpetraUtil.hpp"
 #include "Sylinder/SylinderSystem.hpp"
 
@@ -24,9 +25,13 @@ class EvaluatorTpetraConstraint
 public:
   // Constructor
   EvaluatorTpetraConstraint(const Teuchos::RCP<const TCOMM>& commRcp,
-                     const Teuchos::RCP<const TOP> &mobOpRcp, 
+                     const Teuchos::RCP<const TOP> &mobOpRcp,
+                     const Teuchos::RCP<const TV> &velExternalRcp,
+                     const Teuchos::RCP<const TV> &forceExternalRcp,
                      std::shared_ptr<ConstraintCollector> conCollectorPtr,
                      std::shared_ptr<SylinderSystem> ptcSystemPtr,
+                     const Teuchos::RCP<TV> &forceRcp,
+                     const Teuchos::RCP<TV> &velRcp,
                      const double dt);
 
   /** \name Initializers/Accessors */
@@ -90,20 +95,27 @@ private: // data members
   std::shared_ptr<ConstraintCollector> conCollectorPtr_;
   std::shared_ptr<SylinderSystem> ptcSystemPtr_;
   const Teuchos::RCP<const TCOMM> commRcp_;
-  Teuchos::RCP<const TOP> mobOpRcp_;
+  const Teuchos::RCP<const TOP> mobOpRcp_;
+  const Teuchos::RCP<const TV> velExternalRcp_;
+  const Teuchos::RCP<const TV> forceExternalRcp_;
   Teuchos::RCP<const TMAP> mobMapRcp_;   ///< map for mobility matrix. 6 DOF per obj
 
   Teuchos::RCP<TCMAT> AMatTransRcp_; ///< A^Trans matrix TODO: are these allowed to be mutable?
   Teuchos::RCP<TCMAT> AMatRcp_; ///< A^Trans matrix
+  Teuchos::RCP<PartialSepPartialGammaOp> PartialSepPartialGammaOpRcp_; // dt S^T A^T M A S which takes gamma to change in sep w.r.t gamma
 
   Teuchos::RCP<TV> forceRcp_; ///< force = A forceMag
   Teuchos::RCP<TV> forceMagRcp_;   ///< forceMag = S gamma
   Teuchos::RCP<TV> velRcp_;   ///< vel = M force
   Teuchos::RCP<TV> constraintFlagRcp_; ///< bilateral flag vector
+  Teuchos::RCP<TV> constrainedSepRcp_; ///< separation distance after applying constraints. Could be overlap, spring length, angle, etc. 
+  Teuchos::RCP<TV> unconstrainedSepRcp_; ///< unconstrained distance. Could be overlap, spring length, angle, etc. 
+  Teuchos::RCP<TV> constraintKappaRcp_; ///< Constraint constant TODO: modularize!
   Teuchos::RCP<TV> constraintDiagonalRcp_; ///< Diagonal of the matrix to add to the jacobian
   Teuchos::RCP<TV> constraintScaleRcp_; ///< Diagonal of the scale matrix. 
                                         ///< Scale is 1 for bilaterial constraints and nonzero for complementarity constraints
   Teuchos::RCP<TV> xGuessRcp_; ///< initial guess
+  Teuchos::RCP<TV> initialSepRcp_; ///< initial separation. Could be overlap, spring length, angle, etc. 
 
   Teuchos::RCP<const thyra_vec_space> xSpaceRcp_;
   Teuchos::RCP<const TMAP> xMapRcp_;
@@ -129,12 +141,9 @@ public:
   // Constructor
   JacobianOperator(const Teuchos::RCP<const TMAP> &xMapRcp);
 
-  void initialize(const Teuchos::RCP<const TOP> &mobOpRcp, 
-           const Teuchos::RCP<const TCMAT> &AMatTransRcp,
-           const Teuchos::RCP<const TCMAT> &AMatRcp,
-           const Teuchos::RCP<const TV> &constraintScaleRcp_, 
-           const Teuchos::RCP<const TV> &constraintDiagonalRcp, 
-           const double dt);
+  void initialize(const Teuchos::RCP<const PartialSepPartialGammaOp> &PartialSepPartialGammaOpRcp, 
+                  const Teuchos::RCP<const TV> &constraintDiagonalRcp, 
+                  const double dt);
 
   void unitialize();
 
@@ -164,6 +173,7 @@ private:
   Teuchos::RCP<const TV> constraintDiagonalRcp_; ///< K^{-1} diagonal matrix
   Teuchos::RCP<const TMAP> mobMapRcp_;   ///< map for mobility matrix. 6 DOF per obj
   Teuchos::RCP<const TMAP> xMapRcp_; ///< map for combined vector [gammau; gammab]^T
+  Teuchos::RCP<const PartialSepPartialGammaOp> PartialSepPartialGammaOpRcp_; // dt S^T A^T M A S which takes gamma to change in sep w.r.t gamma
 
   Teuchos::RCP<TV> forceMagRcp_; ///< force_mag = S gamma
   Teuchos::RCP<TV> forceRcp_; ///< force = A force_mag

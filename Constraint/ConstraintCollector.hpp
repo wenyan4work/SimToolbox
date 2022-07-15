@@ -129,7 +129,9 @@ class ConstraintCollector {
                                                     const Teuchos::RCP<const TMAP> &gammaMapRcp) const;
 
     int fillConstraintInformation(const Teuchos::RCP<const TCOMM>& commRcp,
-                                  const Teuchos::RCP<TV> &gammaGuessRcp,         
+                                  const Teuchos::RCP<TV> &gammaGuessRcp,
+                                  const Teuchos::RCP<TV> &initialSepRcp,
+                                  const Teuchos::RCP<TV> &constraintKappaRcp,
                                   const Teuchos::RCP<TV> &constraintFlagRcp) const;
 
     int evalConstraintScale(const Teuchos::RCP<const TV> &gammaRcp,
