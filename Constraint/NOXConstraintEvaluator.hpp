@@ -72,14 +72,18 @@ private:
   //@}
 
   // debug functions
-  void dumpToFile(const Teuchos::RCP<const TOP> JRcp, 
-                  const Teuchos::RCP<const TV> xRcp, 
-                  const Teuchos::RCP<const TCMAT> DMatTransRcp,
-                  const Teuchos::RCP<const TOP> mobOpRcp) const;
+  void dumpToFile(const Teuchos::RCP<const TOP> &JRcp, 
+                  const Teuchos::RCP<const TV> &xRcp, 
+                  const Teuchos::RCP<const TOP> &mobOpRcp,
+                  const Teuchos::RCP<const TCMAT> &AMatTransRcp,
+                  const Teuchos::RCP<const TCMAT> &AMatRcp,
+                  const Teuchos::RCP<const TV> &constraintScaleRcp, 
+                  const Teuchos::RCP<const TV> &constraintDiagonalRcp) const;
 
 
 private: // data members
 
+  mutable bool update_ = false;
   mutable int stepCount_ = 1;
   double dt_;
 
@@ -88,14 +92,17 @@ private: // data members
   const Teuchos::RCP<const TCOMM> commRcp_;
   Teuchos::RCP<const TOP> mobOpRcp_;
   Teuchos::RCP<const TMAP> mobMapRcp_;   ///< map for mobility matrix. 6 DOF per obj
-  // Teuchos::RCP<TCMAT> DMatTransRcp_; ///< D^Trans matrix
-  // Teuchos::RCP<TCMAT> DMatRcp_; ///< D^Trans matrix
 
+  Teuchos::RCP<TCMAT> AMatTransRcp_; ///< A^Trans matrix TODO: are these allowed to be mutable?
+  Teuchos::RCP<TCMAT> AMatRcp_; ///< A^Trans matrix
 
-  Teuchos::RCP<TV> forceRcp_; ///< force = D gamma
+  Teuchos::RCP<TV> forceRcp_; ///< force = A forceMag
+  Teuchos::RCP<TV> forceMagRcp_;   ///< forceMag = S gamma
   Teuchos::RCP<TV> velRcp_;   ///< vel = M force
   Teuchos::RCP<TV> constraintFlagRcp_; ///< bilateral flag vector
   Teuchos::RCP<TV> constraintDiagonalRcp_; ///< Diagonal of the matrix to add to the jacobian
+  Teuchos::RCP<TV> constraintScaleRcp_; ///< Diagonal of the scale matrix. 
+                                        ///< Scale is 1 for bilaterial constraints and nonzero for complementarity constraints
   Teuchos::RCP<TV> xGuessRcp_; ///< initial guess
 
   Teuchos::RCP<const thyra_vec_space> xSpaceRcp_;
@@ -123,8 +130,9 @@ public:
   JacobianOperator(const Teuchos::RCP<const TMAP> &xMapRcp);
 
   void initialize(const Teuchos::RCP<const TOP> &mobOpRcp, 
-           const Teuchos::RCP<const TCMAT> &DMatTransRcp,
-           const Teuchos::RCP<const TCMAT> &DMatRcp,
+           const Teuchos::RCP<const TCMAT> &AMatTransRcp,
+           const Teuchos::RCP<const TCMAT> &AMatRcp,
+           const Teuchos::RCP<const TV> &constraintScaleRcp_, 
            const Teuchos::RCP<const TV> &constraintDiagonalRcp, 
            const double dt);
 
@@ -150,13 +158,15 @@ private:
 
   // constant operators
   Teuchos::RCP<const TOP> mobOpRcp_; ///< mobility matrix
-  Teuchos::RCP<const TCMAT> DMatTransRcp_;
-  Teuchos::RCP<const TCMAT> DMatRcp_;
-  Teuchos::RCP<const TV> constraintDiagonalRcp_; ///< 1/h K^{-1} diagonal matrix
+  Teuchos::RCP<const TCMAT> AMatTransRcp_;
+  Teuchos::RCP<const TCMAT> AMatRcp_;
+  Teuchos::RCP<const TV> constraintScaleRcp_; ///< scale diagonal matrix
+  Teuchos::RCP<const TV> constraintDiagonalRcp_; ///< K^{-1} diagonal matrix
   Teuchos::RCP<const TMAP> mobMapRcp_;   ///< map for mobility matrix. 6 DOF per obj
   Teuchos::RCP<const TMAP> xMapRcp_; ///< map for combined vector [gammau; gammab]^T
 
-  Teuchos::RCP<TV> forceRcp_; ///< force = D gamma
+  Teuchos::RCP<TV> forceMagRcp_; ///< force_mag = S gamma
+  Teuchos::RCP<TV> forceRcp_; ///< force = A force_mag
   Teuchos::RCP<TV> velRcp_;   ///< vel = M force
 };
 

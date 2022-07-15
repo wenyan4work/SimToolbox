@@ -157,6 +157,12 @@ class Sylinder {
     void stepEuler(const double dt);
 
     /**
+     * @brief reset the configuration to the stores position and orientation
+     *
+     */
+    void resetConfiguration();
+
+    /**
      * @brief advance the current position and orientation to the position and orientation at the next timestep
      *
      */

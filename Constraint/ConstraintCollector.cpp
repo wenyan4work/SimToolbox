@@ -247,8 +247,7 @@ void ConstraintCollector::dumpBlocks() const {
 
 
 Teuchos::RCP<TCMAT> ConstraintCollector::buildConstraintMatrixVector(const Teuchos::RCP<const TMAP> &mobMapRcp,
-                                                                     const Teuchos::RCP<const TMAP> &gammaMapRcp,
-                                                                     const Teuchos::RCP<const TV> &gammaRcp) const {
+                                                                     const Teuchos::RCP<const TMAP> &gammaMapRcp) const {
     TEUCHOS_ASSERT(nonnull(mobMapRcp));
     TEUCHOS_ASSERT(nonnull(gammaMapRcp));
 
@@ -292,7 +291,6 @@ Teuchos::RCP<TCMAT> ConstraintCollector::buildConstraintMatrixVector(const Teuch
     }
 
     // step 2, fill the values to each row
-    auto gammaPtr = gammaRcp->getLocalView<Kokkos::HostSpace>();
     Kokkos::View<int *> columnIndices("columnIndices", rowPointers[localGammaSize]);
     Kokkos::View<double *> values("values", rowPointers[localGammaSize]);
     // multi-thread filling. nThreads = poolSize, each thread process a queue
@@ -309,24 +307,6 @@ Teuchos::RCP<TCMAT> ConstraintCollector::buildConstraintMatrixVector(const Teuch
             // 6 nnz for I
             const auto &cBlock = cBlockQue[j];
             const auto idx = cBlockIndexBase + j;
-
-            // TODO: This entire for loop needs modularized. Desperately! 
-            // Scale accounts for complementarity constraints 
-            double scale;
-            if (cBlock.bilateral) {
-                // spring constraint
-                scale = 1.0;
-            } else {
-                // collision constraint using Ficher Bermiester function
-                // this is the partial derivative of the FB function (sep^k, gamma^k) w.r.t sep^k
-                // TODO: what number should be used here?
-                if ((std::abs(cBlock.sepDist) < 1e-6) && (std::abs(gammaPtr(idx, 0)) < 1e-6)) {
-                    scale = 0.0;
-                } else {
-                    scale = 1.0 - cBlock.sepDist / std::sqrt(std::pow(cBlock.sepDist , 2) + std::pow(gammaPtr(idx, 0) , 2));
-                }
-            }
-
             columnIndices[kk + 0] = 6 * cBlock.globalIndexI;
             columnIndices[kk + 1] = 6 * cBlock.globalIndexI + 1;
             columnIndices[kk + 2] = 6 * cBlock.globalIndexI + 2;
@@ -339,12 +319,12 @@ Teuchos::RCP<TCMAT> ConstraintCollector::buildConstraintMatrixVector(const Teuch
             const double &px = cBlock.posI[0];
             const double &py = cBlock.posI[1];
             const double &pz = cBlock.posI[2];
-            values[kk + 0] = scale * gx;
-            values[kk + 1] = scale * gy;
-            values[kk + 2] = scale * gz;
-            values[kk + 3] = scale * (gz * py - gy * pz);
-            values[kk + 4] = scale * (gx * pz - gz * px);
-            values[kk + 5] = scale * (gy * px - gx * py);
+            values[kk + 0] = gx;
+            values[kk + 1] = gy;
+            values[kk + 2] = gz;
+            values[kk + 3] = (gz * py - gy * pz);
+            values[kk + 4] = (gx * pz - gz * px);
+            values[kk + 5] = (gy * px - gx * py);
             kk += 6;
             if (!cBlock.oneSide) {
                 columnIndices[kk + 0] = 6 * cBlock.globalIndexJ;
@@ -359,12 +339,12 @@ Teuchos::RCP<TCMAT> ConstraintCollector::buildConstraintMatrixVector(const Teuch
                 const double &px = cBlock.posJ[0];
                 const double &py = cBlock.posJ[1];
                 const double &pz = cBlock.posJ[2];
-                values[kk + 0] = scale * gx;
-                values[kk + 1] = scale * gy;
-                values[kk + 2] = scale * gz;
-                values[kk + 3] = scale * (gz * py - gy * pz);
-                values[kk + 4] = scale * (gx * pz - gz * px);
-                values[kk + 5] = scale * (gy * px - gx * py);
+                values[kk + 0] = gx;
+                values[kk + 1] = gy;
+                values[kk + 2] = gz;
+                values[kk + 3] = (gz * py - gy * pz);
+                values[kk + 4] = (gx * pz - gz * px);
+                values[kk + 5] = (gy * px - gx * py);
                 kk += 6;
             }
         }
@@ -413,13 +393,62 @@ Teuchos::RCP<TCMAT> ConstraintCollector::buildConstraintMatrixVector(const Teuch
     // dumpTMAP(colMapRcp,"colMap");
     // dumpTMAP(mobMapRcp,"mobMap");
 
-    // step 4, allocate the D^Trans matrix
-    Teuchos::RCP<TCMAT> DMatTransRcp = Teuchos::rcp(new TCMAT(gammaMapRcp, colMapRcp, rowPointers, columnIndices, values));
-    DMatTransRcp->fillComplete(mobMapRcp, gammaMapRcp); // domainMap, rangeMap
+    // step 4, allocate the A^Trans matrix, which maps scaled force magnatude to force vector
+    Teuchos::RCP<TCMAT> AMatTransRcp = Teuchos::rcp(new TCMAT(gammaMapRcp, colMapRcp, rowPointers, columnIndices, values));
+    AMatTransRcp->fillComplete(mobMapRcp, gammaMapRcp); // domainMap, rangeMap
 
-    return DMatTransRcp;
+    return AMatTransRcp;
 }
 
+
+// TODO: combine some of these functions under a unified name 
+
+int ConstraintCollector::evalConstraintScale(const Teuchos::RCP<const TV> &gammaRcp,
+                                             const Teuchos::RCP<TV> &constraintScaleRcp) const {
+    TEUCHOS_ASSERT(nonnull(gammaRcp));
+    TEUCHOS_ASSERT(nonnull(constraintScaleRcp));
+
+    const auto &cPool = *constraintPoolPtr; // the constraint pool
+    const int cQueNum = cPool.size();
+
+    // prepare 1, build the index for block queue
+    std::vector<int> cQueSize;
+    std::vector<int> cQueIndex;
+    buildConIndex(cQueSize, cQueIndex);
+
+    //  fill constraintDiagonal
+    auto gammaPtr = gammaRcp->getLocalView<Kokkos::HostSpace>();
+    auto constraintScalePtr = constraintScaleRcp->getLocalView<Kokkos::HostSpace>();
+    constraintScaleRcp->modify<Kokkos::HostSpace>();
+
+#pragma omp parallel for num_threads(cQueNum)
+    for (int threadId = 0; threadId < cQueNum; threadId++) {
+        const auto &cBlockQue = cPool[threadId];
+        const int cBlockNum = cBlockQue.size();
+        const int cBlockIndexBase = cQueIndex[threadId];
+        for (int j = 0; j < cBlockNum; j++) {
+            const auto &cBlock = cBlockQue[j];
+            const auto idx = cBlockIndexBase + j;
+            if (cBlock.bilateral) {
+                // spring constraint
+                constraintScalePtr(idx, 0) = 1.0;
+            } else {
+                // collision constraint using Ficher Bermiester function
+                // this is the partial derivative of the FB function (sep^k, gamma^k) w.r.t sep^k
+                // TODO: what number should be used here?
+                if ((std::abs(cBlock.sepDist) < 1e-6) && (std::abs(gammaPtr(idx, 0)) < 1e-6)) {
+                    constraintScalePtr(idx, 0) = 0.0;
+                } else {
+                    constraintScalePtr(idx, 0) = 1.0 - cBlock.sepDist / std::sqrt(std::pow(cBlock.sepDist , 2) + std::pow(gammaPtr(idx, 0) , 2));
+                }
+            }
+            // std::cout << "scale: " << constraintScalePtr(idx, 0) << " gamma: " << gammaPtr(idx, 0) << std::endl;
+            // std::cout << " sep: " << cBlock.sepDist << " labI: " << cBlock.labI[0] << ", " << cBlock.labI[1] << ", " << cBlock.labI[2] << " labJ: " << cBlock.labJ[0] << ", " << cBlock.labJ[1] << ", " << cBlock.labJ[2] << std::endl;
+        }
+    }
+
+    return 0;
+}
 
 int ConstraintCollector::evalConstraintDiagonal(const Teuchos::RCP<const TV> &gammaRcp,
                                                 const Teuchos::RCP<TV> &constraintDiagonalRcp) const {
@@ -462,6 +491,8 @@ int ConstraintCollector::evalConstraintDiagonal(const Teuchos::RCP<const TV> &ga
                         - gammaPtr(idx, 0) / std::sqrt(std::pow(cBlock.sepDist , 2) + std::pow(gammaPtr(idx, 0) , 2));
                 }
             }
+            // std::cout << "diag: " << constraintDiagonalPtr(idx, 0) << " gamma: " << gammaPtr(idx, 0) << std::endl;
+            // std::cout << " sep: " << cBlock.sepDist << " labI: " << cBlock.labI[0] << ", " << cBlock.labI[1] << ", " << cBlock.labI[2] << " labJ: " << cBlock.labJ[0] << ", " << cBlock.labJ[1] << ", " << cBlock.labJ[2] << std::endl;
         }
     }
 
@@ -493,19 +524,21 @@ int ConstraintCollector::evalConstraintValues(const Teuchos::RCP<const TV> &gamm
         const int cIndexBase = cQueIndex[threadId];
         const int queSize = cQue.size();
         for (int j = 0; j < queSize; j++) {
-            auto &cblock = cQue[j];
+            auto &cBlock = cQue[j];
             const auto idx = cIndexBase + j;
-            if (cblock.bilateral) {
+            if (cBlock.bilateral) {
                 // spring constraint
                 // this is the value of linear spring constraint evaluated at gamma^k, q^k
-                constraintValuePtr(idx, 0) = cblock.sepDist + 1.0 / cblock.kappa * gammaPtr(idx, 0);
+                constraintValuePtr(idx, 0) = cBlock.sepDist + 1.0 / cBlock.kappa * gammaPtr(idx, 0);
             } else {
                 // collision constraint using Ficher Bermiester function
                 // this is the value of the FB function evaluated at gamma^k, sep(q^k)
-                constraintValuePtr(idx, 0) = cblock.sepDist + gammaPtr(idx, 0) 
-                    - std::sqrt(std::pow(cblock.sepDist , 2) + std::pow(gammaPtr(idx, 0) , 2));
+                constraintValuePtr(idx, 0) = cBlock.sepDist + gammaPtr(idx, 0) 
+                    - std::sqrt(std::pow(cBlock.sepDist , 2) + std::pow(gammaPtr(idx, 0) , 2));
             }
-            cblock.constraintValue = constraintValuePtr(idx, 0);
+            // std::cout << "val: " << constraintValuePtr(idx, 0) << " gamma: " << gammaPtr(idx, 0) << std::endl;
+            // std::cout << " sep: " << cBlock.sepDist << " labI: " << cBlock.labI[0] << ", " << cBlock.labI[1] << ", " << cBlock.labI[2] << " labJ: " << cBlock.labJ[0] << ", " << cBlock.labJ[1] << ", " << cBlock.labJ[2] << std::endl;
+            cBlock.constraintValue = constraintValuePtr(idx, 0);
         }
     }
 

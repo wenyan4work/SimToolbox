@@ -649,6 +649,18 @@ void SylinderSystem::stepEuler() {
     }
 }
 
+void SylinderSystem::resetConfiguration() {
+    const int nLocal = sylinderContainer.getNumberOfParticleLocal();
+
+    if (!runConfig.sylinderFixed) {
+#pragma omp parallel for
+        for (int i = 0; i < nLocal; i++) {
+            auto &sy = sylinderContainer[i];
+            sy.resetConfiguration();
+        }
+    }
+}
+
 void SylinderSystem::advanceParticles() {
     const int nLocal = sylinderContainer.getNumberOfParticleLocal();
 

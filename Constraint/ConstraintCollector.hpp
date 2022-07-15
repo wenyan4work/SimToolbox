@@ -29,7 +29,7 @@
  */
 class ConstraintCollector {
   public:
-    std::shared_ptr<ConstraintBlockPool> constraintPoolPtr;
+    std::shared_ptr<ConstraintBlockPool> constraintPoolPtr;  
 
     ConstraintCollector();
 
@@ -39,12 +39,12 @@ class ConstraintCollector {
      */
     ~ConstraintCollector() = default;
 
-    /**
-     * @brief Forbid copying the ConstraintCollector object
-     *
-     */
-    ConstraintCollector(const ConstraintCollector &) = delete;
-    ConstraintCollector &operator=(const ConstraintCollector &) = delete;
+    // /**
+    //  * @brief Forbid copying the ConstraintCollector object
+    //  *
+    //  */
+    // ConstraintCollector(const ConstraintCollector &) = delete;
+    // ConstraintCollector &operator=(const ConstraintCollector &) = delete;
 
     /**
      * @brief if the shared pointer to constraint pool is not allocated
@@ -119,20 +119,22 @@ class ConstraintCollector {
      * @brief build the matrix and vectors used in constraint solver
      *
      * @param [in] mobMapRcp  mobility map
-     * @param DTransRcp D^Trans matrix
+     * @param DTransRcp D^TraConstraintBlockPoolns matrix
      * @param invKappaRcp K^{-1} vector
      * @param biFlagRcp 1 for bilateral, 1 for unilateral
      * @param gammaGuessRcp initial guess of gamma
      * @return DMatTransRcp D^Trans matrix
      */
     Teuchos::RCP<TCMAT> buildConstraintMatrixVector(const Teuchos::RCP<const TMAP> &mobMapRcp,
-                                                    const Teuchos::RCP<const TMAP> &gammaMapRcp,
-                                                    const Teuchos::RCP<const TV> &gammaRcp) const;
+                                                    const Teuchos::RCP<const TMAP> &gammaMapRcp) const;
 
     int fillConstraintInformation(const Teuchos::RCP<const TCOMM>& commRcp,
                                   const Teuchos::RCP<TV> &gammaGuessRcp,         
                                   const Teuchos::RCP<TV> &constraintFlagRcp) const;
-                                  
+
+    int evalConstraintScale(const Teuchos::RCP<const TV> &gammaRcp,
+                            const Teuchos::RCP<TV> &constraintScaleRcp) const;
+
     int evalConstraintDiagonal(const Teuchos::RCP<const TV> &gammaRcp, 
                                const Teuchos::RCP<TV> &constraintDiagonalRcp) const;
 

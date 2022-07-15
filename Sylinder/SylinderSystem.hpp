@@ -357,6 +357,7 @@ class SylinderSystem {
     void saveForceVelocityConstraints(const Teuchos::RCP<const TV> &forceRcp, 
                                       const Teuchos::RCP<const TV> &velocityRcp); ///< write back to sylinder.velCol and velBi
     void stepEuler(); ///< Euler step update position and orientation, with both collision and non-collision velocity
+    void resetConfiguration(); ///< reset position and orientation, to the stores position/orientation
     void advanceParticles(); ///< Euler step update position and orientation, with both collision and non-collision velocity
 
     // write results

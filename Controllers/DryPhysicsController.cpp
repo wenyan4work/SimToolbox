@@ -178,7 +178,6 @@ void DryPhysicsController::run() {
         // constraint solve
         conSolverPtr->setup(runConfig.dt);
         conSolverPtr->solveConstraints(); 
-        conSolverPtr->writebackGamma(); 
 
         // data output stuff
         if (getIfWriteResultCurrentStep()) {

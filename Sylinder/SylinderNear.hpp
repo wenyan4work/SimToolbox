@@ -292,12 +292,12 @@ class CalcSylinderNearForce {
         // sphere collide with sphere
         // apply PBC on centerJ
         const Evec3 centerI = ECmap3(spI.pos);
-        Evec3 centerJ;
+        Evec3 centerJ = ECmap3(spJ.pos);
         for (int k = 0; k < 3; k++) {
             if (!simBoxPBC[k])
                 continue;
             double trg = centerI[k];
-            double xk = spJ.pos[k];
+            double xk = centerJ[k];
             findPBCImage(simBoxLow[k], simBoxHigh[k], xk, trg);
             centerJ[k] = xk;
             // error check
@@ -391,12 +391,12 @@ class CalcSylinderNearForce {
 
         // apply PBC on centerJ
         const Evec3 centerI = ECmap3(spI.pos);
-        Evec3 centerJ;
+        Evec3 centerJ = ECmap3(syJ.pos);
         for (int k = 0; k < 3; k++) {
             if (!simBoxPBC[k])
                 continue;
             double trg = centerI[k];
-            double xk = syJ.pos[k];
+            double xk = centerJ[k];
             findPBCImage(simBoxLow[k], simBoxHigh[k], xk, trg);
             centerJ[k] = xk;
             // error check
@@ -495,12 +495,12 @@ class CalcSylinderNearForce {
 
         // apply PBC on centerJ
         const Evec3 centerI = ECmap3(syI.pos);
-        Evec3 centerJ;
+        Evec3 centerJ = ECmap3(syJ.pos);
         for (int k = 0; k < 3; k++) {
             if (!simBoxPBC[k])
                 continue;
             double trg = centerI[k];
-            double xk = syJ.pos[k];
+            double xk = centerJ[k];
             findPBCImage(simBoxLow[k], simBoxHigh[k], xk, trg);
             centerJ[k] = xk;
             // error check
@@ -539,7 +539,7 @@ class CalcSylinderNearForce {
             const Evec3 posI = Ploc - centerI;
             const Evec3 posJ = Qloc - centerJ;
             const double nan = std::numeric_limits<double>::quiet_NaN();
-            conBlock = ConstraintBlock(sep, gammaGuess, nan,       // seperation, initial guess of gamma, spring constant
+            conBlock = ConstraintBlock(sep, gammaGuess, nan,    // seperation, initial guess of gamma, spring constant
                                     syI.gid, syJ.gid,           //
                                     syI.globalIndex,            //
                                     syJ.globalIndex,            //

@@ -89,15 +89,24 @@ void Sylinder::dumpSylinder() const {
 }
 
 void Sylinder::stepEuler(const double dt) {
-    for (int i; i < 3; i++) {
+    for (int i = 0; i < 3; i++) {
         pos[i] = posCurrent[i] + vel[i] * dt;
     }
-    Equatn currOrient = Emapq(orientation);
+    Equatn currOrient = Emapq(orientationCurrent);
     EquatnHelper::rotateEquatn(currOrient, Emap3(omega), dt);
     Emapq(orientation).x() = currOrient.x();
     Emapq(orientation).y() = currOrient.y();
     Emapq(orientation).z() = currOrient.z();
     Emapq(orientation).w() = currOrient.w();
+}
+
+void Sylinder::resetConfiguration() {
+    for (int i = 0; i < 3; i++) {
+        pos[i] = posCurrent[i];
+    }
+    for (int i = 0; i < 4; i++) {
+        orientation[i] = orientationCurrent[i];
+    }
 }
 
 void Sylinder::advance() {
