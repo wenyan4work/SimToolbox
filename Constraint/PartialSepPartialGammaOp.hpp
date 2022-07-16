@@ -17,7 +17,6 @@ public:
   void initialize(const Teuchos::RCP<const TOP> &mobOpRcp, 
            const Teuchos::RCP<const TCMAT> &AMatTransRcp,
            const Teuchos::RCP<const TCMAT> &AMatRcp,
-           const Teuchos::RCP<const TV> &constraintScaleRcp, 
            const Teuchos::RCP<TV> &forceRcp,
            const Teuchos::RCP<TV> &velRcp,
            const double dt);
@@ -46,7 +45,6 @@ private:
   Teuchos::RCP<const TOP> mobOpRcp_; ///< mobility matrix
   Teuchos::RCP<const TCMAT> AMatTransRcp_;
   Teuchos::RCP<const TCMAT> AMatRcp_;
-  Teuchos::RCP<const TV> constraintScaleRcp_; ///< scale diagonal matrix
   Teuchos::RCP<const TMAP> xMapRcp_; ///< map for combined vector [gammau; gammab]^T
 
   Teuchos::RCP<TV> forceMagRcp_; ///< force_mag = S gamma

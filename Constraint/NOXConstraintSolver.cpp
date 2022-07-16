@@ -22,13 +22,13 @@ ConstraintSolver::ConstraintSolver(const Teuchos::RCP<const Teuchos::Comm<int> >
     belosList.sublist("Solver Types").sublist("Pseudo Block GMRES").set("Maximum Iterations", 1000);
     belosList.sublist("Solver Types").sublist("Pseudo Block GMRES").set("Convergence Tolerance", 1e-6);
     belosList.sublist("Solver Types").sublist("Pseudo Block GMRES").set("Timer Label", "NOX_Linear_Belos");
-    belosList.sublist("Solver Types").sublist("Pseudo Block GMRES").set("Verbosity", Belos::Errors + Belos::Warnings + Belos::TimingDetails + Belos::FinalSummary);
+    // belosList.sublist("Solver Types").sublist("Pseudo Block GMRES").set("Verbosity", Belos::Errors + Belos::Warnings + Belos::TimingDetails + Belos::FinalSummary);
     // belosList.sublist("Solver Types").sublist("Pseudo Block GMRES").set("Verbosity", Belos::Errors);
     belosList.sublist("Solver Types").sublist("Pseudo Block GMRES").set("Show Maximum Residual Norm Only", false);
     belosList.sublist("Solver Types").sublist("Pseudo Block GMRES").set("Output Frequency", 100);
     belosList.sublist("Solver Types").sublist("Pseudo Block GMRES").set("Implicit Residual Scaling", "Norm of RHS");
     belosList.sublist("Solver Types").sublist("Pseudo Block GMRES").set("Explicit Residual Scaling", "Norm of RHS");
-    belosList.sublist("VerboseObject").set("Verbosity Level", "medium");
+    // belosList.sublist("VerboseObject").set("Verbosity Level", "medium");
     params->set("Preconditioner Type", "None");
 
     Stratimikos::DefaultLinearSolverBuilder builder;
@@ -39,8 +39,8 @@ ConstraintSolver::ConstraintSolver(const Teuchos::RCP<const Teuchos::Comm<int> >
     // Create the NOX status tests //
     /////////////////////////////////
     // TODO: play around with these params
-    NOX::Abstract::Vector::NormType normType = NOX::Abstract::Vector::NormType::TwoNorm; // OneNorm, TwoNorm, MaxNorm
-    NOX::StatusTest::NormF::ScaleType scaleType = NOX::StatusTest::NormF::Scaled;
+    NOX::Abstract::Vector::NormType normType = NOX::Abstract::Vector::NormType::MaxNorm; // OneNorm, TwoNorm, MaxNorm
+    NOX::StatusTest::NormF::ScaleType scaleType = NOX::StatusTest::NormF::Unscaled;
     Teuchos::RCP<NOX::StatusTest::NormF> absresid = 
         Teuchos::rcp(new NOX::StatusTest::NormF(1.0e-6, normType, scaleType));
     Teuchos::RCP<NOX::StatusTest::MaxIters> maxiters = Teuchos::rcp(new NOX::StatusTest::MaxIters(1000));
@@ -60,18 +60,18 @@ ConstraintSolver::ConstraintSolver(const Teuchos::RCP<const Teuchos::Comm<int> >
     nonlinearParams_->set("Nonlinear Solver", "Line Search Based"); // Line Search Based or Trust Region Based
     nonlinearParams_->sublist("Direction").set("Method", "Newton"); // Newton or NonlinearCG
     nonlinearParams_->sublist("Direction").sublist("Newton").sublist("Linear Solver").set("Tolerance", 1.0e-4);
-    nonlinearParams_->sublist("Line Search").set("Method", "Full Step"); // Full Step or Backtrack 
+    nonlinearParams_->sublist("Line Search").set("Method", "Backtrack"); // Full Step or Backtrack 
 
     // Set output params
-    nonlinearParams_->sublist("Printing").sublist("Output Information").set("Debug", true);
-    nonlinearParams_->sublist("Printing").sublist("Output Information").set("Warning", true);
-    nonlinearParams_->sublist("Printing").sublist("Output Information").set("Error", true);
-    nonlinearParams_->sublist("Printing").sublist("Output Information").set("Test Details", true);
-    nonlinearParams_->sublist("Printing").sublist("Output Information").set("Details", true);
-    nonlinearParams_->sublist("Printing").sublist("Output Information").set("Parameters", true);
-    nonlinearParams_->sublist("Printing").sublist("Output Information").set("Linear Solver Details", true);
-    nonlinearParams_->sublist("Printing").sublist("Output Information").set("Inner Iteration", true);
-    nonlinearParams_->sublist("Printing").sublist("Output Information").set("Outer Iteration", true);
+    // nonlinearParams_->sublist("Printing").sublist("Output Information").set("Debug", true);
+    // nonlinearParams_->sublist("Printing").sublist("Output Information").set("Warning", true);
+    // nonlinearParams_->sublist("Printing").sublist("Output Information").set("Error", true);
+    // nonlinearParams_->sublist("Printing").sublist("Output Information").set("Test Details", true);
+    // nonlinearParams_->sublist("Printing").sublist("Output Information").set("Details", true);
+    // nonlinearParams_->sublist("Printing").sublist("Output Information").set("Parameters", true);
+    // nonlinearParams_->sublist("Printing").sublist("Output Information").set("Linear Solver Details", true);
+    // nonlinearParams_->sublist("Printing").sublist("Output Information").set("Inner Iteration", true);
+    // nonlinearParams_->sublist("Printing").sublist("Output Information").set("Outer Iteration", true);
     nonlinearParams_->sublist("Printing").sublist("Output Information").set("Outer Iteration StatusTest", true);
 }
 
@@ -168,6 +168,9 @@ void ConstraintSolver::solveConstraints() {
     const auto& final_x_thyra = dynamic_cast<const NOX::Thyra::Vector&>(final_x_nox).getThyraVector();
     gammaRcp_ = dynamic_cast<const ::Thyra::TpetraVector<Scalar, LO, GO, Node>&>(final_x_thyra).getConstTpetraVector();
 
+    // TODO: Is force/vel in this class the same as the one generated by gammaRcp_? 
+    // TODO: is gammaRcp_ the same as the one in evalModelImpl?
+    // dumpTV(gammaRcp_, "gammaRcp_");
     std::cout << "Finished constraint resolve" << std::endl;
 }
 

@@ -142,6 +142,7 @@ public:
   JacobianOperator(const Teuchos::RCP<const TMAP> &xMapRcp);
 
   void initialize(const Teuchos::RCP<const PartialSepPartialGammaOp> &PartialSepPartialGammaOpRcp, 
+                  const Teuchos::RCP<const TV> &constraintScaleRcp,
                   const Teuchos::RCP<const TV> &constraintDiagonalRcp, 
                   const double dt);
 
@@ -166,18 +167,12 @@ private:
   double dt_;
 
   // constant operators
-  Teuchos::RCP<const TOP> mobOpRcp_; ///< mobility matrix
-  Teuchos::RCP<const TCMAT> AMatTransRcp_;
-  Teuchos::RCP<const TCMAT> AMatRcp_;
+  const Teuchos::RCP<const TMAP> xMapRcp_; ///< map for combined vector [gammau; gammab]^T
   Teuchos::RCP<const TV> constraintScaleRcp_; ///< scale diagonal matrix
   Teuchos::RCP<const TV> constraintDiagonalRcp_; ///< K^{-1} diagonal matrix
-  Teuchos::RCP<const TMAP> mobMapRcp_;   ///< map for mobility matrix. 6 DOF per obj
-  Teuchos::RCP<const TMAP> xMapRcp_; ///< map for combined vector [gammau; gammab]^T
   Teuchos::RCP<const PartialSepPartialGammaOp> PartialSepPartialGammaOpRcp_; // dt S^T A^T M A S which takes gamma to change in sep w.r.t gamma
 
-  Teuchos::RCP<TV> forceMagRcp_; ///< force_mag = S gamma
-  Teuchos::RCP<TV> forceRcp_; ///< force = A force_mag
-  Teuchos::RCP<TV> velRcp_;   ///< vel = M force
+  Teuchos::RCP<TV> changeInSepRcp_; ///< force_mag = S gamma
 };
 
 #endif

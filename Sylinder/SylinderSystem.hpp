@@ -182,7 +182,7 @@ class SylinderSystem {
      * @param argc command line argument
      * @param argv command line argument
      */
-    void reinitialize(const std::string &pvtpFileName_, bool eulerStep = true);
+    void reinitialize(const std::string &pvtpFileName_);
 
     /**
      * @brief compute axis-aligned bounding box of sylinders

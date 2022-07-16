@@ -103,7 +103,7 @@ void DryPhysicsController::initialize(const SylinderConfig &runConfig_, const st
     ptcSystemPtr->writeResult(stepCount, baseFolder, postfix); //TODO: split this function into two: one for ptcSystem and one for ConCollector
 
     // update the configuration
-    ptcSystemPtr->stepEuler(); // TODO: make sure this should be here since the collision may need to run this type of update
+    // ptcSystemPtr->stepEuler(); // TODO: make sure this should be here since the collision may need to run this type of update
     ptcSystemPtr->advanceParticles();
 
     spdlog::warn("Initial Collision Resolution End");
@@ -196,7 +196,7 @@ void DryPhysicsController::run() {
         }
 
         // post-step stuff
-        ptcSystemPtr->stepEuler(); // TODO: make sure this should be here since the collision may need to run this type of update
+        // ptcSystemPtr->stepEuler(); // TODO: make sure this should be here since the collision may need to run this type of update
         ptcSystemPtr->advanceParticles(); 
         ptcSystemPtr->calcOrderParameter();
         ptcSystemPtr->calcConStress();

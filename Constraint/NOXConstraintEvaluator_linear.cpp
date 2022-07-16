@@ -12,13 +12,6 @@
 // Kokkos support
 #include <Kokkos_Core.hpp>
 
-/*
-In this paradigm, the particles are moved using the nonconstraint velocities and forces,
-then the constraints are collected. The unconstrained overlap therefore includes the impact of the external force and velocity. 
-
-The actual overlap is solved by moving the particles and recomputing the real constraint values. 
-*/
-
 
 // Constructor
 EvaluatorTpetraConstraint::EvaluatorTpetraConstraint(const Teuchos::RCP<const TCOMM>& commRcp,
@@ -71,7 +64,7 @@ EvaluatorTpetraConstraint::EvaluatorTpetraConstraint(const Teuchos::RCP<const TC
 
   // fill the fixed constraint information from ConstraintCollector
   conCollectorPtr_->fillConstraintInformation(commRcp_, xGuessRcp_, unconstrainedSepRcp_, 
-                                              constraintKappaRcp_, constraintFlagRcp_); 
+                                              constraintKappaRcp_, constraintFlagRcp_);
 
   // solve for the unconstrained separation, which we would like to resolve
   // compute unconstrainedSep = 1.0 * initialSep + dt (A^k)^T (U_external^k + M^k F_external^k)
@@ -229,23 +222,6 @@ evalModelImpl(const Thyra::ModelEvaluatorBase::InArgs<Scalar> &inArgs,
       JRcp->unitialize();
     }
     
-    /////////////////////////////
-    // Reset the configuration //
-    /////////////////////////////
-    // Beware, the systems will update conCollector each time evalModelImpl is called
-    // we must reset the conCollector to q^k before proceeding,
-    // TODO: can this be replaced by storing two ConstraintCollectors?
-    
-    // reset the configuration to q^k
-    // move the particles back to their previous positions 
-    ptcSystemPtr_->resetConfiguration(); // reset configuration to q^k
-    ptcSystemPtr_->applyBoxBC(); // TODO: this might not work. We'll see
-
-    // update all constraints to revert changes
-    // this must NOT generate new constraints and MUST maintain the current constraint ordering
-    ptcSystemPtr_->updatesylinderNearDataDirectory();
-    ptcSystemPtr_->updatePairCollision();
-
     //////////////////////
     // Fill the objects //
     //////////////////////
@@ -283,6 +259,15 @@ evalModelImpl(const Thyra::ModelEvaluatorBase::InArgs<Scalar> &inArgs,
     }
 
     // setup PartialSepPartialGamma(q^k, gamma^k)
+    /*
+    Think about the implications of evaluating constraintScaleRcp_ at (q^k, gamma^k) instead of (q^k+1, gamma^k). 
+      If there is no iniitial overlap, then there will never be any constraint force!
+      If we incorperate the change in separation due to external forces and velocities into the initial sep, then this issue is solved
+      We are now trying to resolve the constraints based on some hypothetical unconstrained separation
+      sep^k+1 = sep_k + dt (A^k)^T (U_external^k + M^k F_external^k) + dt (D^k)^T M^k D^k gamma^k
+      sep_unconstrained = sep_k + dt (A^k)^T (U_external^k + M^k F_external^k)
+      sep^k+1 = sep_unconstrained + dt (D^k)^T M^k D^k gamma^k
+    */
     PartialSepPartialGammaOpRcp_->initialize(mobOpRcp_, AMatTransRcp_, AMatRcp_, constraintScaleRcp_, forceRcp_, velRcp_, dt_);
 
     // update the Jacobian using q^k
@@ -294,50 +279,40 @@ evalModelImpl(const Thyra::ModelEvaluatorBase::InArgs<Scalar> &inArgs,
       // dumpToFile(JRcp, xRcp, mobOpRcp_, AMatTransRcp_, AMatRcp_, constraintScaleRcp_, constraintDiagonalRcp_);
     }
 
-    // update the configuration from q^k to q^k+1
+    if (fill_f) {
+      // compute the new separation
+      // sep^k+1 = sep_unconstrained + dt (D^k)^T M^k D^k gamma^k
+      constrainedSepRcp_->assign(*unconstrainedSepRcp_); // deep-copy 
+      PartialSepPartialGammaOpRcp_->apply(*xRcp, *constrainedSepRcp_, Teuchos::NO_TRANS, 1.0, 1.0);
 
-    // step 0. scale gamma to get force magnatude 
-    // force_mag = S(lambda^k) gamma^k
-    {
-      auto xPtr = xRcp->getLocalView<Kokkos::HostSpace>();
-      auto forceMagPtr = forceMagRcp_->getLocalView<Kokkos::HostSpace>();
-      auto constraintScalePtr = constraintScaleRcp_->getLocalView<Kokkos::HostSpace>();
-      forceMagRcp_->modify<Kokkos::HostSpace>();
-      const int localSize = xPtr.dimension_0();
+      // evaluate F(q^k+1(gamma^k), gamma^k)
+      {
+        auto xPtr = xRcp->getLocalView<Kokkos::HostSpace>();
+        auto fPtr = fRcp->getLocalView<Kokkos::HostSpace>();
+        auto constraintFlagPtr = constraintFlagRcp_->getLocalView<Kokkos::HostSpace>();
+        auto constrainedSepPtr = constrainedSepRcp_->getLocalView<Kokkos::HostSpace>();
+        auto constraintKappaPtr = constraintKappaRcp_->getLocalView<Kokkos::HostSpace>();
+        fRcp->modify<Kokkos::HostSpace>();
+        const int localSize = xPtr.dimension_0();
 #pragma omp parallel for
-      for (int k = 0; k < localSize; k++) {
-        forceMagPtr(k, 0) = constraintScalePtr(k, 0) * xPtr(k, 0);
+        for (int idx = 0; idx < localSize; idx++) {
+          if (constraintFlagPtr(idx, 0)) { // spring constraint
+            // spring constraint
+            // this is the value of linear spring constraint evaluated at q^k+1, gamma^k
+            fPtr(idx, 0) = constrainedSepPtr(idx, 0) + 1.0 / constraintKappaPtr(idx, 0) * xPtr(idx, 0);
+          } else { 
+            // collision constraint using Ficher Bermiester function
+            // this is the value of the FB function evaluated at gamma^k, sep^k+1
+            fPtr(idx, 0) = constrainedSepPtr(idx, 0) + xPtr(idx, 0) 
+                - std::sqrt(std::pow(constrainedSepPtr(idx, 0) , 2) + std::pow(xPtr(idx, 0) , 2));
+          }
+          if (constrainedSepPtr(idx, 0) < 0.0) {
+            std::cout << "xPtr(idx, 0): " << xPtr(idx, 0) << std::endl;
+            std::cout << "fPtr(idx, 0): " << fPtr(idx, 0) << " | constrainedSepPtr(idx, 0): " << constrainedSepPtr(idx, 0) << std::endl;
+          }
+        }
       }
     }
-
-    // solve for the induced force and velocity
-    AMatRcp_->apply(*forceMagRcp_, *forceRcp_); // F^k = A(q^k) S(gamma^k) gamma^k
-    mobOpRcp_->apply(*forceRcp_, *velRcp_); // U^k = M(q^k) F^k
-
-    // update the particle system from the q^k to q^k+1
-    // send the constraint vel and force to the particles
-    ptcSystemPtr_->saveForceVelocityConstraints(forceRcp_, velRcp_);
-    // merge the constraint and nonconstraint vel and force
-    ptcSystemPtr_->sumForceVelocity();
-    // move the particles according to the total velocity
-    ptcSystemPtr_->stepEuler(); // q^k+1 = q^k + dt G(q^k) U^k
-    ptcSystemPtr_->applyBoxBC(); // TODO: this might not work. We'll see
-
-    // update all constraints
-    // this must NOT generate new constraints and MUST maintain the current constraint ordering
-    ptcSystemPtr_->updatesylinderNearDataDirectory();
-    ptcSystemPtr_->updatePairCollision();
-
-    if (fill_f) {
-      // fill the constraint value
-      // evaluate F(q^k+1(gamma^k), gamma^k)
-      conCollectorPtr_->evalConstraintValues(xRcp, fRcp); 
-    }
-
-    // if (fill_W) {
-    //   // advance the reference config to the updated configuration
-    //   ptcSystemPtr_->advanceParticles();
-    // }
 
     ///////////
     // Debug //
@@ -373,51 +348,30 @@ void EvaluatorTpetraConstraint::dumpToFile(const Teuchos::RCP<const TOP> &JRcp,
 // Jacobian operator implementations //
 ///////////////////////////////////////
 
-
 JacobianOperator::JacobianOperator(const Teuchos::RCP<const TMAP> &xMapRcp) :
   xMapRcp_(xMapRcp) {}
 
 
-void JacobianOperator::initialize(const Teuchos::RCP<const TOP> &mobOpRcp, 
-           const Teuchos::RCP<const TCMAT> &AMatTransRcp,
-           const Teuchos::RCP<const TCMAT> &AMatRcp,
-           const Teuchos::RCP<const TV> &constraintScaleRcp, 
-           const Teuchos::RCP<const TV> &constraintDiagonalRcp, 
-           const double dt)
+void JacobianOperator::initialize(const Teuchos::RCP<const PartialSepPartialGammaOp> &PartialSepPartialGammaOpRcp, 
+                                  const Teuchos::RCP<const TV> &constraintDiagonalRcp, 
+                                  const double dt)
 {
   // store the objects to be used in apply
   dt_ = dt;
-  mobOpRcp_ = mobOpRcp;
-  AMatTransRcp_ = AMatTransRcp;
-  AMatRcp_ = AMatRcp;
-  constraintScaleRcp_ = constraintScaleRcp;
   constraintDiagonalRcp_ = constraintDiagonalRcp;
-  mobMapRcp_ = mobOpRcp_->getDomainMap(); // symmetric & domainmap = rangemap
+  PartialSepPartialGammaOpRcp_ = PartialSepPartialGammaOpRcp;
 
   // check the input
-  TEUCHOS_ASSERT(xMapRcp_->isSameAs(*constraintScaleRcp_->getMap()));
   TEUCHOS_ASSERT(xMapRcp_->isSameAs(*constraintDiagonalRcp_->getMap()));
-  TEUCHOS_ASSERT(xMapRcp_->isSameAs(*AMatTransRcp_->getRangeMap()));
-  TEUCHOS_ASSERT(mobMapRcp_->isSameAs(*AMatTransRcp_->getDomainMap()));
-
-  // initialize working multivectors, zero out
-  velRcp_ = Teuchos::rcp(new TV(mobMapRcp_, true));
-  forceRcp_ = Teuchos::rcp(new TV(mobMapRcp_, true));
-  forceMagRcp_ = Teuchos::rcp(new TV(xMapRcp_, true));
+  TEUCHOS_ASSERT(xMapRcp_->isSameAs(*PartialSepPartialGammaOpRcp_->getDomainMap()));
 }
 
 
 void JacobianOperator::unitialize()
 {
   dt_ = 0.0;
-  mobMapRcp_.reset(); 
-  mobOpRcp_.reset(); 
-  AMatRcp_.reset(); 
-  AMatTransRcp_.reset(); 
-  constraintScaleRcp_.reset();
   constraintDiagonalRcp_.reset(); 
-  forceRcp_.reset(); 
-  velRcp_.reset(); 
+  PartialSepPartialGammaOpRcp_.reset(); 
 }
 
 
@@ -444,66 +398,18 @@ apply(const TMV& X, TMV& Y, Teuchos::ETransp mode,
   TEUCHOS_TEST_FOR_EXCEPTION(!X.getMap()->isSameAs(*Y.getMap()), std::invalid_argument,
                               "X and Y do not have the same Map.\n");
   // TEUCHOS_ASSERT(mode == Teuchos::NO_TRANS); // The jacobian is symmetric, so trans apply is ok.
-  TEUCHOS_ASSERT(nonnull(mobOpRcp_));
-  TEUCHOS_ASSERT(nonnull(forceRcp_));
-  TEUCHOS_ASSERT(nonnull(forceMagRcp_));
-  TEUCHOS_ASSERT(nonnull(velRcp_));
-  TEUCHOS_ASSERT(nonnull(AMatRcp_));
-  TEUCHOS_ASSERT(nonnull(AMatTransRcp_));
-  TEUCHOS_ASSERT(nonnull(constraintScaleRcp_));
   TEUCHOS_ASSERT(nonnull(constraintDiagonalRcp_));
 
   const int numVecs = X.getNumVectors();
   for (int i = 0; i < numVecs; i++) {
     auto XcolRcp = X.getVector(i);
     auto YcolRcp = Y.getVectorNonConst(i);
-    // Goal Y = alpha (dt S^T A^T M A S X) + beta Y
+    // Goal Y = alpha (dt S^T A^T M A S X) + alpha Diag Y + beta Y
 
-    // step 1. Scale times gamma to get force magnatude (f = S x)
-    {
-      auto XcolPtr = XcolRcp->getLocalView<Kokkos::HostSpace>();
-      auto forceMagPtr = forceMagRcp_->getLocalView<Kokkos::HostSpace>();
-      auto constraintScalePtr = constraintScaleRcp_->getLocalView<Kokkos::HostSpace>();
-      forceMagRcp_->modify<Kokkos::HostSpace>();
-      const int localSize = XcolPtr.dimension_0();
-#pragma omp parallel for
-      for (int k = 0; k < localSize; k++) {
-        forceMagPtr(k, 0) = constraintScalePtr(k, 0) * XcolPtr(k, 0);
-      }
-    }
+    // step 1. compute Y = alpha (dt S^T A^T M A S X) + beta Y
+    PartialSepPartialGammaOpRcp_->apply(*XcolRcp, *YcolRcp, mode, alpha, beta);
 
-    // step 2. A times force magnatude to get force/torque vector (F = A f)
-    {
-      AMatRcp_->apply(*forceMagRcp_, *forceRcp_);
-    }
-
-    // step 3. Mobility times force/torque vector to get velocity (U = M F)
-    {
-      mobOpRcp_->apply(*forceRcp_, *velRcp_);
-    }
-
-    // step 4. A^T times velocity to get adjoint (result = A^T U)
-    // here, we use forceMagRcp_ as a placeholder for the result
-    {
-      AMatTransRcp_->apply(*velRcp_, *forceMagRcp_);
-    }
-
-    // step 5. dt times S times A^T U 
-    // we merge into this step the fact that Tpetra OPs wants to solve Y = alpha * Op * X + beta * Y
-    {
-      auto YcolPtr = YcolRcp->getLocalView<Kokkos::HostSpace>();
-      auto forceMagPtr = forceMagRcp_->getLocalView<Kokkos::HostSpace>();
-      auto constraintScalePtr = constraintScaleRcp_->getLocalView<Kokkos::HostSpace>();
-      YcolRcp->modify<Kokkos::HostSpace>();
-      const int localSize = YcolPtr.dimension_0();
-#pragma omp parallel for
-      for (int k = 0; k < localSize; k++) {
-        YcolPtr(k, 0) = dt_ * constraintScalePtr(k, 0) * forceMagPtr(k, 0); // TODO: VERY IMPORTANT! Why does YcolPtr originally have -nan values? 
-        // YcolPtr(k, 0) = alpha * dt_ * constraintScalePtr(k, 0) * forceMagPtr(k, 0) + beta * YcolPtr(k, 0);
-      }
-    }
-   
-    // step 6. add diagonal. Y += alpha * Diag * X
+    // step 2. add diagonal. Y += alpha Diag X
     {
       auto XcolPtr = XcolRcp->getLocalView<Kokkos::HostSpace>();
       auto YcolPtr = YcolRcp->getLocalView<Kokkos::HostSpace>();
@@ -511,8 +417,8 @@ apply(const TMV& X, TMV& Y, Teuchos::ETransp mode,
       YcolRcp->modify<Kokkos::HostSpace>();
       const int localSize = YcolPtr.dimension_0();
 #pragma omp parallel for
-      for (int k = 0; k < localSize; k++) {
-        YcolPtr(k, 0) += alpha * constraintDiagonalPtr(k, 0) * XcolPtr(k, 0);
+      for (int idx = 0; idx < localSize; idx++) {
+        YcolPtr(idx, 0) += alpha * constraintDiagonalPtr(idx, 0) * XcolPtr(idx, 0);
       }
     }
   }

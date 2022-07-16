@@ -65,7 +65,7 @@ void SylinderSystem::initialize(const std::string &posFile) {
     spdlog::warn("SylinderSystem Initialized. {} local sylinders", sylinderContainer.getNumberOfParticleLocal());
 }
 
-void SylinderSystem::reinitialize(const std::string &pvtpFileName_, bool eulerStep) {
+void SylinderSystem::reinitialize(const std::string &pvtpFileName_) {
     dinfo.initialize(); // init DomainInfo
     setDomainInfo();
 
@@ -82,11 +82,6 @@ void SylinderSystem::reinitialize(const std::string &pvtpFileName_, bool eulerSt
 
     setInitialFromVTKFile(pvtpFileName);
     setLinkMapFromFile(asciiFileName);
-
-    // VTK data is wrote before the Euler step, thus we need to run one Euler step below
-    if (eulerStep)
-        stepEuler();
-        advanceParticles();
 
     // at this point all sylinders located on rank 0
     commRcp->barrier();
