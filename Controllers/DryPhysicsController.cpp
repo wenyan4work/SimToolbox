@@ -88,8 +88,8 @@ void DryPhysicsController::initialize(const SylinderConfig &runConfig_, const st
     std::chrono::steady_clock::time_point begin = std::chrono::steady_clock::now();
     conSolverPtr->solveConstraints(); 
     std::chrono::steady_clock::time_point end = std::chrono::steady_clock::now();
-    std::cout << "Time difference = " << std::chrono::duration_cast<std::chrono::microseconds>(end - begin).count() << "[µs]" << std::endl;
-    
+    const std::string outString = "Time difference = " + std::to_string(std::chrono::duration_cast<std::chrono::microseconds>(end - begin).count()) + "[µs]";
+    spdlog::warn(outString);    
     conSolverPtr->writebackGamma();
     conSolverPtr->writebackForceVelocity();
 
@@ -179,7 +179,11 @@ void DryPhysicsController::run() {
 
         // constraint solve
         conSolverPtr->setup(runConfig.dt);
+        std::chrono::steady_clock::time_point begin = std::chrono::steady_clock::now();
         conSolverPtr->solveConstraints(); 
+        std::chrono::steady_clock::time_point end = std::chrono::steady_clock::now();
+        const std::string outString = "Time difference = " + std::to_string(std::chrono::duration_cast<std::chrono::microseconds>(end - begin).count()) + "[µs]";
+        spdlog::warn(outString);
         conSolverPtr->writebackGamma();
         conSolverPtr->writebackForceVelocity();
 

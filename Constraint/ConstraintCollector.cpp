@@ -362,7 +362,7 @@ Teuchos::RCP<TCMAT> ConstraintCollector::buildConstraintMatrixVector(const Teuch
     }
     // this is the list of the columns that have nnz entries
     // if the column index is out of [mobMinLID, mobMaxLID], add it to the map
-    const int colIndexNum = columnIndices.dimension_0();
+    const int colIndexNum = columnIndices.extent(0);
     if (colIndexNum != colIndexCount) {
         spdlog::critical("colIndexNum error");
         std::exit(1);

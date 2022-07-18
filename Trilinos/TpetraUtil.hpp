@@ -61,15 +61,17 @@
 // Preconditioner
 #include <Ifpack2_Factory.hpp>
 
-// no need to specify node type for new version of Tpetra. It defaults to
-// Kokkos::default, which is openmp
-// typedef Tpetra::Details::DefaultTypes::node_type TNODE;
+// Packages: Trilinos-wide next generation stack
+// Deprecation: Explicit instantiation of multiple different global ordinal types and multiple different local ordinal
+// types Mitigation: Use default global ordinal type long long and local ordinal type int, or specify to CMake -DTpetra
+// INST INT INT=ON to use global ordinal type int and local ordinal type int. Justification: Building with multiple
+// ordinal types increases build times and library sizes; all applications surveyed used only one global ordinal type
 using Scalar = double;
-using LO = int;
-using GO = int;
-using Node = Tpetra::Vector<>::node_type;
+using LO = Tpetra::Vector<>::local_ordinal_type;      ///< default local ordinal type
+using GO = Tpetra::Vector<>::global_ordinal_type;     ///< default global ordinal type
+using Node = Tpetra::Vector<>::node_type; ///< default node type
 
-using TCOMM = Teuchos::Comm<GO>;                       ///< default Teuchos::Comm type
+using TCOMM = Teuchos::Comm<int>;                      ///< default Teuchos::Comm type
 using TMAP = Tpetra::Map<LO, GO, Node>;                ///< default Teuchos::Map type
 using TOP = Tpetra::Operator<Scalar, LO, GO, Node>;    ///< default Tpetra::Operator type
 using TCMAT = Tpetra::CrsMatrix<Scalar, LO, GO, Node>; ///< default Tpetra::CrsMatrix type
@@ -81,7 +83,7 @@ using thyra_vec = Thyra::VectorBase<Scalar>;
 using thyra_op = Thyra::LinearOpBase<Scalar>;
 using thyra_prec = Thyra::PreconditionerBase<Scalar>;
 
-//TODO: can we move all of this into a namepace? I want to know where everything is coming from
+// TODO: can we move all of this into a namepace so we know where everything is coming from?
 
 /**
  * @brief write TOP A to a file in MatrixMarket format
@@ -130,7 +132,7 @@ Teuchos::RCP<const TCOMM> getMPIWORLDTCOMM();
  * @param commRcp
  * @return Teuchos::RCP<TMAP>
  */
-Teuchos::RCP<TMAP> getTMAPFromLocalSize(const int &localSize, const Teuchos::RCP<const TCOMM> &commRcp);
+Teuchos::RCP<TMAP> getTMAPFromLocalSize(const size_t localSize, const Teuchos::RCP<const TCOMM> &commRcp);
 
 /**
  * @brief get a TMAP from arbitrary global index on local
@@ -140,7 +142,7 @@ Teuchos::RCP<TMAP> getTMAPFromLocalSize(const int &localSize, const Teuchos::RCP
  * @param commRcp
  * @return Teuchos::RCP<TMAP>
  */
-Teuchos::RCP<TMAP> getTMAPFromGlobalIndexOnLocal(const std::vector<int> &gidOnLocal, const int globalSize,
+Teuchos::RCP<TMAP> getTMAPFromGlobalIndexOnLocal(const std::vector<GO> &gidOnLocal, const GO globalSize,
                                                  const Teuchos::RCP<const TCOMM> &commRcp);
 
 /**

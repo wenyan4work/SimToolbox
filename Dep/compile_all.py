@@ -7,11 +7,11 @@ import multiprocessing
 
 install = True  # compile only or compile + install
 use_openblas = False   # use OpenBLAS by default, set to False if you use MKL
-enable_packages = ['boost', 'eigen', 'trilinos', 'vtk']
-
+#enable_packages = ['boost', 'eigen', 'trilinos', 'vtk']
+enable_packages = ['trilinos']
 # your installation destination, use ABSOLUTE PATH
 os.environ["SFTPATH"] = os.environ['HOME'] + \
-    '/envs/stb_intel/'
+    '/envs/stb_intel_13/'
 
 os.environ["CXXFLAGS"] = '-march=native -O3 -DNDEBUG'
 os.environ["OPENMP_CXX_FLAGS"] = '-qopenmp'  # -qopenmp for intel compiler
@@ -55,9 +55,9 @@ if make_jobs <= 0:
 print("make_jobs: ", make_jobs)
 
 
-k = input("Press Y to continue, else to quit...  ")
-if k != 'y' and k != 'Y':
-    exit()
+#k = input("Press Y to continue, else to quit...  ")
+#if k != 'y' and k != 'Y':
+#    exit()
 
 
 def run(cmd):
@@ -107,7 +107,7 @@ if 'vtk' in enable_packages:
 
 # Trilinos
 if 'trilinos' in enable_packages:
-    trilinos = 'trilinos-release-12-18-1'
+    trilinos = 'trilinos-release-13-0-1'
     os.chdir(depwd)
     run('tar xf {}.tar.gz'.format(trilinos))
     if use_openblas:

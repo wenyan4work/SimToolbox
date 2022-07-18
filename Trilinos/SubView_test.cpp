@@ -50,10 +50,10 @@ void test() {
     auto vecSubView2Ptr = vecSubView2->getLocalView<Kokkos::HostSpace>();
     vecSubView1->modify<Kokkos::HostSpace>();
     vecSubView2->modify<Kokkos::HostSpace>();
-    for (int i = 0; i < vecSubView1Ptr.dimension_0(); i++) {
+    for (int i = 0; i < vecSubView1Ptr.extent(0); i++) {
         vecSubView1Ptr(i, 0) = rank;
     }
-    for (int i = 0; i < vecSubView2Ptr.dimension_0(); i++) {
+    for (int i = 0; i < vecSubView2Ptr.extent(0); i++) {
         vecSubView2Ptr(i, 0) = rank;
     }
 

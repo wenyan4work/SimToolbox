@@ -63,7 +63,7 @@ EvaluatorTpetraConstraint::EvaluatorTpetraConstraint(const Teuchos::RCP<const TC
 
   // fill the fixed constraint information from ConstraintCollector
   conCollectorPtr_->fillConstraintInformation(commRcp_, xGuessRcp_, unconstrainedSepRcp_, 
-                                              constraintKappaRcp_, constraintFlagRcp_); 
+                                              constraintKappaRcp_, constraintFlagRcp_);
 
   // solve for the unconstrained separation, which we would like to resolve
   // compute unconstrainedSep = 1.0 * initialSep + dt (A^k)^T (U_external^k + M^k F_external^k)
@@ -221,61 +221,83 @@ evalModelImpl(const Thyra::ModelEvaluatorBase::InArgs<Scalar> &inArgs,
       JRcp->unitialize();
     }
     
-    //////////////////////////////
-    // Update the configuration //
-    //////////////////////////////
-    // Beware, the systems will update conCollector each time evalModelImpl is called
-    // we must reset the conCollector to q^k before proceeding,
-    
-    // reset the configuration to q^k
-    // move the particles back to their previous positions 
-    ptcSystemPtr_->resetConfiguration(); // reset configuration to q^k
-
-    // move the configuration from q^k to q^k+1
-    // solve for the induced force and velocity
-    AMatRcp_->apply(*xRcp, *forceRcp_); // F^k = A(q^k) S(gamma^k) gamma^k
-    mobOpRcp_->apply(*forceRcp_, *velRcp_); // U^k = M(q^k) F^k
-
-    // update the particle system from the q^k to q^k+1
-    // send the constraint vel and force to the particles
-    ptcSystemPtr_->saveForceVelocityConstraints(forceRcp_, velRcp_);
-    // merge the constraint and nonconstraint vel and force
-    ptcSystemPtr_->sumForceVelocity();
-    // move the particles according to the total velocity
-    ptcSystemPtr_->stepEuler(); // q^k+1 = q^k + dt G(q^k) U^k
-    ptcSystemPtr_->applyBoxBC(); // TODO: this might not work. We'll see
-
-    // update all constraints
-    // this must NOT generate new constraints and MUST maintain the current constraint ordering
-    ptcSystemPtr_->updatesylinderNearDataDirectory();
-    ptcSystemPtr_->updatePairCollision();
-
     //////////////////////
     // Fill the objects //
     //////////////////////
 
     // setup PartialSepPartialGamma(q^k, q^k+1, gamma^k)
-    PartialSepPartialGammaOpRcp_->initialize(mobOpRcp_, AMatTransRcp_, AMatRcp_, forceRcp_, velRcp_);
+    PartialSepPartialGammaOpRcp_->initialize(mobOpRcp_, AMatTransRcp_, AMatRcp_, forceRcp_, velRcp_, dt_);
 
-    // fill the constraint value
-    if (fill_f) {
-      // evaluate F(q^k+1(gamma^k), gamma^k)
-      conCollectorPtr_->evalConstraintValues(xRcp, fRcp); 
+    // compute the new separation, sep(q^k+1)
+    // sep^k+1 = sep_unconstrained + dt (A^k)^T M^k A^k gamma^k
+    constrainedSepRcp_->assign(*unconstrainedSepRcp_); // deep-copy 
+    PartialSepPartialGammaOpRcp_->apply(*xRcp, *constrainedSepRcp_, Teuchos::NO_TRANS, 1.0, 1.0);
+
+    // evaluate the diagonal of the scale matrix, S(q^k+1, gamma^k)
+    // fill diagonal matrix that is added to the Jacobian, K(q^k, q^k+1, gamma^k)
+    {
+      auto xPtr = xRcp->getLocalView<Kokkos::HostSpace>();
+      auto constraintFlagPtr = constraintFlagRcp_->getLocalView<Kokkos::HostSpace>();
+      auto constrainedSepPtr = constrainedSepRcp_->getLocalView<Kokkos::HostSpace>();
+      auto constraintKappaPtr = constraintKappaRcp_->getLocalView<Kokkos::HostSpace>();
+      auto constraintScalePtr = constraintScaleRcp_->getLocalView<Kokkos::HostSpace>();
+      auto constraintDiagonalPtr = constraintDiagonalRcp_->getLocalView<Kokkos::HostSpace>();
+      constraintScaleRcp_->modify<Kokkos::HostSpace>();
+      const int localSize = xPtr.extent(0);
+#pragma omp parallel for
+      for (int idx = 0; idx < localSize; idx++) {
+        if (constraintFlagPtr(idx, 0)) { // spring constraint
+          constraintScalePtr(idx, 0) = 1.0;
+          constraintDiagonalPtr(idx, 0) = 1.0 / constraintKappaPtr(idx, 0); // TODO: this class needs access to kappa 
+        } else { 
+          // collision constraint using Ficher Bermiester function
+          // constraintScalePtr is the partial derivative of the FB function (sep^k+1, gamma^k) w.r.t sep^k+1
+          // constraintDiagonalPtr is the partial derivative of the FB function (sep^k, gamma^k) w.r.t gamma^k
+          if ((std::abs(constrainedSepPtr(idx, 0)) < 1e-6) && (std::abs(xPtr(idx, 0)) < 1e-6)) {
+              constraintScalePtr(idx, 0) = 0.0;
+              constraintDiagonalPtr(idx, 0) = 1.0;
+          } else {
+              constraintScalePtr(idx, 0) = 1.0 - constrainedSepPtr(idx, 0) / std::sqrt(std::pow(constrainedSepPtr(idx, 0) , 2) + std::pow(xPtr(idx, 0) , 2));
+              constraintDiagonalPtr(idx, 0) = 1.0 - xPtr(idx, 0) / std::sqrt(std::pow(constrainedSepPtr(idx, 0) , 2) + std::pow(xPtr(idx, 0) , 2));
+          }
+        }
+        // std::cout << "constraintScalePtr(idx, 0): " << constraintScalePtr(idx, 0) << " | constraintDiagonalPtr(idx, 0): " << constraintDiagonalPtr(idx, 0) << std::endl;
+      }
     }
 
-    // fill the Jacobian
+    // update the Jacobian
     if (fill_W) {
-      // evaluate the diagonal of the scale matrix, S(q^k+1, gamma^k)
-      conCollectorPtr_->evalConstraintScale(xRcp, constraintScaleRcp_); 
-      
-      // eval the diagonal of K(q^k+1, gamma^k)
-      conCollectorPtr_->evalConstraintDiagonal(xRcp, constraintDiagonalRcp_); 
-
       // setup J(q^k, q^k+1, gamma^k)
       JRcp->initialize(PartialSepPartialGammaOpRcp_, constraintScaleRcp_, constraintDiagonalRcp_, dt_);
 
       // for debug, dump to file
       // dumpToFile(JRcp, xRcp, mobOpRcp_, AMatTransRcp_, AMatRcp_, constraintScaleRcp_, constraintDiagonalRcp_);
+    }
+
+    if (fill_f) {
+      // evaluate F(q^k+1(gamma^k), gamma^k)
+      {
+        auto xPtr = xRcp->getLocalView<Kokkos::HostSpace>();
+        auto fPtr = fRcp->getLocalView<Kokkos::HostSpace>();
+        auto constraintFlagPtr = constraintFlagRcp_->getLocalView<Kokkos::HostSpace>();
+        auto constrainedSepPtr = constrainedSepRcp_->getLocalView<Kokkos::HostSpace>();
+        auto constraintKappaPtr = constraintKappaRcp_->getLocalView<Kokkos::HostSpace>();
+        fRcp->modify<Kokkos::HostSpace>();
+        const int localSize = xPtr.extent(0);
+#pragma omp parallel for
+        for (int idx = 0; idx < localSize; idx++) {
+          if (constraintFlagPtr(idx, 0)) { // spring constraint
+            // spring constraint
+            // this is the value of linear spring constraint evaluated at q^k+1, gamma^k
+            fPtr(idx, 0) = constrainedSepPtr(idx, 0) + 1.0 / constraintKappaPtr(idx, 0) * xPtr(idx, 0);
+          } else { 
+            // collision constraint using Ficher Bermiester function
+            // this is the value of the FB function evaluated at gamma^k, sep^k+1
+            fPtr(idx, 0) = constrainedSepPtr(idx, 0) + xPtr(idx, 0) 
+                - std::sqrt(std::pow(constrainedSepPtr(idx, 0) , 2) + std::pow(xPtr(idx, 0) , 2));
+          }
+        }
+      }
     }
 
     ///////////
@@ -388,16 +410,16 @@ apply(const TMV& X, TMV& Y, Teuchos::ETransp mode,
       auto constraintScalePtr = constraintScaleRcp_->getLocalView<Kokkos::HostSpace>();
       auto constraintDiagonalPtr = constraintDiagonalRcp_->getLocalView<Kokkos::HostSpace>();
       changeInSepRcp_->modify<Kokkos::HostSpace>();
-      const int localSize = changeInSepPtr.dimension_0();
+      const int localSize = changeInSepPtr.extent(0);
 #pragma omp parallel for
       for (int idx = 0; idx < localSize; idx++) {
         if (beta == Teuchos::ScalarTraits<Scalar>::zero()) {
           YcolPtr(idx, 0) = alpha * constraintScalePtr(idx, 0) * changeInSepPtr(idx, 0) 
-                        + alpha * constraintDiagonalPtr(idx, 0) * XcolPtr(idx, 0);        
+                          + alpha * constraintDiagonalPtr(idx, 0) * XcolPtr(idx, 0);        
         } else { // TODO: VERY IMPORTANT! Why does YcolPtr originally have -nan values?
           YcolPtr(idx, 0) = alpha * constraintScalePtr(idx, 0) * changeInSepPtr(idx, 0) 
-                        + alpha * constraintDiagonalPtr(idx, 0) * XcolPtr(idx, 0) 
-                        + beta * YcolPtr(idx, 0); 
+                          + alpha * constraintDiagonalPtr(idx, 0) * XcolPtr(idx, 0) 
+                          + beta * YcolPtr(idx, 0); 
         }
       }
     }

@@ -758,8 +758,8 @@ void SylinderSystem::getForceVelocityNonConstraint(const Teuchos::RCP<TV> &force
     velocityNCRcp->modify<Kokkos::HostSpace>();
 
     const int sylinderLocalNumber = sylinderContainer.getNumberOfParticleLocal();
-    TEUCHOS_ASSERT(velocityNCPtr.dimension_0() == sylinderLocalNumber * 6);
-    TEUCHOS_ASSERT(velocityNCPtr.dimension_1() == 1);
+    TEUCHOS_ASSERT(velocityNCPtr.extent(0) == sylinderLocalNumber * 6);
+    TEUCHOS_ASSERT(velocityNCPtr.extent(1) == 1);
 
 #pragma omp parallel for
     for (int i = 0; i < sylinderLocalNumber; i++) {
@@ -787,8 +787,8 @@ void SylinderSystem::saveForceVelocityConstraints(const Teuchos::RCP<const TV> &
     auto forcePtr = forceRcp->getLocalView<Kokkos::HostSpace>();
 
     const int sylinderLocalNumber = sylinderContainer.getNumberOfParticleLocal();
-    TEUCHOS_ASSERT(velPtr.dimension_0() == sylinderLocalNumber * 6);
-    TEUCHOS_ASSERT(velPtr.dimension_1() == 1);
+    TEUCHOS_ASSERT(velPtr.extent(0) == sylinderLocalNumber * 6);
+    TEUCHOS_ASSERT(velPtr.extent(1) == 1);
 
 #pragma omp parallel for
     for (int i = 0; i < sylinderLocalNumber; i++) {

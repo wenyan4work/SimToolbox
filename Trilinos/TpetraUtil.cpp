@@ -44,11 +44,11 @@ void dumpTMAP(const Teuchos::RCP<const TMAP> &map, std::string filename) {
 
 Teuchos::RCP<const TCOMM> getMPIWORLDTCOMM() { return Teuchos::rcp(new Teuchos::MpiComm<int>(MPI_COMM_WORLD)); }
 
-Teuchos::RCP<TMAP> getTMAPFromLocalSize(const int &localSize, const Teuchos::RCP<const TCOMM> &commRcp) {
-    return Teuchos::rcp(new TMAP(Teuchos::OrdinalTraits<Tpetra::global_size_t>::invalid(), localSize, 0, commRcp));
+Teuchos::RCP<TMAP> getTMAPFromLocalSize(const size_t localSize, const Teuchos::RCP<const TCOMM> &commRcp) {
+    return Teuchos::rcp(new TMAP(Teuchos::OrdinalTraits<Tpetra::global_size_t>::invalid(), localSize, 0LL, commRcp));
 }
 
-Teuchos::RCP<TMAP> getTMAPFromGlobalIndexOnLocal(const std::vector<int> &gidOnLocal, const int globalSize,
+Teuchos::RCP<TMAP> getTMAPFromGlobalIndexOnLocal(const std::vector<GO> &gidOnLocal, const GO globalSize,
                                                  const Teuchos::RCP<const TCOMM> &commRcp) {
     return Teuchos::rcp(new TMAP(globalSize, gidOnLocal.data(), gidOnLocal.size(), 0, commRcp));
 }
@@ -60,17 +60,17 @@ Teuchos::RCP<TMAP> getTMAPFromTwoBlockTMAP(const Teuchos::RCP<const TMAP> &map1,
 
     auto gid1 = map1->getMyGlobalIndices();
     auto gid2 = map2->getMyGlobalIndices();
-    const int localSize1 = map1->getNodeNumElements();
-    const int localSize2 = map2->getNodeNumElements();
-    const int globalSize1 = map1->getGlobalNumElements();
-    const int globalSize2 = map2->getGlobalNumElements();
+    const auto localSize1 = map1->getNodeNumElements();
+    const auto localSize2 = map2->getNodeNumElements();
+    const auto globalSize1 = map1->getGlobalNumElements();
+    const auto globalSize2 = map2->getGlobalNumElements();
 
-    std::vector<int> gidOnLocal(localSize1 + localSize2, 0);
-    for (int i = 0; i < localSize1; i++) {
+    std::vector<GO> gidOnLocal(localSize1 + localSize2, 0);
+    for (size_t i = 0; i < localSize1; i++) {
         gidOnLocal[i] = gid1[i];
     }
-    for (int i = 0; i < localSize2; i++) {
-        gidOnLocal[i + localSize1] = gid2[i] + map1->getGlobalNumElements();
+    for (size_t i = 0; i < localSize2; i++) {
+        gidOnLocal[i + localSize1] = gid2[i] + globalSize1;
     }
 
     auto commRcp = map1->getComm();
@@ -99,12 +99,12 @@ Teuchos::RCP<TV> getTVFromVector(const std::vector<double> &in, const Teuchos::R
     Teuchos::RCP<TV> out = Teuchos::rcp(new TV(contigMapRcp, false));
 
     auto out_2d = out->getLocalView<Kokkos::HostSpace>();
-    assert(out_2d.dimension_0() == localSize);
+    assert(out_2d.extent(0)() == localSize);
 
     out->modify<Kokkos::HostSpace>();
-    for (int c = 0; c < out_2d.dimension_1(); c++) {
+    for (size_t c = 0; c < out_2d.extent(1); c++) {
 #pragma omp parallel for schedule(dynamic, 1024)
-        for (int i = 0; i < out_2d.dimension_0(); i++) {
+        for (size_t i = 0; i < out_2d.extent(0); i++) {
             out_2d(i, c) = in[i];
         }
     }
