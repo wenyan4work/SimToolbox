@@ -3,23 +3,30 @@
 
 void ConstraintSolver::setup(ConstraintCollector &conCollector_, Teuchos::RCP<TOP> &mobOpRcp_,
                              Teuchos::RCP<TMAP> &endptMapRcp_, 
-                             Teuchos::RCP<TMAP> &ptcMapRcp_,
+                             Teuchos::RCP<TMAP> &ptcStressMapRcp_,
                              Teuchos::RCP<TV> &velncRcp_, double dt_) {
     reset();
+    TEUCHOS_ASSERT(nonnull(mobOpRcp_));
+    TEUCHOS_ASSERT(nonnull(endptMapRcp_));
+    TEUCHOS_ASSERT(nonnull(ptcStressMapRcp_));
+    TEUCHOS_ASSERT(nonnull(velncRcp_));
 
     conCollector = conCollector_;
 
     dt = dt_;
     mobOpRcp = mobOpRcp_;
     endptMapRcp = endptMapRcp_;
-    ptcMapRcp = ptcMapRcp_;
+    ptcStressMapRcp = ptcStressMapRcp_;
     velncRcp = velncRcp_;
 
     mobMapRcp = mobOpRcp->getDomainMap();
 
     conCollector.buildConstraintMatrixVector(mobMapRcp, DMatTransRcp, delta0Rcp, invKappaRcp, biFlagRcp, ulFlagRcp, gammaRcp);
     conCollector.buildGammaToProjEndptForceMatrix(endptMapRcp, EMatTransRcp);
-    conCollector.buildGammaToVirialStressMatrix(ptcMapRcp, SMatTransRcp);
+    conCollector.buildGammaToVirialStressMatrix(ptcStressMapRcp, SMatTransRcp);
+    TEUCHOS_ASSERT(nonnull(DMatTransRcp));
+    TEUCHOS_ASSERT(nonnull(SMatTransRcp));
+    TEUCHOS_ASSERT(nonnull(EMatTransRcp));
 
     Tpetra::RowMatrixTransposer<double, int, int> transposerDu(DMatTransRcp);
     DMatRcp = transposerDu.createTranspose();
@@ -44,7 +51,7 @@ void ConstraintSolver::setup(ConstraintCollector &conCollector_, Teuchos::RCP<TO
     forceuRcp = Teuchos::rcp(new TV(mobMapRcp, true));
     velbRcp = Teuchos::rcp(new TV(mobMapRcp, true));
     veluRcp = Teuchos::rcp(new TV(mobMapRcp, true));
-    stressuRcp = Teuchos::rcp(new TV(ptcMapRcp, true));
+    stressuRcp = Teuchos::rcp(new TV(ptcStressMapRcp, true));
     projEndptForceuRcp = Teuchos::rcp(new TV(endptMapRcp, true));
 }
 
@@ -60,7 +67,9 @@ void ConstraintSolver::reset() {
     velncRcp.reset();  ///< the non-constraint velocity vel_nc
     stressuRcp.reset(); ///< virial stess, 9 dof per obj, due to unilateral constraints 
     projEndptForceuRcp.reset(); ///< projected force vec, 2 dof per obj, 1 per endpoint, unilaterial
-
+    ptcStressMapRcp.reset();
+    endptMapRcp.reset();
+    
     // composite vectors and operators
     DMatTransRcp.reset(); ///< D^Trans matrix
     EMatTransRcp.reset(); ///< E^Trans matrix

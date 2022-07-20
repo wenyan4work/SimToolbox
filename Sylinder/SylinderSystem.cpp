@@ -850,7 +850,7 @@ void SylinderSystem::resolveConstraints() {
         const double buffer = 0;
         spdlog::debug("constraint solver setup");
         conSolverPtr->setup(*conCollectorPtr, mobilityOperatorRcp, sylinderEndpointMapRcp, 
-                            sylinderMapRcp, velocityNonConRcp, runConfig.dt);
+                            sylinderStressMapRcp, velocityNonConRcp, runConfig.dt);
         spdlog::debug("setControl");
         conSolverPtr->setControlParams(runConfig.conResTol, runConfig.conMaxIte, runConfig.conSolverChoice);
         spdlog::debug("solveConstraints");
@@ -868,6 +868,7 @@ void SylinderSystem::updateSylinderMap() {
     sylinderMapRcp = getTMAPFromLocalSize(nLocal, commRcp);
     sylinderEndpointMapRcp = getTMAPFromLocalSize(nLocal * 2, commRcp);
     sylinderMobilityMapRcp = getTMAPFromLocalSize(nLocal * 6, commRcp);
+    sylinderStressMapRcp = getTMAPFromLocalSize(nLocal * 9, commRcp);
 
     // setup the globalIndex
     int globalIndexBase = sylinderMapRcp->getMinGlobalIndex(); // this is a contiguous map

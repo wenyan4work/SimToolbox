@@ -69,8 +69,9 @@ class ConstraintSolver {
      * @param dt_
      */
     void setup(ConstraintCollector &conCollector_, Teuchos::RCP<TOP> &mobOpRcp_, 
-      Teuchos::RCP<TMAP> &endptMapRcp, Teuchos::RCP<TMAP> &ptcMapRcp,
-      Teuchos::RCP<TV> &velncRcp_, double dt_);
+               Teuchos::RCP<TMAP> &endptMapRcp, 
+               Teuchos::RCP<TMAP> &ptcStressMapRcp_,
+               Teuchos::RCP<TV> &velncRcp_, double dt_);
 
     /**
      * @brief solve the constraint BCQP problem
@@ -100,9 +101,9 @@ class ConstraintSolver {
     ConstraintCollector conCollector; ///< constraints
 
     // mobility-map
-    Teuchos::RCP<const TMAP> mobMapRcp;      ///< distributed map for obj mobility. 6 dof per obj
-    Teuchos::RCP<const TMAP> endptMapRcp; ///< distributed map for obj endpoints. 2 dof per obj
-    Teuchos::RCP<const TMAP> ptcMapRcp;      ///< distributed map for obj centers. 1 dof per obj
+    Teuchos::RCP<const TMAP> mobMapRcp;       ///< distributed map for obj mobility. 6 dof per obj
+    Teuchos::RCP<const TMAP> endptMapRcp;     ///< distributed map for obj endpoints. 2 dof per obj
+    Teuchos::RCP<const TMAP> ptcStressMapRcp; ///< distributed map for obj stress. 9 dof per obj
     Teuchos::RCP<TOP> mobOpRcp;   ///< mobility operator, 6 dof per obj to 6 dof per obj
     Teuchos::RCP<TV> stressuRcp;         ///< virial stess, 9 dof per obj, due to unilateral constraints 
     Teuchos::RCP<TV> projEndptForceuRcp; ///< projected force vec, 2 dof per obj, 1 per endpoint, unilaterial 

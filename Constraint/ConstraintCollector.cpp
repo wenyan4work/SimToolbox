@@ -297,7 +297,7 @@ int ConstraintCollector::buildConstraintMatrixVector(const Teuchos::RCP<const TM
         // each thread process a queue
         const auto &cBlockQue = cPool[threadId];
         const int cBlockNum = cBlockQue.size();
-        const int cBlockIndexBase = cQueSize[threadId];
+        const int cBlockIndexBase = cQueIndex[threadId];
         int kk = colIndexPool[threadId];
 
         for (int j = 0; j < cBlockNum; j++) {
@@ -489,7 +489,7 @@ int ConstraintCollector::buildGammaToProjEndptForceMatrix(const Teuchos::RCP<con
         // each thread process a queue
         const auto &cBlockQue = cPool[threadId];
         const int cBlockNum = cBlockQue.size();
-        const int cBlockIndexBase = cQueSize[threadId];
+        const int cBlockIndexBase = cQueIndex[threadId];
         int kk = colIndexPool[threadId];
 
         for (int j = 0; j < cBlockNum; j++) {
@@ -592,9 +592,9 @@ int ConstraintCollector::buildGammaToProjEndptForceMatrix(const Teuchos::RCP<con
     return 0;
 }
 
-int ConstraintCollector::buildGammaToVirialStressMatrix(const Teuchos::RCP<const TMAP> &ptcMapRcp, //
+int ConstraintCollector::buildGammaToVirialStressMatrix(const Teuchos::RCP<const TMAP> &ptcStressMapRcp, //
                                                      Teuchos::RCP<TCMAT> &SMatTransRcp) const {
-    Teuchos::RCP<const TCOMM> commRcp = ptcMapRcp->getComm();
+    Teuchos::RCP<const TCOMM> commRcp = ptcStressMapRcp->getComm();
 
     const auto &cPool = *constraintPoolPtr; // the constraint pool
     const int cQueNum = cPool.size();
@@ -648,7 +648,7 @@ int ConstraintCollector::buildGammaToVirialStressMatrix(const Teuchos::RCP<const
         // each thread process a queue
         const auto &cBlockQue = cPool[threadId];
         const int cBlockNum = cBlockQue.size();
-        const int cBlockIndexBase = cQueSize[threadId];
+        const int cBlockIndexBase = cQueIndex[threadId];
         int kk = colIndexPool[threadId];
 
         for (int j = 0; j < cBlockNum; j++) {
@@ -702,8 +702,8 @@ int ConstraintCollector::buildGammaToVirialStressMatrix(const Teuchos::RCP<const
     // step 3 prepare the partitioned column map
     // Each process own some columns. In the map, processes share entries.
     // 3.1 column map has to cover the contiguous range of the enpoint map locally owned
-    const int ptcMin = ptcMapRcp->getMinGlobalIndex();
-    const int ptcMax = ptcMapRcp->getMaxGlobalIndex();
+    const int ptcMin = ptcStressMapRcp->getMinGlobalIndex();
+    const int ptcMax = ptcStressMapRcp->getMaxGlobalIndex();
     std::vector<int> colMapIndex(ptcMax - ptcMin + 1);
 #pragma omp parallel for
     for (int i = ptcMin; i <= ptcMax; i++) {
@@ -738,13 +738,13 @@ int ConstraintCollector::buildGammaToVirialStressMatrix(const Teuchos::RCP<const
     }
 
     // printf("local number of cols: %d on rank %d\n", colMapRcp->getNodeNumElements(), commRcp->getRank());
-    // printf("local number of rows: %d on rank %d\n", ptcMapRcp->getNodeNumElements(), commRcp->getRank());
+    // printf("local number of rows: %d on rank %d\n", ptcStressMapRcp->getNodeNumElements(), commRcp->getRank());
     // dumpTMAP(colMapRcp,"colMap");
-    // dumpTMAP(ptcMapRcp,"ptcMap");
+    // dumpTMAP(ptcStressMapRcp,"ptcMap");
 
     // step 4, allocate the S^Trans matrix
     SMatTransRcp = Teuchos::rcp(new TCMAT(gammaMapRcp, colMapRcp, rowPointers, columnIndices, values));
-    SMatTransRcp->fillComplete(ptcMapRcp, gammaMapRcp); // domainMap, rangeMap
+    SMatTransRcp->fillComplete(ptcStressMapRcp, gammaMapRcp); // domainMap, rangeMap
 
     return 0;
 }

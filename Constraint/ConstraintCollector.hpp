@@ -155,11 +155,11 @@ class ConstraintCollector {
     /**
      * @brief build the matrix and vectors used in constraint solver
      *
-     * @param [in] ptcMapRcp  center of mass map
+     * @param [in] ptcStressMapRcp  particle stress map
      * @param SMatTransRcp S^Trans matrix
      * @return int error code (TODO:)
      */
-    int buildGammaToVirialStressMatrix(const Teuchos::RCP<const TMAP> &ptcMapRcp, //
+    int buildGammaToVirialStressMatrix(const Teuchos::RCP<const TMAP> &ptcStressMapRcp, //
                                        Teuchos::RCP<TCMAT> &SMatTransRcp) const;
 
 

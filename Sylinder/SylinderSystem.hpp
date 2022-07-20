@@ -69,6 +69,7 @@ class SylinderSystem {
     Teuchos::RCP<TMAP> sylinderMapRcp;         ///< TMAP, contiguous and sequentially ordered 1 dof per sylinder
     Teuchos::RCP<TMAP> sylinderEndpointMapRcp; ///< TMAP, contiguous and sequentially ordered 2 dof per sylinder
     Teuchos::RCP<TMAP> sylinderMobilityMapRcp; ///< TMAP, contiguous and sequentially ordered 6 dofs per sylinder
+    Teuchos::RCP<TMAP> sylinderStressMapRcp;   ///< TMAP, contiguous and sequentially ordered 9 dofs per sylinder
     Teuchos::RCP<TCMAT> mobilityMatrixRcp;     ///< block-diagonal mobility matrix
     Teuchos::RCP<TOP> mobilityOperatorRcp;     ///< full mobility operator (matrix-free), to be implemented
 

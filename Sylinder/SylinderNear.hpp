@@ -362,6 +362,94 @@ class CalcSylinderNearForce {
         return collision;
     }
 
+    /*
+
+        // check if the sylinders are approximately Parallel
+        const Evec3 centerI = ECmap3(syI.pos);
+        const Evec3 centerJ = ECmap3(syJ.pos);
+        const Evec3 directionI = ECmap3(syI.direction);
+        const Evec3 directionJ = ECmap3(syJ.direction);
+        const Evec3 Pm = centerI - directionI * (0.5 * syI.lengthCollision); // minus end
+        const Evec3 Pp = centerI + directionI * (0.5 * syI.lengthCollision); // plus end
+        const Evec3 Qm = centerJ - directionJ * (0.5 * syJ.lengthCollision); // minus end
+        const Evec3 Qp = centerJ + directionJ * (0.5 * syJ.lengthCollision); // plus end
+        // TODO: make this a parameter
+        if (1.0 - std::abs(directionI.dot(directionJ)) < 1e-4) { // This is approximatly 1 degree.
+            const double distMin = (centerI - centerJ).norm();
+
+            bool collision = false;
+
+            const double sep = distMin - (syI.radiusCollision + syJ.radiusCollision); // goal of constraint is sep >=0
+
+            if (sep < (syI.radiusCollision * syI.colBuf + syJ.radiusCollision * syJ.colBuf)) {
+                collision = true;
+                // because collision is true, determine where the collisions occur
+
+                // move each point into the refernce frame of centerI
+                const Evec3 PmRefI = Pm - centerI;
+                const Evec3 PpRefI = Pp - centerI;
+                const Evec3 QmRefI = Qm - centerI;
+                const Evec3 QpRefI = Qp - centerI;
+
+                // dot each point (in the reference config of centerI) with the reference direction (directionI)
+                const double PmProj = directionI.dot(PmRefI);
+                const double PpProj = directionI.dot(PpRefI);
+                const double QmProj = directionI.dot(QmRefI);
+                const double QpProj = directionI.dot(QpRefI);
+
+                // sort these into two ranges (one for each particle)
+                const double PminProj = std::min(PmProj, PpProj);
+                const double PmaxProj = std::max(PmProj, PpProj);
+                const double QminProj = std::min(QmProj, QpProj);
+                const double QmaxProj = std::max(QmProj, QpProj);
+
+                // find the overlap of these ranges
+                const double overlapRangeMin = std::max(PminProj, QminProj);
+                const double overlapRangeMax = std::min(PmaxProj, QmaxProj);
+                
+                // compute the leftmost and rightmost points where the collisions occur
+                // leftI collids with leftJ, rightI with rightJ
+                const Evec3 distIJ = centerJ - centerI; 
+                const Evec3 perpIJ = distIJ - distIJ.dot(directionI);
+                const Evec3 PlocLeft = centerI + overlapRangeMin * directionI;
+                const Evec3 QlocLeft = PlocLeft + perpIJ;
+                const Evec3 PlocRight = centerI + overlapRangeMax * directionI;
+                const Evec3 QlocRight = PlocRight + perpIJ;
+
+                // get the separations
+                const double sepLeft = (posIleft - posJleft).norm();
+                const double sepRight = (posIRight - posJRight).norm();
+
+                // add two constraints (left and right)
+                const Evec3 posI = Ploc - centerI;
+                const Evec3 posJ = Qloc - centerJ;
+                const bool sideI = directionI.dot(posI) > 0; // False -> LHS or True -> RHS
+                const bool sideJ = directionJ.dot(posJ) > 0; // False -> LHS or True -> RHS
+                conBlock = ConstraintBlock(delta0, gamma,              // current separation, initial guess of gamma
+                                        syI.gid, syJ.gid,           //
+                                        syI.globalIndex,            //
+                                        syJ.globalIndex,            //
+                                        sideI, sideJ,               //
+                                        normI.data(), normJ.data(), // direction of collision force
+                                        posI.data(), posJ.data(),   // location of collision relative to particle center
+                                        Ploc.data(), Qloc.data(),   // location of collision in lab frame
+                                        false, false, 0.0, 0.0);
+                Emat3 stressI = Emat3::Zero();
+                Emat3 stressJ = Emat3::Zero();
+                collideStress(directionI, directionJ, centerI, centerJ, syI.lengthCollision, syJ.lengthCollision,
+                            syI.radiusCollision, syJ.radiusCollision, 1.0, Ploc, Qloc, stressI, stressJ);
+                conBlock.setStressI(stressI);
+                conBlock.setStressJ(stressJ);
+
+        } 
+
+
+
+        // sylinder collide with sylinder
+        DCPQuery<3, double, Evec3> DistSegSeg3;
+    */
+
+
     /**
      * @brief
      *
