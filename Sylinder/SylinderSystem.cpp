@@ -611,7 +611,6 @@ void SylinderSystem::calcMobMatrix() {
     spdlog::debug("MobMat Constructed " + mobilityMatrixRcp->description());
 }
 
-// This should be computed by the simulation runner. 
 void SylinderSystem::calcMobOperator() {
     calcMobMatrix();
     mobilityOperatorRcp = mobilityMatrixRcp;
@@ -631,7 +630,7 @@ void SylinderSystem::sumForceVelocity() {
     }
 }
 
-void SylinderSystem::stepEuler() {
+void SylinderSystem::stepEuler(const int stepType) {
     const int nLocal = sylinderContainer.getNumberOfParticleLocal();
     const double dt = runConfig.dt;
 
@@ -639,7 +638,7 @@ void SylinderSystem::stepEuler() {
 #pragma omp parallel for
         for (int i = 0; i < nLocal; i++) {
             auto &sy = sylinderContainer[i];
-            sy.stepEuler(dt);
+            sy.stepEuler(dt, stepType);
         }
     }
 }
@@ -721,16 +720,6 @@ void SylinderSystem::prepareStep(const int stepCount) {
         sy.rank = commRcp->getRank();
         sy.colBuf = runConfig.sylinderColBuf;
     }
-
-    if (runConfig.monolayer) {
-        applyMonolayer();
-    }
-
-    updateSylinderMap();
-
-    buildsylinderNearDataDirectory();
-
-    calcMobOperator();
 }
 
 void SylinderSystem::applyMonolayer() {

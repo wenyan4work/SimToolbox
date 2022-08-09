@@ -424,7 +424,7 @@ class CalcSylinderNearForce {
             collision = true;
             // TODO MODULARIZE! 
             const double Pi = 3.14159265358979323846;
-            // const double gammaGuess = sep < 0 ? -0.5 * sep / dt * 6 * Pi * viscosity : 0;
+            // const double gammaGuess = sep < 0 ? -0.5 * sep / dt * 6 * Pi * radI * viscosity : 0;
             const double gammaGuess = sep < 0 ? -sep : 0;
             const Evec3 normI = (Ploc - Qloc).normalized();
             const Evec3 normJ = -normI;

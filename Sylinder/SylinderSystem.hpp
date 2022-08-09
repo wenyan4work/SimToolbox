@@ -23,6 +23,7 @@
 #include "Util/TRngPool.hpp"
 
 #include <unordered_map>
+#include <string>
 
 /**
  * @brief A collection of sylinders distributed to multiple MPI ranks.
@@ -50,7 +51,9 @@ class SylinderSystem {
     Teuchos::RCP<TMAP> sylinderMapRcp;         ///< TMAP, contiguous and sequentially ordered 1 dof per sylinder
     Teuchos::RCP<TMAP> sylinderMobilityMapRcp; ///< TMAP, contiguous and sequentially ordered 6 dofs per sylinder
     Teuchos::RCP<TCMAT> mobilityMatrixRcp;     ///< block-diagonal mobility matrix
+    Teuchos::RCP<TCMAT> mobilityMatrixInvRcp;  ///< block-diagonal inverse mobility matrix
     Teuchos::RCP<TOP> mobilityOperatorRcp;     ///< full mobility operator (matrix-free), to be implemented
+    Teuchos::RCP<TOP> mobilityInvOperatorRcp;  ///< full inverse mobility operator (matrix-free), to be implemented
 
     // Data directory
     std::shared_ptr<ZDD<SylinderNearEP>> sylinderNearDataDirectoryPtr; ///< distributed data directory for sylinder data
@@ -92,13 +95,6 @@ class SylinderSystem {
      * This function move the position of all sylinders into a cylindrical tube fit in initBox
      */
     void setInitialCircularCrossSection();
-
-    /**
-     * @brief update the sylinderMap and sylinderMobilityMap
-     *
-     * This function is called in prepareStep(), and no adding/removing/exchanging is allowed before runStep()
-     */
-    void updateSylinderMap(); ///< update sylindermap and sylinderMobilityMap
 
     /**
      * @brief write VTK parallel XML file into baseFolder
@@ -267,6 +263,13 @@ class SylinderSystem {
     void addNewLink(const std::vector<Link> &newLink);
 
     /**
+     * @brief update the sylinderMap and sylinderMobilityMap
+     *
+     * This function MUST be called after adding adding/removing/exchanging to update the corresponding map
+     */
+    void updateSylinderMap(); ///< update sylindermap and sylinderMobilityMap
+
+    /**
      * @brief calculate both Col and Bi stress
      *
      */
@@ -361,7 +364,7 @@ class SylinderSystem {
                                       const Teuchos::RCP<const TV> &velocityRcp); ///< write back to sylinder.velCol and velBi
 
                                       
-    void stepEuler(); ///< Euler step update position and orientation, with both collision and non-collision velocity
+    void stepEuler(const int stepType=0); ///< Euler step update position and orientation, with both collision and non-collision velocity
     void resetConfiguration(); ///< reset position and orientation, to the stores position/orientation
     void advanceParticles(); ///< Euler step update position and orientation, with both collision and non-collision velocity
 

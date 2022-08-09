@@ -88,12 +88,37 @@ void Sylinder::dumpSylinder() const {
     printf("orient %g, %g, %g, %g\n", orientation[0], orientation[1], orientation[2], orientation[3]);
 }
 
-void Sylinder::stepEuler(const double dt) {
-    for (int i = 0; i < 3; i++) {
-        pos[i] = posCurrent[i] + vel[i] * dt;
+void Sylinder::stepEuler(const double dt, const int stepType) {
+    // allow for different step types
+    double veltmp[3];
+    double omegatmp[3];
+    switch (stepType) {
+        case 0: // All
+            for (int i = 0; i < 3; i++) {
+                veltmp[i] = velBrown[i] + velNonB[i] + velCon[i];
+                omegatmp[i] = omegaBrown[i] + omegaNonB[i] + omegaCon[i];
+            }
+            break;
+        case 1: // NonConstraint
+            for (int i = 0; i < 3; i++) {
+                veltmp[i] = velBrown[i] + velNonB[i];
+                omegatmp[i] = omegaBrown[i] + omegaNonB[i];
+            }
+            break;
+        case 2: // Constraint
+            for (int i = 0; i < 3; i++) {
+                veltmp[i] = velCon[i];
+                omegatmp[i] = omegaCon[i];
+            }
+            break;
     }
-    Equatn currOrient = Emapq(orientationCurrent);
-    EquatnHelper::rotateEquatn(currOrient, Emap3(omega), dt);
+
+    // take the Euler step
+    for (int i = 0; i < 3; i++) {
+        pos[i] += veltmp[i] * dt;
+    }
+    Equatn currOrient = Emapq(orientation);
+    EquatnHelper::rotateEquatn(currOrient, Emap3(omegatmp), dt);
     Emapq(orientation).x() = currOrient.x();
     Emapq(orientation).y() = currOrient.y();
     Emapq(orientation).z() = currOrient.z();

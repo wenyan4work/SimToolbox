@@ -81,15 +81,22 @@ void DryPhysicsController::initialize(const SylinderConfig &runConfig_, const st
 
     // Collect and resolve the initial constraints 
     spdlog::warn("Initial Constraint Resolution Begin");
+    // preconstraint stuff
     ptcSystemPtr->prepareStep(stepCount);
+    if (runConfig.monolayer) { ptcSystemPtr->applyMonolayer(); }// TODO: applyMonolayer is VERY hacky and needs updated
+    ptcSystemPtr->updateSylinderMap();
+    ptcSystemPtr->buildsylinderNearDataDirectory();
+    ptcSystemPtr->calcMobOperator();
+
+    // constraint stuff
     ptcSystemPtr->collectConstraints(); 
     conSolverPtr->setup(runConfig.dt);
 
-    std::chrono::steady_clock::time_point begin = std::chrono::steady_clock::now();
-    conSolverPtr->solveConstraints(); 
-    std::chrono::steady_clock::time_point end = std::chrono::steady_clock::now();
-    const std::string outString = "Time difference = " + std::to_string(std::chrono::duration_cast<std::chrono::microseconds>(end - begin).count()) + "[µs]";
-    spdlog::warn(outString);    
+    Teuchos::RCP<Teuchos::Time> solveTimer = Teuchos::TimeMonitor::getNewCounter("ConstraintSolver::solveConstraints");
+    {
+        Teuchos::TimeMonitor mon(*solveTimer);
+        conSolverPtr->solveConstraints(); 
+    }
     conSolverPtr->writebackGamma();
     conSolverPtr->writebackForceVelocity();
 
@@ -166,25 +173,47 @@ void DryPhysicsController::reinitialize(const SylinderConfig &runConfig_, const 
 
 void DryPhysicsController::run() {
     while (getStepCount() * runConfig.dt < runConfig.timeTotal) {
-        // setup
+        ///////////
+        // setup //
+        ///////////
         spdlog::warn("CurrentStep {}", stepCount);
         std::string baseFolder = getCurrentResultFolder();
         IOHelper::makeSubFolder(baseFolder);
 
-        // pre-constraint stuff
+        //////////////////////////
+        // pre-constraint stuff //
+        //////////////////////////
+        // empty the constraint collector
         conCollectorPtr->clear();
+        // TODO: completely desolve the prepareStep function into other, clear API calls. 
+        //       I want this class to have full control of what is being called and in what order. 
         ptcSystemPtr->prepareStep(stepCount);
+        if (runConfig.monolayer) { ptcSystemPtr->applyMonolayer(); }// TODO: applyMonolayer is VERY hacky and needs updated
+        ptcSystemPtr->updateSylinderMap();
+        ptcSystemPtr->buildsylinderNearDataDirectory();
+        ptcSystemPtr->calcMobOperator();
+
+        // compute the Brownian veloicity (if necessary)
         if (runConfig.KBT > 0) { ptcSystemPtr->calcVelocityBrown(); }
+
+        //////////////////////
+        // constraint stuff //
+        //////////////////////
+        // constraints are reactinary, so we take a nonconstraint Euler step before collecting constraints
+        // this accounts for any external or velocities defined within the pre-constraint step
+        // the Euler step will move particles outside the periodic box, so we must apply pbc
+        ptcSystemPtr->stepEuler(1); 
+        // ptcSystemPtr->applyBoxBC(); // TODO: this might not work. We'll see
         ptcSystemPtr->collectConstraints();
 
         // constraint solve
         conSolverPtr->setup(runConfig.dt);
-        std::chrono::steady_clock::time_point begin = std::chrono::steady_clock::now();
-        conSolverPtr->solveConstraints(); 
-        std::chrono::steady_clock::time_point end = std::chrono::steady_clock::now();
-        const std::string outString = "Time difference = " + std::to_string(std::chrono::duration_cast<std::chrono::microseconds>(end - begin).count()) + "[µs]";
-        spdlog::warn(outString);
-        conSolverPtr->writebackGamma();
+        Teuchos::RCP<Teuchos::Time> solveTimer = Teuchos::TimeMonitor::getNewCounter("ConstraintSolver::solveConstraints");
+        {
+            Teuchos::TimeMonitor mon(*solveTimer);
+            conSolverPtr->solveConstraints(); 
+        }
+            conSolverPtr->writebackGamma();
         conSolverPtr->writebackForceVelocity();
 
         // merge the constraint and nonconstraint vel and force

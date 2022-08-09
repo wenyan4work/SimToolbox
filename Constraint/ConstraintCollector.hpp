@@ -128,9 +128,10 @@ class ConstraintCollector {
     Teuchos::RCP<TCMAT> buildConstraintMatrixVector(const Teuchos::RCP<const TMAP> &mobMapRcp,
                                                     const Teuchos::RCP<const TMAP> &gammaMapRcp) const;
 
+    void updateConstraintMatrixVector(const Teuchos::RCP<TCMAT> &AMatTransRcp) const;
+
     int fillConstraintInformation(const Teuchos::RCP<const TCOMM>& commRcp,
                                   const Teuchos::RCP<TV> &gammaGuessRcp,
-                                  const Teuchos::RCP<TV> &initialSepRcp,
                                   const Teuchos::RCP<TV> &constraintKappaRcp,
                                   const Teuchos::RCP<TV> &constraintFlagRcp) const;
 
@@ -140,8 +141,9 @@ class ConstraintCollector {
     int evalConstraintDiagonal(const Teuchos::RCP<const TV> &gammaRcp, 
                                const Teuchos::RCP<TV> &constraintDiagonalRcp) const;
 
-    int evalConstraintValues(const Teuchos::RCP<const TV> &gammaRcp, 
-                             const Teuchos::RCP<TV> &constraintValueRcp) const;
+    int evalConstraintValues(const Teuchos::RCP<const TV> &gammaRcp,
+                             const Teuchos::RCP<TV> &constraintValueRcp, 
+                             const Teuchos::RCP<TV> &constraintMaskRcp) const;
 
 
     // /**

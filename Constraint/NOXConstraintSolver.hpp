@@ -17,6 +17,10 @@
 #include "Trilinos/TpetraUtil.hpp"
 #include "Util/EigenDef.hpp"
 
+// Trilinos stuff
+#include <Thyra_Ifpack2PreconditionerFactory.hpp>
+#include <Teuchos_AbstractFactoryStd.hpp>
+
 // regular C++
 #include <algorithm>
 #include <cmath>
@@ -65,9 +69,8 @@ class ConstraintSolver {
      *
      * @param constraint_
      * @param objMobMapRcp_
-     * @param dt_
      */
-    void setup(double dt);
+    void setup(const double dt);
 
     // /**
     //  * @brief dump the jacobian and constraint values to MatrixMarket files
@@ -97,7 +100,7 @@ class ConstraintSolver {
   private:
     double dt_; ///< timestep size
     const Teuchos::RCP<const TCOMM> commRcp_; ///< TCOMM, set as a Teuchos::MpiComm object in constructor
-    Teuchos::RCP<const TOP> mobOpRcp_;        ///< mobility operator, 6 dof per obj to 6 dof per obj
+    Teuchos::RCP<const TCMAT> mobMatRcp_;       ///< mobility matrix, 6 dof per obj to 6 dof per obj
     Teuchos::RCP<const TMAP> mobMapRcp_;      ///< map for mobility matrix. 6 DOF per obj
 
     std::shared_ptr<ConstraintCollector> conCollectorPtr_; ///< pointer to ConstraintCollector

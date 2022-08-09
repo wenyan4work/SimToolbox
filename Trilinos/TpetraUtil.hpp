@@ -83,6 +83,9 @@ using thyra_vec = Thyra::VectorBase<Scalar>;
 using thyra_op = Thyra::LinearOpBase<Scalar>;
 using thyra_prec = Thyra::PreconditionerBase<Scalar>;
 
+using ifpack2_prec = Ifpack2::Preconditioner<Scalar, LO, GO>;
+
+
 // TODO: can we move all of this into a namepace so we know where everything is coming from?
 
 /**

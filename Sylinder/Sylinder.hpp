@@ -21,6 +21,7 @@
 #include <cstdlib>
 #include <type_traits>
 #include <vector>
+#include <string>
 
 /**
  * @brief specify the link of sylinders
@@ -154,7 +155,7 @@ class Sylinder {
      *
      * @param dt
      */
-    void stepEuler(const double dt);
+    void stepEuler(const double dt, const int stepType=0);
 
     /**
      * @brief reset the configuration to the stores position and orientation

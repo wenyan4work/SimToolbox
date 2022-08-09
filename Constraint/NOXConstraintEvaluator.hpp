@@ -12,7 +12,10 @@
 
 // Trilinos Stuff 
 #include <Tpetra_CrsMatrix.hpp>
-
+#include <TpetraExt_TripleMatrixMultiply.hpp>
+#include <TpetraExt_MatrixMatrix.hpp>
+#include <Thyra_Ifpack2PreconditionerFactory.hpp>
+#include <Thyra_DefaultLinearOpSource.hpp>
 
 /** \brief Bilateral constraint evaluator
  *
@@ -25,9 +28,7 @@ class EvaluatorTpetraConstraint
 public:
   // Constructor
   EvaluatorTpetraConstraint(const Teuchos::RCP<const TCOMM>& commRcp,
-                     const Teuchos::RCP<const TOP> &mobOpRcp,
-                     const Teuchos::RCP<const TV> &velExternalRcp,
-                     const Teuchos::RCP<const TV> &forceExternalRcp,
+                     const Teuchos::RCP<const TCMAT> &mobMatRcp,
                      std::shared_ptr<ConstraintCollector> conCollectorPtr,
                      std::shared_ptr<SylinderSystem> ptcSystemPtr,
                      const Teuchos::RCP<TV> &forceRcp,
@@ -55,6 +56,8 @@ public:
   Thyra::ModelEvaluatorBase::InArgs<Scalar> getNominalValues() const;
   /** \brief . */
   Teuchos::RCP<thyra_op> create_W_op() const;
+  // /** \brief . */
+  // Teuchos::RCP<thyra_prec> create_W_prec() const;
   /** \brief . */
   Teuchos::RCP<const Thyra::LinearOpWithSolveFactoryBase<Scalar> > get_W_factory() const;
   /** \brief . */
@@ -78,11 +81,13 @@ private:
 
   // debug functions
   void dumpToFile(const Teuchos::RCP<const TOP> &JRcp, 
+                  const Teuchos::RCP<const TV> &fRcp,
+                  const Teuchos::RCP<const TV> &projMaskRcp,
+                  const Teuchos::RCP<const TV> &partialSepPartialGammaDiagRcp,
                   const Teuchos::RCP<const TV> &xRcp, 
-                  const Teuchos::RCP<const TOP> &mobOpRcp,
+                  const Teuchos::RCP<const TCMAT> &mobMatRcp,
                   const Teuchos::RCP<const TCMAT> &AMatTransRcp,
                   const Teuchos::RCP<const TCMAT> &AMatRcp,
-                  const Teuchos::RCP<const TV> &constraintScaleRcp, 
                   const Teuchos::RCP<const TV> &constraintDiagonalRcp) const;
 
 
@@ -95,25 +100,22 @@ private: // data members
   std::shared_ptr<ConstraintCollector> conCollectorPtr_;
   std::shared_ptr<SylinderSystem> ptcSystemPtr_;
   const Teuchos::RCP<const TCOMM> commRcp_;
-  const Teuchos::RCP<const TOP> mobOpRcp_;
-  const Teuchos::RCP<const TV> velExternalRcp_;
-  const Teuchos::RCP<const TV> forceExternalRcp_;
+  const Teuchos::RCP<const TCMAT> mobMatRcp_;
+  const Teuchos::RCP<const TOP> mobInvOpRcp_;
   Teuchos::RCP<const TMAP> mobMapRcp_;   ///< map for mobility matrix. 6 DOF per obj
 
-  Teuchos::RCP<TCMAT> AMatTransRcp_; ///< A^Trans matrix TODO: are these allowed to be mutable?
+  Teuchos::RCP<TCMAT> AMatTransRcp_; ///< A^Trans matrix TODO: are these allowed to be mutable? No. The RCP object CANNOT change during computation. The contents can be changed without using mutablle
   Teuchos::RCP<TCMAT> AMatRcp_; ///< A^Trans matrix
-  Teuchos::RCP<PartialSepPartialGammaOp> PartialSepPartialGammaOpRcp_; // dt S^T A^T M A S which takes gamma to change in sep w.r.t gamma
+  Teuchos::RCP<TCMAT> partialSepPartialGammaMatRcp_; ///< dt S^T A^T M A S which takes gamma to change in sep w.r.t gamma
+  Teuchos::RCP<TV> partialSepPartialGammaDiagRcp_; ///< the diagonal of dt S^T A^T M A S 
 
+  Teuchos::RCP<TV> projMaskRcp_; ///< projection mask: if 1 for apply projection, otherwise 0. 
   Teuchos::RCP<TV> forceRcp_; ///< force = A forceMag
   Teuchos::RCP<TV> forceMagRcp_;   ///< forceMag = S gamma
   Teuchos::RCP<TV> velRcp_;   ///< vel = M force
   Teuchos::RCP<TV> constraintFlagRcp_; ///< bilateral flag vector
-  Teuchos::RCP<TV> constrainedSepRcp_; ///< separation distance after applying constraints. Could be overlap, spring length, angle, etc. 
-  Teuchos::RCP<TV> unconstrainedSepRcp_; ///< unconstrained distance. Could be overlap, spring length, angle, etc. 
   Teuchos::RCP<TV> constraintKappaRcp_; ///< Constraint constant TODO: modularize!
   Teuchos::RCP<TV> constraintDiagonalRcp_; ///< Diagonal of the matrix to add to the jacobian
-  Teuchos::RCP<TV> constraintScaleRcp_; ///< Diagonal of the scale matrix. 
-                                        ///< Scale is 1 for bilaterial constraints and nonzero for complementarity constraints
   Teuchos::RCP<TV> xGuessRcp_; ///< initial guess
   Teuchos::RCP<TV> initialSepRcp_; ///< initial separation. Could be overlap, spring length, angle, etc. 
 
@@ -141,9 +143,10 @@ public:
   // Constructor
   JacobianOperator(const Teuchos::RCP<const TMAP> &xMapRcp);
 
-  void initialize(const Teuchos::RCP<const PartialSepPartialGammaOp> &PartialSepPartialGammaOpRcp, 
-                  const Teuchos::RCP<const TV> &constraintScaleRcp,
+  void initialize(const Teuchos::RCP<const TCMAT> &partialSepPartialGammaMatRcp, 
+                  const Teuchos::RCP<const TV> &partialSepPartialGammaDiagRcp, 
                   const Teuchos::RCP<const TV> &constraintDiagonalRcp, 
+                  const Teuchos::RCP<const TV> &projMaskRcp, 
                   const double dt);
 
   void unitialize();
@@ -167,10 +170,11 @@ private:
   double dt_;
 
   // constant operators
-  const Teuchos::RCP<const TMAP> xMapRcp_; ///< map for combined vector [gammau; gammab]^T
-  Teuchos::RCP<const TV> constraintScaleRcp_; ///< scale diagonal matrix
+  const Teuchos::RCP<const TMAP> xMapRcp_;       ///< map for combined vector [gammau; gammab]^T
+  Teuchos::RCP<const TV> projMaskRcp_;           ///< projection mask: if 1 for apply projection, otherwise 0. 
   Teuchos::RCP<const TV> constraintDiagonalRcp_; ///< K^{-1} diagonal matrix
-  Teuchos::RCP<const PartialSepPartialGammaOp> PartialSepPartialGammaOpRcp_; // dt S^T A^T M A S which takes gamma to change in sep w.r.t gamma
+  Teuchos::RCP<const TV> partialSepPartialGammaDiagRcp_;   ///< diagonal of dt A^T M A
+  Teuchos::RCP<const TCMAT> partialSepPartialGammaMatRcp_; ///< dt S^T A^T M A S, which maps gamma to change in sep w.r.t gamma
 
   Teuchos::RCP<TV> changeInSepRcp_; ///< force_mag = S gamma
 };

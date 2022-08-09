@@ -240,7 +240,7 @@ void ConstraintCollector::dumpBlocks() const {
     for (const auto &blockQue : (*constraintPoolPtr)) {
         std::cout << blockQue.size() << " constraints in this queue" << std::endl;
         for (const auto &block : blockQue) {
-            std::cout << block.globalIndexI << " " << block.globalIndexJ << " value:" << block.constraintValue << std::endl;
+            std::cout << block.globalIndexI << " " << block.globalIndexJ << std::endl;
         }
     }
 }
@@ -256,6 +256,7 @@ Teuchos::RCP<TCMAT> ConstraintCollector::buildConstraintMatrixVector(const Teuch
     const auto &cPool = *constraintPoolPtr; // the constraint pool
     const int cQueNum = cPool.size();
 
+    // TODO: buildConIndex should store the result and only update if the number of constraints has been updated
     // prepare 1, build the index for block queue
     std::vector<int> cQueSize;
     std::vector<int> cQueIndex;
@@ -351,7 +352,7 @@ Teuchos::RCP<TCMAT> ConstraintCollector::buildConstraintMatrixVector(const Teuch
     }
 
     // step 3 prepare the partitioned column map
-    // Each process own some columns. In the map, processes share entries.
+    // Each process owns some columns. In the map, processes share entries. (multiply-owned)
     // 3.1 column map has to cover the contiguous range of the mobility map locally owned
     const int mobMin = mobMapRcp->getMinGlobalIndex();
     const int mobMax = mobMapRcp->getMaxGlobalIndex();
@@ -401,6 +402,90 @@ Teuchos::RCP<TCMAT> ConstraintCollector::buildConstraintMatrixVector(const Teuch
 }
 
 
+void ConstraintCollector::updateConstraintMatrixVector(const Teuchos::RCP<TCMAT> &AMatTransRcp) const {
+    TEUCHOS_ASSERT(nonnull(AMatTransRcp));
+
+    const auto &cPool = *constraintPoolPtr; // the constraint pool
+    const int cQueNum = cPool.size();
+
+    // prepare 1, build the index for block queue
+    std::vector<int> cQueSize;
+    std::vector<int> cQueIndex;
+    buildConIndex(cQueSize, cQueIndex);
+    const int localGammaSize = cQueIndex.back();
+
+    // step 1, fill the values in each row
+    const Teuchos::RCP<const TMAP> domainMapRcp = AMatTransRcp->getDomainMap();
+    const Teuchos::RCP<const TMAP> rangeMapRcp = AMatTransRcp->getRangeMap();
+    AMatTransRcp->resumeFill();
+
+    // multi-thread filling. nThreads = poolSize, each thread process a queue
+#pragma omp parallel for num_threads(cQueNum)
+    for (int threadId = 0; threadId < cQueNum; threadId++) {
+        // each thread process a queue
+        const auto &cBlockQue = cPool[threadId];
+        const int cBlockNum = cBlockQue.size();
+        const int cBlockIndexBase = cQueIndex[threadId];
+
+        for (int j = 0; j < cBlockNum; j++) {
+            // each 6nnz for an object: gx.ux+gy.uy+gz.uz+(gzpy-gypz)wx+(gxpz-gzpx)wy+(gypx-gxpy)wz
+            // 6 nnz for I
+            const auto &cBlock = cBlockQue[j];
+            const auto idx = cBlockIndexBase + j;
+            const auto nnz = cBlock.oneSide ? 6 : 12;
+            GO columnIndices[nnz];
+            Scalar values[nnz];
+
+            columnIndices[0] = 6 * cBlock.globalIndexI; //Should these be gidI or globalIndexI
+            columnIndices[1] = 6 * cBlock.globalIndexI + 1;
+            columnIndices[2] = 6 * cBlock.globalIndexI + 2;
+            columnIndices[3] = 6 * cBlock.globalIndexI + 3;
+            columnIndices[4] = 6 * cBlock.globalIndexI + 4;
+            columnIndices[5] = 6 * cBlock.globalIndexI + 5;
+            const double &gx = cBlock.normI[0];
+            const double &gy = cBlock.normI[1];
+            const double &gz = cBlock.normI[2];
+            const double &px = cBlock.posI[0];
+            const double &py = cBlock.posI[1];
+            const double &pz = cBlock.posI[2];
+            values[0] = gx;
+            values[1] = gy;
+            values[2] = gz;
+            values[3] = (gz * py - gy * pz);
+            values[4] = (gx * pz - gz * px);
+            values[5] = (gy * px - gx * py);
+            if (!cBlock.oneSide) {
+                columnIndices[6] = 6 * cBlock.globalIndexJ;
+                columnIndices[7] = 6 * cBlock.globalIndexJ + 1;
+                columnIndices[8] = 6 * cBlock.globalIndexJ + 2;
+                columnIndices[9] = 6 * cBlock.globalIndexJ + 3;
+                columnIndices[10] = 6 * cBlock.globalIndexJ + 4;
+                columnIndices[11] = 6 * cBlock.globalIndexJ + 5;
+                const double &gx = cBlock.normJ[0];
+                const double &gy = cBlock.normJ[1];
+                const double &gz = cBlock.normJ[2];
+                const double &px = cBlock.posJ[0];
+                const double &py = cBlock.posJ[1];
+                const double &pz = cBlock.posJ[2];
+                values[6] = gx;
+                values[7] = gy;
+                values[8] = gz;
+                values[9] = (gz * py - gy * pz);
+                values[10] = (gx * pz - gz * px);
+                values[11] = (gy * px - gx * py);
+            }
+
+            // update the values using global indices
+            // replaceGlobalValues (const GlobalOrdinal globalRow, const LocalOrdinal numEnt, const Scalar vals[], const GlobalOrdinal cols[])
+            const auto globalRowIdx = rangeMapRcp->getGlobalElement(idx);
+            AMatTransRcp->replaceGlobalValues(globalRowIdx, nnz, values, columnIndices); 
+        }
+    }
+    AMatTransRcp->fillComplete(domainMapRcp, rangeMapRcp);
+}
+
+
+
 // TODO: combine some of these functions under a unified name 
 
 int ConstraintCollector::evalConstraintScale(const Teuchos::RCP<const TV> &gammaRcp,
@@ -429,21 +514,27 @@ int ConstraintCollector::evalConstraintScale(const Teuchos::RCP<const TV> &gamma
         for (int j = 0; j < cBlockNum; j++) {
             const auto &cBlock = cBlockQue[j];
             const auto idx = cBlockIndexBase + j;
-            if (cBlock.bilateral) {
-                // spring constraint
-                constraintScalePtr(idx, 0) = 1.0;
-            } else {
-                // collision constraint using Ficher Bermiester function
-                // this is the partial derivative of the FB function (sep^k, gamma^k) w.r.t sep^k
-                // TODO: what number should be used here?
-                if ((std::abs(cBlock.sepDist) < 1e-6) && (std::abs(gammaPtr(idx, 0)) < 1e-6)) {
-                    constraintScalePtr(idx, 0) = 0.0;
-                } else {
-                    constraintScalePtr(idx, 0) = 1.0 - cBlock.sepDist / std::sqrt(std::pow(cBlock.sepDist , 2) + std::pow(gammaPtr(idx, 0) , 2));
-                }
-            }
-            // std::cout << "scale: " << constraintScalePtr(idx, 0) << " gamma: " << gammaPtr(idx, 0) << std::endl;
-            // std::cout << " sep: " << cBlock.sepDist << " labI: " << cBlock.labI[0] << ", " << cBlock.labI[1] << ", " << cBlock.labI[2] << " labJ: " << cBlock.labJ[0] << ", " << cBlock.labJ[1] << ", " << cBlock.labJ[2] << std::endl;
+            /////////////
+            // Min Map //
+            /////////////
+            constraintScalePtr(idx, 0) = 1.0;        
+
+            ////////////////////////
+            // Fischer Bermiester //
+            ////////////////////////
+            // if (cBlock.bilateral) {
+            //     // spring constraint
+            //     constraintScalePtr(idx, 0) = 1.0;
+            // } else {
+            //     // collision constraint using Fischer Bermiester function
+            //     // this is the partial derivative of the FB function (sep^k, gamma^k) w.r.t sep^k
+            //     // TODO: what number should be used here?
+            //     if ((std::abs(cBlock.sepDist) < 1e-6) && (std::abs(gammaPtr(idx, 0)) < 1e-6)) {
+            //         constraintScalePtr(idx, 0) = 0.0;
+            //     } else {
+            //         constraintScalePtr(idx, 0) = 1.0 - cBlock.sepDist / std::sqrt(std::pow(cBlock.sepDist , 2) + std::pow(gammaPtr(idx, 0) , 2));
+            //     }
+            // }
         }
     }
 
@@ -476,23 +567,36 @@ int ConstraintCollector::evalConstraintDiagonal(const Teuchos::RCP<const TV> &ga
         for (int j = 0; j < cBlockNum; j++) {
             const auto &cBlock = cBlockQue[j];
             const auto idx = cBlockIndexBase + j;
+            /////////////
+            // Min Map //
+            /////////////
             if (cBlock.bilateral) {
                 // spring constraint
                 // this is the partial derivative of the linear spring constraint w.r.t gamma^k
                 constraintDiagonalPtr(idx, 0) = 1.0 / cBlock.kappa;
             } else {
-                // collision constraint using Ficher Bermiester function
-                // this is the partial derivative of the FB function (sep^k, gamma^k) w.r.t gamma^k
-                // TODO: what number should be used here?
-                if ((std::abs(cBlock.sepDist) < 1e-6) && (std::abs(gammaPtr(idx, 0)) < 1e-6)) {
-                    constraintDiagonalPtr(idx, 0) = 1.0;
-                } else {
-                    constraintDiagonalPtr(idx, 0) = 1.0 
-                        - gammaPtr(idx, 0) / std::sqrt(std::pow(cBlock.sepDist , 2) + std::pow(gammaPtr(idx, 0) , 2));
-                }
+                // Min Map doesn't add a diagonal to the Jacobian
+                constraintDiagonalPtr(idx, 0) = 0.0;
             }
-            // std::cout << "diag: " << constraintDiagonalPtr(idx, 0) << " gamma: " << gammaPtr(idx, 0) << std::endl;
-            // std::cout << " sep: " << cBlock.sepDist << " labI: " << cBlock.labI[0] << ", " << cBlock.labI[1] << ", " << cBlock.labI[2] << " labJ: " << cBlock.labJ[0] << ", " << cBlock.labJ[1] << ", " << cBlock.labJ[2] << std::endl;
+
+            ////////////////////////
+            // Fischer Bermiester //
+            ////////////////////////
+            // if (cBlock.bilateral) {
+            //     // spring constraint
+            //     // this is the partial derivative of the linear spring constraint w.r.t gamma^k
+            //     constraintDiagonalPtr(idx, 0) = 1.0 / cBlock.kappa;
+            // } else {
+            //     // collision constraint using Ficher Bermiester function
+            //     // this is the partial derivative of the FB function (sep^k, gamma^k) w.r.t gamma^k
+            //     // TODO: what number should be used here?
+            //     if ((std::abs(cBlock.sepDist) < 1e-6) && (std::abs(gammaPtr(idx, 0)) < 1e-6)) {
+            //         constraintDiagonalPtr(idx, 0) = 1.0;
+            //     } else {
+            //         constraintDiagonalPtr(idx, 0) = 1.0 
+            //             - gammaPtr(idx, 0) / std::sqrt(std::pow(cBlock.sepDist , 2) + std::pow(gammaPtr(idx, 0) , 2));
+            //     }
+            // }
         }
     }
 
@@ -501,9 +605,11 @@ int ConstraintCollector::evalConstraintDiagonal(const Teuchos::RCP<const TV> &ga
 
 
 int ConstraintCollector::evalConstraintValues(const Teuchos::RCP<const TV> &gammaRcp,
-                                              const Teuchos::RCP<TV> &constraintValueRcp) const {
+                                              const Teuchos::RCP<TV> &constraintValueRcp, 
+                                              const Teuchos::RCP<TV> &constraintMaskRcp) const {
     TEUCHOS_ASSERT(nonnull(gammaRcp));
     TEUCHOS_ASSERT(nonnull(constraintValueRcp));
+    TEUCHOS_ASSERT(nonnull(constraintMaskRcp));
 
     auto &cPool = *constraintPoolPtr; // the constraint pool
     const int cQueNum = cPool.size();
@@ -516,7 +622,9 @@ int ConstraintCollector::evalConstraintValues(const Teuchos::RCP<const TV> &gamm
     //  fill constraintValue
     auto gammaPtr = gammaRcp->getLocalView<Kokkos::HostSpace>();
     auto constraintValuePtr = constraintValueRcp->getLocalView<Kokkos::HostSpace>();
+    auto constraintMaskPtr = constraintMaskRcp->getLocalView<Kokkos::HostSpace>();
     constraintValueRcp->modify<Kokkos::HostSpace>();
+    constraintMaskRcp->modify<Kokkos::HostSpace>();
 
 #pragma omp parallel for num_threads(cQueNum)
     for (int threadId = 0; threadId < cQueNum; threadId++) {
@@ -526,18 +634,48 @@ int ConstraintCollector::evalConstraintValues(const Teuchos::RCP<const TV> &gamm
         for (int j = 0; j < queSize; j++) {
             auto &cBlock = cQue[j];
             const auto idx = cIndexBase + j;
+            /////////////
+            // Min Map //
+            /////////////
             if (cBlock.bilateral) {
                 // spring constraint
                 // this is the value of linear spring constraint evaluated at gamma^k, q^k
                 constraintValuePtr(idx, 0) = cBlock.sepDist + 1.0 / cBlock.kappa * gammaPtr(idx, 0);
+
+                // no projection is applied to these constraints
+                constraintMaskPtr(idx, 0) = 0;
             } else {
-                // collision constraint using Ficher Bermiester function
-                // this is the value of the FB function evaluated at gamma^k, sep(q^k)
-                constraintValuePtr(idx, 0) = cBlock.sepDist + gammaPtr(idx, 0) 
-                    - std::sqrt(std::pow(cBlock.sepDist , 2) + std::pow(gammaPtr(idx, 0) , 2));
+                // collision constraint using Min Map function
+                // this is the value of the MM function evaluated at gamma^k, sep(q^k)
+                // projection is applied if gamma < sep 
+                if (cBlock.sepDist < gammaPtr(idx, 0)) {
+                    constraintValuePtr(idx, 0) = cBlock.sepDist;
+                    constraintMaskPtr(idx, 0) = 0;
+                    // std::cout << "No Projection: " << idx << " gamma " << gammaPtr(idx, 0) << " sep " << cBlock.sepDist << std::endl;
+                } else {
+                    constraintValuePtr(idx, 0) = gammaPtr(idx, 0);
+                    constraintMaskPtr(idx, 0) = 1;
+                    // std::cout << "Projection: " << idx << " gamma " << gammaPtr(idx, 0) << " sep " << cBlock.sepDist << std::endl;
+                }
             }
-            // std::cout << "val: " << constraintValuePtr(idx, 0) << " gamma: " << gammaPtr(idx, 0) << std::endl;
-            // std::cout << " sep: " << cBlock.sepDist << " labI: " << cBlock.labI[0] << ", " << cBlock.labI[1] << ", " << cBlock.labI[2] << " labJ: " << cBlock.labJ[0] << ", " << cBlock.labJ[1] << ", " << cBlock.labJ[2] << std::endl;
+
+            ////////////////////////
+            // Fischer Bermiester //
+            ////////////////////////
+            // if (cBlock.bilateral) {
+            //     // spring constraint
+            //     // this is the value of linear spring constraint evaluated at gamma^k, q^k
+            //     constraintValuePtr(idx, 0) = cBlock.sepDist + 1.0 / cBlock.kappa * gammaPtr(idx, 0);
+            // } else {
+            //     // collision constraint using Ficher Bermiester function
+            //     // this is the value of the FB function evaluated at gamma^k, sep(q^k)
+            //     constraintValuePtr(idx, 0) = cBlock.sepDist + gammaPtr(idx, 0) 
+            //         - std::sqrt(std::pow(cBlock.sepDist , 2) + std::pow(gammaPtr(idx, 0) , 2));
+            // }
+
+            // store the value back into the constraint
+            // TODO: should this be a writeback function to increase clarity? 
+            //       or should all the other eval functions store their computed values for consistancy? 
             cBlock.constraintValue = constraintValuePtr(idx, 0);
         }
     }
@@ -548,7 +686,6 @@ int ConstraintCollector::evalConstraintValues(const Teuchos::RCP<const TV> &gamm
 
 int ConstraintCollector::fillConstraintInformation(const Teuchos::RCP<const TCOMM>& commRcp,
                                                    const Teuchos::RCP<TV> &gammaGuessRcp,
-                                                   const Teuchos::RCP<TV> &initialSepRcp,
                                                    const Teuchos::RCP<TV> &constraintKappaRcp,
                                                    const Teuchos::RCP<TV> &constraintFlagRcp) const {
     TEUCHOS_ASSERT(nonnull(commRcp));
@@ -566,11 +703,9 @@ int ConstraintCollector::fillConstraintInformation(const Teuchos::RCP<const TCOM
 
     // fill the vectors from the constraint pool
     auto gammaGuessPtr = gammaGuessRcp->getLocalView<Kokkos::HostSpace>();
-    auto initialSepPtr = initialSepRcp->getLocalView<Kokkos::HostSpace>();
     auto constraintKappaPtr = constraintKappaRcp->getLocalView<Kokkos::HostSpace>();
     auto constraintFlagPtr = constraintFlagRcp->getLocalView<Kokkos::HostSpace>();
     gammaGuessRcp->modify<Kokkos::HostSpace>();
-    initialSepRcp->modify<Kokkos::HostSpace>();
     constraintKappaRcp->modify<Kokkos::HostSpace>();
     constraintFlagRcp->modify<Kokkos::HostSpace>();
 
@@ -583,7 +718,6 @@ int ConstraintCollector::fillConstraintInformation(const Teuchos::RCP<const TCOM
             const auto &block = cQue[j];
             const auto idx = cIndexBase + j;
             gammaGuessPtr(idx, 0) = block.gammaGuess;
-            initialSepPtr(idx, 0) = block.sepDist;
             constraintKappaPtr(idx, 0) = block.kappa;
             if (block.bilateral) {
                 constraintFlagPtr(idx, 0) = 1;
