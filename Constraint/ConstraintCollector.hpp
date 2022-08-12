@@ -26,14 +26,11 @@
 /**
  * @brief collecter of collision blocks
  *
- * This class must have very low copy overhead dueto the design of FDPS
- *
  */
 class ConstraintCollector {
   public:
-    std::shared_ptr<ConstraintBlockPool> constraintPoolPtr;
     ///< all copy of collector share a pointer to collision pool
-    ///< this is required by FDPS
+    std::shared_ptr<ConstraintBlockPool> constraintPoolPtr;
 
     ConstraintCollector();
 

@@ -1149,15 +1149,23 @@ void SylinderSystem::collectBoundaryCollision() {
                     Evec3 norm = Emap3(delta) * (1 / deltanorm);
                     Evec3 posI = Query - center;
 
+                    // unscaledForce = normal vector
+                    // unscaledTorque = relative position cross normal vector
+                    const Evec3 unscaledForceComI = norm;
+                    Evec3 unscaledTorqueComI;
+                    unscaledTorqueComI[0] = norm[2] * posI[1] - norm[1] * posI[2];
+                    unscaledTorqueComI[1] = norm[0] * posI[2] - norm[2] * posI[0];
+                    unscaledTorqueComI[2] = norm[1] * posI[0] - norm[0] * posI[1];         
+
                     if ((Query - ECmap3(Proj)).dot(ECmap3(delta)) < 0) { // outside boundary
                         que.emplace_back(-deltanorm - radius, 0, sy.gid, sy.gid, sy.globalIndex, sy.globalIndex,
-                                         norm.data(), norm.data(), posI.data(), posI.data(), Query.data(), Proj, true,
-                                         false, 0.0, 0.0);
+                                         unscaledForceComI.data(), unscaledForceComI.data(), unscaledTorqueComI.data(), unscaledTorqueComI.data(), 
+                                         Query.data(), Proj, true, 0, 0.0);
                     } else if (deltanorm <
                                (1 + runConfig.sylinderColBuf * 2) * sy.radiusCollision) { // inside boundary but close
                         que.emplace_back(deltanorm - radius, 0, sy.gid, sy.gid, sy.globalIndex, sy.globalIndex,
-                                         norm.data(), norm.data(), posI.data(), posI.data(), Query.data(), Proj, true,
-                                         false, 0.0, 0.0);
+                                         unscaledForceComI.data(), unscaledForceComI.data(), unscaledTorqueComI.data(), unscaledTorqueComI.data(),
+                                         Query.data(), Proj, true, 0, 0.0);
                     }
                 };
 
@@ -1482,15 +1490,29 @@ void SylinderSystem::collectLinkBilateral() {
                 const Evec3 normJ = -normI;
                 const Evec3 posI = Ploc - centerI;
                 const Evec3 posJ = Qloc - centerJ;
+
+                // unscaledForce = normal vector
+                // unscaledTorque = relative position cross normal vector
+                const Evec3 unscaledForceComI = normI;
+                const Evec3 unscaledForceComJ = normJ;
+                Evec3 unscaledTorqueComI;
+                unscaledTorqueComI[0] = normI[2] * posI[1] - normI[1] * posI[2];
+                unscaledTorqueComI[1] = normI[0] * posI[2] - normI[2] * posI[0];
+                unscaledTorqueComI[2] = normI[1] * posI[0] - normI[0] * posI[1];         
+                Evec3 unscaledTorqueComJ;
+                unscaledTorqueComJ[0] = normJ[2] * posJ[1] - normJ[1] * posJ[2];
+                unscaledTorqueComJ[1] = normJ[0] * posJ[2] - normJ[2] * posJ[0];
+                unscaledTorqueComJ[2] = normJ[1] * posJ[0] - normJ[0] * posJ[1]; 
+            
                 ConstraintBlock conBlock(delta0, gamma,              // current separation, initial guess of gamma
                                          syI.gid, syJ.gid,           //
                                          syI.globalIndex,            //
                                          syJ.globalIndex,            //
-                                         normI.data(), normJ.data(), // direction of collision force
-                                         posI.data(), posJ.data(), // location of collision relative to particle center
+                                         unscaledForceComI.data(), unscaledForceComJ.data(),   // com force induced by this constraint for unit gamma
+                                         unscaledTorqueComI.data(), unscaledTorqueComJ.data(), // com torque induced by this constraint for unit gamma
                                          Ploc.data(), Qloc.data(), // location of collision in lab frame
-                                         false, 1, 1.0 / runConfig.linkKappa, 0.0);
-                Emat3 stressIJ;
+                                         false, 1, 1.0 / runConfig.linkKappa);
+                Emat3 stressIJ = Emat3::Zero();
                 CalcSylinderNearForce::collideStress(directionI, directionJ, centerI, centerJ, syI.length, syJ.length,
                                                      syI.radius, syJ.radius, 1.0, Ploc, Qloc, stressIJ);
                 conBlock.setStress(stressIJ);

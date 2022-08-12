@@ -86,6 +86,7 @@ void testFixedPair() {
         sylinderQ[0].direction[1] = direction[1];
         sylinderQ[0].direction[2] = direction[2];
     }
+
     ForceNear fnear;
     calc(sylinderP.data(), 1, sylinderQ.data(), 1, &fnear);
     printf("%zu collisions recorded\n", calc.conPoolPtr->front().size());
@@ -163,10 +164,14 @@ void testParallel() {
     auto block = calc.conPoolPtr->front().front();
     printf("stress:\n");
     printMat3(stress);
-    printf("posI:\n");
-    printVec3(block.posI);
-    printf("posJ:\n");
-    printVec3(block.posJ);
+    printf("unscaledForceComI:\n");
+    printVec3(block.unscaledForceComI);
+    printf("unscaledForceComJ:\n");
+    printVec3(block.unscaledForceComJ);
+    printf("unscaledTorqueComI:\n");
+    printVec3(block.unscaledTorqueComI);
+    printf("unscaledTorqueComJ:\n");
+    printVec3(block.unscaledTorqueComJ);
 }
 
 void testSphere() {
@@ -222,10 +227,14 @@ void testSphere() {
     auto block = calc.conPoolPtr->front().front();
     printf("stress:\n");
     printMat3(stress);
-    printf("posI:\n");
-    printVec3(block.posI);
-    printf("posJ:\n");
-    printVec3(block.posJ);
+    printf("unscaledForceComI:\n");
+    printVec3(block.unscaledForceComI);
+    printf("unscaledForceComJ:\n");
+    printVec3(block.unscaledForceComJ);
+    printf("unscaledTorqueComI:\n");
+    printVec3(block.unscaledTorqueComI);
+    printf("unscaledTorqueComJ:\n");
+    printVec3(block.unscaledTorqueComJ);
 
     // check correctness, stress = xf for spheres
     Emat3 stress1;
@@ -296,10 +305,14 @@ void testSylinderSphere() {
     auto block = calc.conPoolPtr->front().front();
     printf("stress:\n");
     printMat3(stress);
-    printf("posI:\n");
-    printVec3(block.posI);
-    printf("posJ:\n");
-    printVec3(block.posJ);
+    printf("unscaledForceComI:\n");
+    printVec3(block.unscaledForceComI);
+    printf("unscaledForceComJ:\n");
+    printVec3(block.unscaledForceComJ);
+    printf("unscaledTorqueComI:\n");
+    printVec3(block.unscaledTorqueComI);
+    printf("unscaledTorqueComJ:\n");
+    printVec3(block.unscaledTorqueComJ);
 }
 
 int main() {

@@ -36,6 +36,7 @@ int ConstraintCollector::getLocalNumberOfConstraints() {
 }
 
 void ConstraintCollector::sumLocalConstraintStress(Emat3 &conStress, bool withOneSide) const {
+    // TODO: this needs thread parallelized 
     const auto &cPool = *constraintPoolPtr;
     const int poolSize = cPool.size();
 
@@ -72,8 +73,8 @@ void ConstraintCollector::writePVTP(const std::string &folder, const std::string
     std::vector<IOHelper::FieldVTU> pointDataFields;
     pointDataFields.emplace_back(1, IOHelper::IOTYPE::Int32, "gid");
     pointDataFields.emplace_back(1, IOHelper::IOTYPE::Int32, "globalIndex");
-    pointDataFields.emplace_back(3, IOHelper::IOTYPE::Float32, "posIJ");
-    pointDataFields.emplace_back(3, IOHelper::IOTYPE::Float32, "normIJ");
+    pointDataFields.emplace_back(3, IOHelper::IOTYPE::Float32, "forceComIJ");
+    pointDataFields.emplace_back(3, IOHelper::IOTYPE::Float32, "torqueComIJ");
 
     std::vector<IOHelper::FieldVTU> cellDataFields;
     cellDataFields.emplace_back(1, IOHelper::IOTYPE::Int32, "oneSide");
@@ -108,8 +109,8 @@ void ConstraintCollector::writeVTP(const std::string &folder, const std::string 
     std::vector<double> pos(6 * cBlockNum); // position always in Float64
     std::vector<int32_t> gid(2 * cBlockNum);
     std::vector<int32_t> globalIndex(2 * cBlockNum);
-    std::vector<float> posIJ(6 * cBlockNum);
-    std::vector<float> normIJ(6 * cBlockNum);
+    std::vector<float> forceComIJ(6 * cBlockNum);
+    std::vector<float> torqueComIJ(6 * cBlockNum);
 
     // point connectivity of line
     std::vector<int32_t> connectivity(2 * cBlockNum);
@@ -139,6 +140,7 @@ void ConstraintCollector::writeVTP(const std::string &folder, const std::string 
         for (int c = 0; c < queSize; c++) {
             const int cIndex = queIndex + c;
             const auto &block = cPool[q][c];
+
             // point position
             pos[6 * cIndex + 0] = block.labI[0];
             pos[6 * cIndex + 1] = block.labI[1];
@@ -146,23 +148,25 @@ void ConstraintCollector::writeVTP(const std::string &folder, const std::string 
             pos[6 * cIndex + 3] = block.labJ[0];
             pos[6 * cIndex + 4] = block.labJ[1];
             pos[6 * cIndex + 5] = block.labJ[2];
+
             // point data
             gid[2 * cIndex + 0] = block.gidI;
             gid[2 * cIndex + 1] = block.gidJ;
             globalIndex[2 * cIndex + 0] = block.globalIndexI;
             globalIndex[2 * cIndex + 1] = block.globalIndexJ;
-            posIJ[6 * cIndex + 0] = block.posI[0];
-            posIJ[6 * cIndex + 1] = block.posI[1];
-            posIJ[6 * cIndex + 2] = block.posI[2];
-            posIJ[6 * cIndex + 3] = block.posJ[0];
-            posIJ[6 * cIndex + 4] = block.posJ[1];
-            posIJ[6 * cIndex + 5] = block.posJ[2];
-            normIJ[6 * cIndex + 0] = block.normI[0];
-            normIJ[6 * cIndex + 1] = block.normI[1];
-            normIJ[6 * cIndex + 2] = block.normI[2];
-            normIJ[6 * cIndex + 3] = block.normJ[0];
-            normIJ[6 * cIndex + 4] = block.normJ[1];
-            normIJ[6 * cIndex + 5] = block.normJ[2];
+            forceComIJ[6 * cIndex + 0] = block.unscaledForceComI[0] * block.gamma;
+            forceComIJ[6 * cIndex + 1] = block.unscaledForceComI[1] * block.gamma;
+            forceComIJ[6 * cIndex + 2] = block.unscaledForceComI[2] * block.gamma;
+            forceComIJ[6 * cIndex + 3] = block.unscaledForceComJ[0] * block.gamma;
+            forceComIJ[6 * cIndex + 4] = block.unscaledForceComJ[1] * block.gamma;
+            forceComIJ[6 * cIndex + 5] = block.unscaledForceComJ[2] * block.gamma;
+            torqueComIJ[6 * cIndex + 0] = block.unscaledTorqueComI[0] * block.gamma;
+            torqueComIJ[6 * cIndex + 1] = block.unscaledTorqueComI[1] * block.gamma;
+            torqueComIJ[6 * cIndex + 2] = block.unscaledTorqueComI[2] * block.gamma;
+            torqueComIJ[6 * cIndex + 3] = block.unscaledTorqueComJ[0] * block.gamma;
+            torqueComIJ[6 * cIndex + 4] = block.unscaledTorqueComJ[1] * block.gamma;
+            torqueComIJ[6 * cIndex + 5] = block.unscaledTorqueComJ[2] * block.gamma;
+
             // cell data
             oneSide[cIndex] = block.oneSide ? 1 : 0;
             id[cIndex] = block.id;
@@ -196,8 +200,8 @@ void ConstraintCollector::writeVTP(const std::string &folder, const std::string 
     file << "<PointData Scalars=\"scalars\">\n";
     IOHelper::writeDataArrayBase64(gid, "gid", 1, file);
     IOHelper::writeDataArrayBase64(globalIndex, "globalIndex", 1, file);
-    IOHelper::writeDataArrayBase64(posIJ, "posIJ", 3, file);
-    IOHelper::writeDataArrayBase64(normIJ, "normIJ", 3, file);
+    IOHelper::writeDataArrayBase64(forceComIJ, "forceComIJ", 3, file);
+    IOHelper::writeDataArrayBase64(torqueComIJ, "torqueComIJ", 3, file);
     file << "</PointData>\n";
     // cell data
     file << "<CellData Scalars=\"scalars\">\n";
@@ -329,38 +333,27 @@ int ConstraintCollector::buildConstraintMatrixVector(const Teuchos::RCP<const TM
             columnIndices[kk + 3] = 6 * cBlockQue[j].globalIndexI + 3;
             columnIndices[kk + 4] = 6 * cBlockQue[j].globalIndexI + 4;
             columnIndices[kk + 5] = 6 * cBlockQue[j].globalIndexI + 5;
-            const double &gx = cBlockQue[j].normI[0];
-            const double &gy = cBlockQue[j].normI[1];
-            const double &gz = cBlockQue[j].normI[2];
-            const double &px = cBlockQue[j].posI[0];
-            const double &py = cBlockQue[j].posI[1];
-            const double &pz = cBlockQue[j].posI[2];
-            values[kk + 0] = gx;
-            values[kk + 1] = gy;
-            values[kk + 2] = gz;
-            values[kk + 3] = (gz * py - gy * pz);
-            values[kk + 4] = (gx * pz - gz * px);
-            values[kk + 5] = (gy * px - gx * py);
+            values[kk + 0] = cBlockQue[j].unscaledForceComI[0];
+            values[kk + 1] = cBlockQue[j].unscaledForceComI[1];
+            values[kk + 2] = cBlockQue[j].unscaledForceComI[2];
+            values[kk + 3] = cBlockQue[j].unscaledTorqueComI[0];
+            values[kk + 4] = cBlockQue[j].unscaledTorqueComI[1];
+            values[kk + 5] = cBlockQue[j].unscaledTorqueComI[2];
             kk += 6;
             if (!cBlockQue[j].oneSide) {
+                // 6 nnz for J
                 columnIndices[kk + 0] = 6 * cBlockQue[j].globalIndexJ;
                 columnIndices[kk + 1] = 6 * cBlockQue[j].globalIndexJ + 1;
                 columnIndices[kk + 2] = 6 * cBlockQue[j].globalIndexJ + 2;
                 columnIndices[kk + 3] = 6 * cBlockQue[j].globalIndexJ + 3;
                 columnIndices[kk + 4] = 6 * cBlockQue[j].globalIndexJ + 4;
                 columnIndices[kk + 5] = 6 * cBlockQue[j].globalIndexJ + 5;
-                const double &gx = cBlockQue[j].normJ[0];
-                const double &gy = cBlockQue[j].normJ[1];
-                const double &gz = cBlockQue[j].normJ[2];
-                const double &px = cBlockQue[j].posJ[0];
-                const double &py = cBlockQue[j].posJ[1];
-                const double &pz = cBlockQue[j].posJ[2];
-                values[kk + 0] = gx;
-                values[kk + 1] = gy;
-                values[kk + 2] = gz;
-                values[kk + 3] = (gz * py - gy * pz);
-                values[kk + 4] = (gx * pz - gz * px);
-                values[kk + 5] = (gy * px - gx * py);
+                values[kk + 0] = cBlockQue[j].unscaledForceComJ[0];
+                values[kk + 1] = cBlockQue[j].unscaledForceComJ[1];
+                values[kk + 2] = cBlockQue[j].unscaledForceComJ[2];
+                values[kk + 3] = cBlockQue[j].unscaledTorqueComJ[0];
+                values[kk + 4] = cBlockQue[j].unscaledTorqueComJ[1];
+                values[kk + 5] = cBlockQue[j].unscaledTorqueComJ[2];
                 kk += 6;
             }
         }
@@ -403,11 +396,6 @@ int ConstraintCollector::buildConstraintMatrixVector(const Teuchos::RCP<const TM
     for (size_t i = 0; i < colIndexNum; i++) {
         columnIndices[i] = colmap.getLocalElement(columnIndices[i]);
     }
-
-    // printf("local number of cols: %d on rank %d\n", colMapRcp->getNodeNumElements(), commRcp->getRank());
-    // printf("local number of rows: %d on rank %d\n", mobMapRcp->getNodeNumElements(), commRcp->getRank());
-    // dumpTMAP(colMapRcp,"colMap");
-    // dumpTMAP(mobMapRcp,"mobMap");
 
     // step 4, allocate the D^Trans matrix
     DMatTransRcp = Teuchos::rcp(new TCMAT(gammaMapRcp, colMapRcp, rowPointers, columnIndices, values));
