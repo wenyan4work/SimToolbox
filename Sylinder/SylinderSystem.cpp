@@ -1482,41 +1482,111 @@ void SylinderSystem::collectLinkBilateral() {
                 const Evec3 Qm = centerJ - directionJ * (0.5 * syJ.length);
                 const Evec3 Ploc = Pp;
                 const Evec3 Qloc = Qm;
-                const Evec3 rvec = Qloc - Ploc;
+                const Evec3 rvec = Ploc - Qloc;
                 const double rnorm = rvec.norm();
-                const double delta0 = rnorm - syI.radius - syJ.radius - runConfig.linkGap;
-                const double gamma = delta0 < 0 ? -delta0 : 0;
                 const Evec3 normI = (Ploc - Qloc).normalized();
                 const Evec3 normJ = -normI;
                 const Evec3 posI = Ploc - centerI;
                 const Evec3 posJ = Qloc - centerJ;
 
-                // unscaledForce = normal vector
-                // unscaledTorque = relative position cross normal vector
-                const Evec3 unscaledForceComI = normI;
-                const Evec3 unscaledForceComJ = normJ;
+                // Links generate three constraints, one for each direction x,y,z
+                // unscaledForce = x,y,or z direction
+                // unscaledTorque = relative position cross x,y,or z direction
+                Evec3 unscaledForceComI;
+                Evec3 unscaledForceComJ;
                 Evec3 unscaledTorqueComI;
-                unscaledTorqueComI[0] = normI[2] * posI[1] - normI[1] * posI[2];
-                unscaledTorqueComI[1] = normI[0] * posI[2] - normI[2] * posI[0];
-                unscaledTorqueComI[2] = normI[1] * posI[0] - normI[0] * posI[1];         
                 Evec3 unscaledTorqueComJ;
-                unscaledTorqueComJ[0] = normJ[2] * posJ[1] - normJ[1] * posJ[2];
-                unscaledTorqueComJ[1] = normJ[0] * posJ[2] - normJ[2] * posJ[0];
-                unscaledTorqueComJ[2] = normJ[1] * posJ[0] - normJ[0] * posJ[1]; 
-            
-                ConstraintBlock conBlock(delta0, gamma,              // current separation, initial guess of gamma
-                                         syI.gid, syJ.gid,           //
-                                         syI.globalIndex,            //
-                                         syJ.globalIndex,            //
-                                         unscaledForceComI.data(), unscaledForceComJ.data(),   // com force induced by this constraint for unit gamma
-                                         unscaledTorqueComI.data(), unscaledTorqueComJ.data(), // com torque induced by this constraint for unit gamma
-                                         Ploc.data(), Qloc.data(), // location of collision in lab frame
-                                         false, 1, 1.0 / runConfig.linkKappa);
-                Emat3 stressIJ = Emat3::Zero();
-                CalcSylinderNearForce::collideStress(directionI, directionJ, centerI, centerJ, syI.length, syJ.length,
-                                                     syI.radius, syJ.radius, 1.0, Ploc, Qloc, stressIJ);
-                conBlock.setStress(stressIJ);
-                conQue.push_back(conBlock);
+
+                {
+                    // x-direction constraint
+                    unscaledForceComI[0] = 1.0;
+                    unscaledForceComI[1] = 0.0;
+                    unscaledForceComI[2] = 0.0;
+                    unscaledForceComJ[0] = -1.0;
+                    unscaledForceComJ[1] = 0.0;
+                    unscaledForceComJ[2] = 0.0;
+                    unscaledTorqueComI[0] = 0.0;
+                    unscaledTorqueComI[1] = posI[2];
+                    unscaledTorqueComI[2] = posI[1];
+                    unscaledTorqueComJ[0] = 0.0;
+                    unscaledTorqueComJ[1] = -posJ[2];
+                    unscaledTorqueComJ[2] = -posJ[1];
+                    const double delta0 = rvec[0] - normI[0] * (syI.radius + syJ.radius + runConfig.linkGap);
+                    const double gamma = delta0 < 0 ? -delta0 : 0;
+                    ConstraintBlock conBlock(delta0 * normI[0], gamma * normI[0],  // current separation projected onto the x-axis, initial guess of gamma
+                                            syI.gid, syJ.gid,                      //
+                                            syI.globalIndex,                       //
+                                            syJ.globalIndex,                       //
+                                            unscaledForceComI.data(), unscaledForceComJ.data(),   // com force induced by this constraint for unit gamma
+                                            unscaledTorqueComI.data(), unscaledTorqueComJ.data(), // com torque induced by this constraint for unit gamma
+                                            Ploc.data(), Qloc.data(), // location of collision in lab frame
+                                            false, 1, 1.0 / runConfig.linkKappa);
+                    Emat3 stressIJ = Emat3::Zero();
+                    CalcSylinderNearForce::collideStress(directionI, directionJ, centerI, centerJ, syI.length, syJ.length,
+                                                        syI.radius, syJ.radius, 1.0, Ploc, Qloc, stressIJ);
+                    conBlock.setStress(stressIJ);
+                    conQue.push_back(conBlock);
+                }
+                {
+                    // y-direction constraint
+                    unscaledForceComI[0] = 0.0;
+                    unscaledForceComI[1] = 1.0;
+                    unscaledForceComI[2] = 0.0;
+                    unscaledForceComJ[0] = 0.0;
+                    unscaledForceComJ[1] = -1.0;
+                    unscaledForceComJ[2] = 0.0;
+                    unscaledTorqueComI[0] = posI[2];
+                    unscaledTorqueComI[1] = 0.0;
+                    unscaledTorqueComI[2] = posI[0];
+                    unscaledTorqueComJ[0] = -posJ[2];
+                    unscaledTorqueComJ[1] = 0.0;
+                    unscaledTorqueComJ[2] = -posJ[0];
+                    const double delta0 = rvec[1] - normI[1] * (syI.radius + syJ.radius + runConfig.linkGap);
+                    const double gamma = delta0 < 0 ? -delta0 : 0;
+                    ConstraintBlock conBlock(delta0 * normI[1], gamma * normI[1],  // current separation projected onto the y-axis, initial guess of gamma
+                                            syI.gid, syJ.gid,                      //
+                                            syI.globalIndex,                       //
+                                            syJ.globalIndex,                       //
+                                            unscaledForceComI.data(), unscaledForceComJ.data(),   // com force induced by this constraint for unit gamma
+                                            unscaledTorqueComI.data(), unscaledTorqueComJ.data(), // com torque induced by this constraint for unit gamma
+                                            Ploc.data(), Qloc.data(), // location of collision in lab frame
+                                            false, 1, 1.0 / runConfig.linkKappa);
+                    Emat3 stressIJ = Emat3::Zero();
+                    CalcSylinderNearForce::collideStress(directionI, directionJ, centerI, centerJ, syI.length, syJ.length,
+                                                        syI.radius, syJ.radius, 1.0, Ploc, Qloc, stressIJ);
+                    conBlock.setStress(stressIJ);
+                    conQue.push_back(conBlock);
+                }
+                {
+                    // z-direction constraint
+                    unscaledForceComI[0] = 0.0;
+                    unscaledForceComI[1] = 0.0;
+                    unscaledForceComI[2] = 1.0;
+                    unscaledForceComJ[0] = 0.0;
+                    unscaledForceComJ[1] = 0.0;
+                    unscaledForceComJ[2] = -1.0;
+                    unscaledTorqueComI[0] = posI[1];
+                    unscaledTorqueComI[1] = posI[0];
+                    unscaledTorqueComI[2] = 0.0;
+                    unscaledTorqueComJ[0] = -posJ[1];
+                    unscaledTorqueComJ[1] = -posJ[0];
+                    unscaledTorqueComJ[2] = 0.0;
+                    const double delta0 = rvec[2] - normI[2] * (syI.radius + syJ.radius + runConfig.linkGap);
+                    const double gamma = delta0 < 0 ? -delta0 : 0;
+                    ConstraintBlock conBlock(delta0 * normI[2], gamma * normI[2],  // current separation projected onto the z-axis, initial guess of gamma
+                                            syI.gid, syJ.gid,                      //
+                                            syI.globalIndex,                       //
+                                            syJ.globalIndex,                       //
+                                            unscaledForceComI.data(), unscaledForceComJ.data(),   // com force induced by this constraint for unit gamma
+                                            unscaledTorqueComI.data(), unscaledTorqueComJ.data(), // com torque induced by this constraint for unit gamma
+                                            Ploc.data(), Qloc.data(), // location of collision in lab frame
+                                            false, 1, 1.0 / runConfig.linkKappa);
+                    Emat3 stressIJ = Emat3::Zero();
+                    CalcSylinderNearForce::collideStress(directionI, directionJ, centerI, centerJ, syI.length, syJ.length,
+                                                        syI.radius, syJ.radius, 1.0, Ploc, Qloc, stressIJ);
+                    conBlock.setStress(stressIJ);
+                    conQue.push_back(conBlock);
+                }
             }
         }
     }
