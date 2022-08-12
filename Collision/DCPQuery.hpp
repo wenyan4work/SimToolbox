@@ -96,7 +96,7 @@ double DistPointSeg(const Vector &point, const Vector &minus, const Vector &plus
     Vector direction = plus - minus;
     Vector diff = point - plus;
     double t = dot(direction, diff);
-    if (t >= 0) {
+    if (t >= 0) { 
         result.segmentParameter = 1;
         result.segmentClosest = plus;
     } else {
@@ -106,7 +106,7 @@ double DistPointSeg(const Vector &point, const Vector &minus, const Vector &plus
             result.segmentParameter = 0;
             result.segmentClosest = minus;
         } else {
-            double sqrLength = dot(direction, direction);
+            const double sqrLength = dot(direction, direction);
             if (sqrLength > 0) {
                 t /= sqrLength;
                 result.segmentParameter = t;

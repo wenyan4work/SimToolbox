@@ -78,12 +78,12 @@ class ConstraintCollector {
     int getLocalNumberOfConstraints();
 
     /**
-     * @brief compute the total collision stress of all constraints (blocks)
+     * @brief compute the total constraint stress of all constraints (blocks)
      *
-     * @param stress the sum of all stress blocks for all threads on the local rank
-     * @param withOneSide include the stress (without proper definition) of one side collisions
+     * @param conStress the sum of all stress blocks for all threads on the local rank
+     * @param withOneSide include the stress (without proper definition) of one sided constraints
      */
-    void sumLocalConstraintStress(Emat3 &uniStress, Emat3 &biStress, bool withOneSide = false) const;
+    void sumLocalConstraintStress(Emat3 &conStress, bool withOneSide = false) const;
 
     /**
      * @brief write VTK XML PVTP Header file from rank 0
@@ -127,7 +127,7 @@ class ConstraintCollector {
      *
      * @param [in] mobMapRcp  mobility map
      * @param DTransRcp D^Trans matrix
-     * @param delta0Rcp delta_0 vector
+     * @param deltaRcp delta_0 vector
      * @param invKappaRcp K^{-1} vector
      * @param biFlagRcp 1 for bilateral, 1 for unilateral
      * @param gammaGuessRcp initial guess of gamma
@@ -135,9 +135,8 @@ class ConstraintCollector {
      */
     int buildConstraintMatrixVector(const Teuchos::RCP<const TMAP> &mobMapRcp, //
                                     Teuchos::RCP<TCMAT> &DMatTransRcp,         //
-                                    Teuchos::RCP<TV> &delta0Rcp,               //
+                                    Teuchos::RCP<TV> &deltaRcp,               //
                                     Teuchos::RCP<TV> &invKappaRcp,             //
-                                    Teuchos::RCP<TV> &biFlagRcp,               //
                                     Teuchos::RCP<TV> &gammaGuessRcp) const;
 
     // /**
@@ -164,6 +163,14 @@ class ConstraintCollector {
      * @return int error code (future)
      */
     int writeBackGamma(const Teuchos::RCP<const TV> &gammaRcp);
+
+    /**
+     * @brief write back the final (linearized) separation to the blocks
+     *
+     * @param gammaRcp solution
+     * @return int error code (future)
+     */
+    int writeBackDelta(const Teuchos::RCP<const TV> &deltaRcp);
 };
 
 #endif

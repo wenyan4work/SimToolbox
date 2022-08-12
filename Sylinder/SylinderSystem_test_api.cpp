@@ -30,7 +30,6 @@ void testAddLinks(SylinderSystem &sylinderSystem) {
 
     // run 10 steps for relaxation
     for (int i = 0; i < 10; i++) {
-        sylinderSystem.prepareStep();
         sylinderSystem.runStep();
     }
 
@@ -80,22 +79,22 @@ void testAddLinks(SylinderSystem &sylinderSystem) {
     }
 
     // run 10 steps
-    const int nSteps = 10;
-    for (int i = 0; i < nSteps; i++) {
-        sylinderSystem.prepareStep();
-        auto &sylinderContainer = sylinderSystem.getContainer();
-        int nLocal = sylinderContainer.getNumberOfParticleLocal();
-        std::vector<double> forceNonBrown(nLocal * 6, 0.0);
-        for (int i = 0; i < nLocal; i++) {
-            const auto &gid = sylinderContainer[i].gid;
-            if (linkMap.count(gid) > 0) {
-                forceNonBrown[6 * i + 1] = 10; // y
-                forceNonBrown[6 * i + 2] = 10; // z
-            }
-        }
-        sylinderSystem.setForceNonBrown(forceNonBrown);
-        sylinderSystem.runStep();
-    }
+    // const int nSteps = 10;
+    // for (int i = 0; i < nSteps; i++) {
+    //     sylinderSystem.prepareStep();
+    //     auto &sylinderContainer = sylinderSystem.getContainer();
+    //     int nLocal = sylinderContainer.getNumberOfParticleLocal();
+    //     std::vector<double> forceNonBrown(nLocal * 6, 0.0);
+    //     for (int i = 0; i < nLocal; i++) {
+    //         const auto &gid = sylinderContainer[i].gid;
+    //         if (linkMap.count(gid) > 0) {
+    //             forceNonBrown[6 * i + 1] = 10; // y
+    //             forceNonBrown[6 * i + 2] = 10; // z
+    //         }
+    //     }
+    //     sylinderSystem.setForceNonBrown(forceNonBrown);
+    //     sylinderSystem.runStep();
+    // }
 
     // check added links by external python script
 }

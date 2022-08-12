@@ -252,6 +252,7 @@ class CalcSylinderNearForce {
         // sphere collide with sphere
         const Evec3 centerI = ECmap3(spI.pos);
         const Evec3 centerJ = ECmap3(spJ.pos);
+
         // effective radius of sphere = sp.lengthCollision*0.5 + sp.radiusCollision
         const double radI = spI.lengthCollision * 0.5 + spI.radiusCollision;
         const double radJ = spJ.lengthCollision * 0.5 + spJ.radiusCollision;
@@ -280,7 +281,7 @@ class CalcSylinderNearForce {
                                        normI.data(), normJ.data(), // direction of collision force
                                        posI.data(), posJ.data(),   // location of collision relative to particle center
                                        Ploc.data(), Qloc.data(),   // location of collision in lab frame
-                                       false, false, 0.0, 0.0);
+                                       false, 0, 0.0, 0.0);
             Emat3 stressIJ = Emat3::Zero();
             collideStress(Evec3(0, 0, 1), Evec3(0, 0, 1), centerI, centerJ, 0, 0, // length = 0, degenerates to sphere
                           radI, radJ, 1.0, Ploc, Qloc, stressIJ);
@@ -338,7 +339,7 @@ class CalcSylinderNearForce {
                                        normI.data(), normJ.data(), // direction of collision force
                                        posI.data(), posJ.data(),   // location of collision relative to particle center
                                        Ploc.data(), Qloc.data(),   // location of collision in lab frame
-                                       false, false, 0.0, 0.0);
+                                       false, 0, 0.0, 0.0);
             if (reverseIJ) {
                 conBlock.reverseIJ();
             }
@@ -398,7 +399,7 @@ class CalcSylinderNearForce {
                                        normI.data(), normJ.data(), // direction of collision force
                                        posI.data(), posJ.data(),   // location of collision relative to particle center
                                        Ploc.data(), Qloc.data(),   // location of collision in lab frame
-                                       false, false, 0.0, 0.0);
+                                       false, 0, 0.0, 0.0);
             Emat3 stressIJ;
             collideStress(directionI, directionJ, centerI, centerJ, syI.lengthCollision, syJ.lengthCollision,
                           syI.radiusCollision, syJ.radiusCollision, 1.0, Ploc, Qloc, stressIJ);

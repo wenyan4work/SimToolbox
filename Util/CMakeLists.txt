@@ -3,9 +3,8 @@
 
 add_executable(GeoUtil_test GeoUtil_test.cpp)
 target_compile_options(GeoUtil_test PRIVATE ${OpenMP_CXX_FLAGS})
-target_include_directories(GeoUtil_test PRIVATE ${PROJECT_SOURCE_DIR}
-                                                ${TRNG_INCLUDE_DIR})
-target_link_libraries(GeoUtil_test PRIVATE ${TRNG_LIBRARY} OpenMP::OpenMP_CXX)
+target_include_directories(GeoUtil_test PRIVATE ${PROJECT_SOURCE_DIR})
+target_link_libraries(GeoUtil_test PRIVATE trng4 OpenMP::OpenMP_CXX)
 add_test(NAME GeoUtil COMMAND GeoUtil_test)
 set_tests_properties(GeoUtil PROPERTIES PASS_REGULAR_EXPRESSION
                                         "TestPassed;All ok")
@@ -19,9 +18,9 @@ set_tests_properties(SortUtil PROPERTIES PASS_REGULAR_EXPRESSION
 
 add_executable(TRngPool_test TRngPool_test.cpp)
 target_compile_options(TRngPool_test PRIVATE ${OpenMP_CXX_FLAGS})
-target_include_directories(TRngPool_test PRIVATE ${TRNG_INCLUDE_DIR})
+target_include_directories(TRngPool_test PRIVATE)
 target_link_libraries(TRngPool_test PRIVATE OpenMP::OpenMP_CXX MPI::MPI_CXX
-                                            ${TRNG_LIBRARY})
+                                            trng4)
 add_test(NAME TRngPool COMMAND TRngPool_test)
 set_tests_properties(TRngPool PROPERTIES PASS_REGULAR_EXPRESSION
                                          "TestPassed;All ok")

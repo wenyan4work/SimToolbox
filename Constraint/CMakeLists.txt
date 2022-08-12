@@ -5,11 +5,13 @@ add_executable(BCQPSolver_test BCQPSolver_test.cpp BCQPSolver.cpp
                                ${PROJECT_SOURCE_DIR}/Trilinos/TpetraUtil.cpp)
 target_compile_options(BCQPSolver_test PRIVATE ${OpenMP_CXX_FLAGS})
 target_include_directories(
-  BCQPSolver_test PRIVATE ${PROJECT_SOURCE_DIR} ${Trilinos_INCLUDE_DIRS}
-                          ${TRNG_INCLUDE_DIR})
+  BCQPSolver_test PRIVATE ${PROJECT_SOURCE_DIR} ${Trilinos_INCLUDE_DIRS})
 target_link_libraries(
-  BCQPSolver_test PRIVATE ${Trilinos_LIBRARIES} ${Trilinos_TPL_LIBRARIES}
-                          ${TRNG_LIBRARY} OpenMP::OpenMP_CXX MPI::MPI_CXX)
+  BCQPSolver_test PRIVATE ${Trilinos_LIBRARIES} 
+                          ${Trilinos_TPL_LIBRARIES}
+                          trng4
+                          OpenMP::OpenMP_CXX 
+                          MPI::MPI_CXX)
 add_test(NAME BCQPSolver COMMAND python BCQPSolver_verify.py)
 
 # copy the BCQPverify.py file to the build directory

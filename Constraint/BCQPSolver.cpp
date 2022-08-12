@@ -432,7 +432,7 @@ void BCQPSolver::boundProjection(Teuchos::RCP<TV> &vecRcp) const {
 
     auto vecPtr = vecRcp->getLocalView<Kokkos::HostSpace>(); // LeftLayout
     vecRcp->modify<Kokkos::HostSpace>();
-    const int ibound = vecPtr.dimension_0();
+    const auto ibound = vecPtr.extent(0);
     const int c = 0; // vecRcp, lbRcp, ubRcp have only 1 column
 
     // project to lb
@@ -440,7 +440,7 @@ void BCQPSolver::boundProjection(Teuchos::RCP<TV> &vecRcp) const {
                                "vec and lb do not have the same Map.");
     auto lbPtr = lbRcp->getLocalView<Kokkos::HostSpace>();
 #pragma omp parallel for
-    for (int i = 0; i < ibound; i++) {
+    for (size_t i = 0; i < ibound; i++) {
         const double temp = vecPtr(i, c);
         vecPtr(i, c) = std::max(temp, lbPtr(i, c));
     }
@@ -450,7 +450,7 @@ void BCQPSolver::boundProjection(Teuchos::RCP<TV> &vecRcp) const {
                                "vec and ub do not have the same Map.");
     auto ubPtr = ubRcp->getLocalView<Kokkos::HostSpace>();
 #pragma omp parallel for
-    for (int i = 0; i < ibound; i++) {
+    for (size_t i = 0; i < ibound; i++) {
         const double temp = vecPtr(i, c);
         vecPtr(i, c) = std::min(temp, ubPtr(i, c));
     }
@@ -467,13 +467,13 @@ double BCQPSolver::checkProjectionResidual(const Teuchos::RCP<const TV> &XRcp, c
     auto ubPtr = ubRcp->getLocalView<Kokkos::HostSpace>(); // LeftLayout
     auto qPtr = QRcp->getLocalView<Kokkos::HostSpace>();   // LeftLayout
     QRcp->modify<Kokkos::HostSpace>();
-    const int ibound = xPtr.dimension_0();
+    const auto ibound = xPtr.extent(0);
     const int c = 0; // vecRcp, lbRcp, ubRcp have only 1 column
 
     bool projectionError = false;
 // EQ 2.2 of Dai & Fletcher 2005
 #pragma omp parallel for
-    for (int i = 0; i < ibound; i++) {
+    for (size_t i = 0; i < ibound; i++) {
         if (xPtr(i, c) < lbPtr(i, c) + eps) {
             qPtr(i, c) = std::min(yPtr(i, c), 0.0);
         } else if (xPtr(i, c) > ubPtr(i, c) - eps) {
@@ -520,9 +520,9 @@ void BCQPSolver::generateRandomBounds() {
     auto vec2Ptr = vec2->getLocalView<Kokkos::HostSpace>(); // LeftLayout
     vec1->modify<Kokkos::HostSpace>();
     vec2->modify<Kokkos::HostSpace>();
-    const int ibound = vec1Ptr.dimension_0();
+    const auto ibound = vec1Ptr.extent(0);
 #pragma omp parallel for
-    for (int i = 0; i < ibound; i++) {
+    for (size_t i = 0; i < ibound; i++) {
         double a = vec1Ptr(i, 0);
         double b = vec2Ptr(i, 0);
         vec1Ptr(i, 0) = std::min(a, b);

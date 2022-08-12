@@ -38,16 +38,22 @@
 // Preconditioner
 #include <Ifpack2_Factory.hpp>
 
-// no need to specify node type for new version of Tpetra. It defaults to
-// Kokkos::default, which is openmp
-// typedef Tpetra::Details::DefaultTypes::node_type TNODE;
+// Packages: Trilinos-wide next generation stack
+// Deprecation: Explicit instantiation of multiple different global ordinal types and multiple different local ordinal
+// types Mitigation: Use default global ordinal type long long and local ordinal type int, or specify to CMake -DTpetra
+// INST INT INT=ON to use global ordinal type int and local ordinal type int. Justification: Building with multiple
+// ordinal types increases build times and library sizes; all applications surveyed used only one global ordinal type
+using Scalar = double;
+using LO = Tpetra::Vector<>::local_ordinal_type;      ///< default local ordinal type
+using GO = Tpetra::Vector<>::global_ordinal_type;     ///< default global ordinal type
+using Node = Tpetra::Vector<>::node_type; ///< default node type
 
 using TCOMM = Teuchos::Comm<int>;                  ///< default Teuchos::Comm type
-using TMAP = Tpetra::Map<int, int>;                ///< default Teuchos::Map type
-using TOP = Tpetra::Operator<double, int, int>;    ///< default Tpetra::Operator type
-using TCMAT = Tpetra::CrsMatrix<double, int, int>; ///< default Tpetra::CrsMatrix type
-using TMV = Tpetra::MultiVector<double, int, int>; ///< default Tpetra::MultiVector type
-using TV = Tpetra::Vector<double, int, int>;       ///< default to Tpetra::Vector type
+using TMAP = Tpetra::Map<LO, GO, Node>;                ///< default Teuchos::Map type
+using TOP = Tpetra::Operator<Scalar, LO, GO, Node>;    ///< default Tpetra::Operator type
+using TCMAT = Tpetra::CrsMatrix<Scalar, LO, GO, Node>; ///< default Tpetra::CrsMatrix type
+using TMV = Tpetra::MultiVector<Scalar, LO, GO, Node>; ///< default Tpetra::MultiVector type
+using TV = Tpetra::Vector<Scalar, LO, GO, Node>;       ///< default to Tpetra::Vector type
 
 /**
  * @brief inserting a specialization for Tpetra objects into Belos namespace
@@ -100,6 +106,15 @@ class OperatorTraits<::TOP::scalar_type, ::TMV, ::TOP> {
 } // namespace Belos
 
 /**
+ * @brief write TOP A to a file in MatrixMarket format
+ *
+ * @param A
+ * @param filename
+ */
+void dumpTOP(const Teuchos::RCP<const TOP> &A, const std::string &filename);
+
+
+/**
  * @brief write TCMAT A to a file in MatrixMarket format
  *
  * @param A
@@ -138,7 +153,7 @@ Teuchos::RCP<const TCOMM> getMPIWORLDTCOMM();
  * @param commRcp
  * @return Teuchos::RCP<TMAP>
  */
-Teuchos::RCP<TMAP> getTMAPFromLocalSize(const int &localSize, Teuchos::RCP<const TCOMM> &commRcp);
+Teuchos::RCP<TMAP> getTMAPFromLocalSize(const int &localSize, const Teuchos::RCP<const TCOMM> &commRcp);
 
 /**
  * @brief get a TMAP from arbitrary global index on local
@@ -149,7 +164,7 @@ Teuchos::RCP<TMAP> getTMAPFromLocalSize(const int &localSize, Teuchos::RCP<const
  * @return Teuchos::RCP<TMAP>
  */
 Teuchos::RCP<TMAP> getTMAPFromGlobalIndexOnLocal(const std::vector<int> &gidOnLocal, const int globalSize,
-                                                 Teuchos::RCP<const TCOMM> &commRcp);
+                                                 const Teuchos::RCP<const TCOMM> &commRcp);
 
 /**
  * @brief create a map for vector with two blocks X=[X1;X2],
@@ -182,6 +197,6 @@ Teuchos::RCP<TV> getTVFromTwoBlockTV(const Teuchos::RCP<const TV> &vec1, const T
  * @param commRcp
  * @return Teuchos::RCP<TV> the local part of this TV will contain the same entries as given in the input vector
  */
-Teuchos::RCP<TV> getTVFromVector(const std::vector<double> &in, Teuchos::RCP<const TCOMM> &commRcp);
+Teuchos::RCP<TV> getTVFromVector(const std::vector<double> &in, const Teuchos::RCP<const TCOMM> &commRcp);
 
 #endif /* TPETRAUTIL_HPP_ */

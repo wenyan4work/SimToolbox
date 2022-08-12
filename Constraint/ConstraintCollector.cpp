@@ -35,19 +35,17 @@ int ConstraintCollector::getLocalNumberOfConstraints() {
     return sum;
 }
 
-void ConstraintCollector::sumLocalConstraintStress(Emat3 &uniStress, Emat3 &biStress, bool withOneSide) const {
+void ConstraintCollector::sumLocalConstraintStress(Emat3 &conStress, bool withOneSide) const {
     const auto &cPool = *constraintPoolPtr;
     const int poolSize = cPool.size();
 
-    Emat3 biStressTotal = Emat3::Zero();
-    Emat3 uniStressTotal = Emat3::Zero();
+    Emat3 conStressTotal = Emat3::Zero();
 
 #pragma omp parallel for
     for (int que = 0; que < poolSize; que++) {
         // reduction of stress, one que for each thread
 
-        Emat3 uniStressSumQue = Emat3::Zero();
-        Emat3 biStressSumQue = Emat3::Zero();
+        Emat3 conStressSumQue = Emat3::Zero();
         const auto &conQue = cPool[que];
         for (const auto &cBlock : conQue) {
             if (cBlock.oneSide && !withOneSide) {
@@ -56,21 +54,15 @@ void ConstraintCollector::sumLocalConstraintStress(Emat3 &uniStress, Emat3 &biSt
             } else {
                 Emat3 stressBlock;
                 cBlock.getStress(stressBlock);
-                if (cBlock.bilateral) {
-                    biStressSumQue = biStressSumQue + stressBlock;
-                } else {
-                    uniStressSumQue = uniStressSumQue + stressBlock;
-                }
+                conStressSumQue = conStressSumQue + stressBlock;
             }
         }
 #pragma omp critical
         {
-            biStressTotal = biStressTotal + biStressSumQue;
-            uniStressTotal = uniStressTotal + uniStressSumQue;
+            conStressTotal = conStressTotal + conStressSumQue;
         }
     }
-    uniStress = uniStressTotal;
-    biStress = biStressTotal;
+    conStress = conStressTotal;
 }
 
 void ConstraintCollector::writePVTP(const std::string &folder, const std::string &prefix, const std::string &postfix,
@@ -85,10 +77,10 @@ void ConstraintCollector::writePVTP(const std::string &folder, const std::string
 
     std::vector<IOHelper::FieldVTU> cellDataFields;
     cellDataFields.emplace_back(1, IOHelper::IOTYPE::Int32, "oneSide");
-    cellDataFields.emplace_back(1, IOHelper::IOTYPE::Int32, "bilateral");
-    cellDataFields.emplace_back(1, IOHelper::IOTYPE::Float32, "delta0");
+    cellDataFields.emplace_back(1, IOHelper::IOTYPE::Int32, "id");
+    cellDataFields.emplace_back(1, IOHelper::IOTYPE::Float32, "delta");
     cellDataFields.emplace_back(1, IOHelper::IOTYPE::Float32, "gamma");
-    cellDataFields.emplace_back(1, IOHelper::IOTYPE::Float32, "kappa");
+    cellDataFields.emplace_back(1, IOHelper::IOTYPE::Float32, "invKappa");
     cellDataFields.emplace_back(9, IOHelper::IOTYPE::Float32, "Stress");
 
     for (int i = 0; i < nProcs; i++) {
@@ -125,10 +117,10 @@ void ConstraintCollector::writeVTP(const std::string &folder, const std::string 
 
     // cell data for ColBlock
     std::vector<int32_t> oneSide(cBlockNum);
-    std::vector<int32_t> bilateral(cBlockNum);
-    std::vector<float> delta0(cBlockNum);
+    std::vector<int32_t> id(cBlockNum);
+    std::vector<float> delta(cBlockNum);
     std::vector<float> gamma(cBlockNum);
-    std::vector<float> kappa(cBlockNum);
+    std::vector<float> invKappa(cBlockNum);
     std::vector<float> Stress(9 * cBlockNum);
 
 #pragma omp parallel for
@@ -173,10 +165,10 @@ void ConstraintCollector::writeVTP(const std::string &folder, const std::string 
             normIJ[6 * cIndex + 5] = block.normJ[2];
             // cell data
             oneSide[cIndex] = block.oneSide ? 1 : 0;
-            bilateral[cIndex] = block.bilateral ? 1 : 0;
-            delta0[cIndex] = block.delta0;
+            id[cIndex] = block.id;
+            delta[cIndex] = block.delta;
             gamma[cIndex] = block.gamma;
-            kappa[cIndex] = block.kappa;
+            invKappa[cIndex] = block.invKappa;
             for (int kk = 0; kk < 9; kk++) {
                 Stress[9 * cIndex + kk] = block.stress[kk];
             }
@@ -210,10 +202,10 @@ void ConstraintCollector::writeVTP(const std::string &folder, const std::string 
     // cell data
     file << "<CellData Scalars=\"scalars\">\n";
     IOHelper::writeDataArrayBase64(oneSide, "oneSide", 1, file);
-    IOHelper::writeDataArrayBase64(bilateral, "bilateral", 1, file);
-    IOHelper::writeDataArrayBase64(delta0, "delta0", 1, file);
+    IOHelper::writeDataArrayBase64(id, "id", 1, file);
+    IOHelper::writeDataArrayBase64(delta, "delta", 1, file);
     IOHelper::writeDataArrayBase64(gamma, "gamma", 1, file);
-    IOHelper::writeDataArrayBase64(kappa, "kappa", 1, file);
+    IOHelper::writeDataArrayBase64(invKappa, "invKappa", 1, file);
     IOHelper::writeDataArrayBase64(Stress, "Stress", 9, file);
     file << "</CellData>\n";
     // Piece ends
@@ -229,16 +221,49 @@ void ConstraintCollector::dumpBlocks() const {
     for (const auto &blockQue : (*constraintPoolPtr)) {
         std::cout << blockQue.size() << " constraints in this queue" << std::endl;
         for (const auto &block : blockQue) {
-            std::cout << block.globalIndexI << " " << block.globalIndexJ << "  delta0:" << block.delta0 << std::endl;
+            std::cout << block.globalIndexI << " " << block.globalIndexJ << "  delta:" << block.delta << std::endl;
         }
     }
 }
 
+/*
+TODO: Improve constraimnts to have multiple degrees of freedom 
+
+    Each constraint may have more than 1 degree of freedom. This is specified within each constraint block and accessed using getLocalDOF()
+    Local DOF can also be obtained using buildConIndex, which outputs cQueSize, cQueIndex, cDofSize, cDofIndex. 
+    Constraints can have the following types:
+      id=0: collision              | 3 constrained DOF | prevents penetration and enforces tangency of colliding surfaces
+      id=1: hookean spring         | 3 constrained DOF | resists relative translational motion between two points
+      id=2: angular hookean spring | 3 constrained DOF | resists relative rotational motion between two vectors
+      id=3: ball and socket        | 3 constrained DOF | prevents the separation of two points
+    id 0 and 1 are implemented. 2 and 3 need finished
+
+
+    Steps to make this all possible:
+    (Skip for now) We should create an abstract constraint class, which specifies the number of degrees of freedom and thier corresponding non-zero terms within the D matrix 
+        This step will be circumvented, for now, by using if statements and hard-coding such things. 
+    (Done) We must update the constraints to include a type identidier that is more complex then bilateral or non-bilaterial. 
+    We must modify the constraints to specify the number of degrees of freedom. 
+        This should be determined solely by their type modifier. Instead, we should modify ConstraintCollector to know their DOF based on their type. 
+        This is temporary and will be replaced when we abstractify using a constraint class. 
+    (Done) We should simplify the Sylinder class to only have constraint forces/torques/velocities, rather than breaking things into bilaterial and collision. 
+    We must create getLocalDOF to return the total local constraint degrees of freedom.
+    We must update buildConIndex to output both constraint and DOF indexing/sizes.
+    We must update buildConstraintMatrixVector to use the correct direction depending on the constraint type identifier. 
+
+
+
+*/
+
+
+
+
+
+
 int ConstraintCollector::buildConstraintMatrixVector(const Teuchos::RCP<const TMAP> &mobMapRcp, //
                                                      Teuchos::RCP<TCMAT> &DMatTransRcp,         //
-                                                     Teuchos::RCP<TV> &delta0Rcp,               //
+                                                     Teuchos::RCP<TV> &deltaRcp,               //
                                                      Teuchos::RCP<TV> &invKappaRcp,             //
-                                                     Teuchos::RCP<TV> &biFlagRcp,               //
                                                      Teuchos::RCP<TV> &gammaGuessRcp) const {
     Teuchos::RCP<const TCOMM> commRcp = mobMapRcp->getComm();
 
@@ -353,12 +378,12 @@ int ConstraintCollector::buildConstraintMatrixVector(const Teuchos::RCP<const TM
     }
     // this is the list of the columns that have nnz entries
     // if the column index is out of [mobMinLID, mobMaxLID], add it to the map
-    const int colIndexNum = columnIndices.dimension_0();
+    const auto colIndexNum = columnIndices.extent(0);
     if (colIndexNum != colIndexCount) {
         spdlog::critical("colIndexNum error");
         std::exit(1);
     }
-    for (int i = 0; i < colIndexNum; i++) {
+    for (size_t i = 0; i < colIndexNum; i++) {
         if (columnIndices[i] < mobMin || columnIndices[i] > mobMax)
             colMapIndex.push_back(columnIndices[i]);
     }
@@ -375,7 +400,7 @@ int ConstraintCollector::buildConstraintMatrixVector(const Teuchos::RCP<const TM
     // convert columnIndices from global column index to local column index according to colMap
     auto &colmap = *colMapRcp;
 #pragma omp parallel for
-    for (int i = 0; i < colIndexNum; i++) {
+    for (size_t i = 0; i < colIndexNum; i++) {
         columnIndices[i] = colmap.getLocalElement(columnIndices[i]);
     }
 
@@ -388,19 +413,16 @@ int ConstraintCollector::buildConstraintMatrixVector(const Teuchos::RCP<const TM
     DMatTransRcp = Teuchos::rcp(new TCMAT(gammaMapRcp, colMapRcp, rowPointers, columnIndices, values));
     DMatTransRcp->fillComplete(mobMapRcp, gammaMapRcp); // domainMap, rangeMap
 
-    // step 5, fill the delta0, gammaGuess, invKappa, conFlag vectors
-    delta0Rcp = Teuchos::rcp(new TV(gammaMapRcp, true));
+    // step 5, fill the delta, gammaGuess, invKappa, conFlag vectors
+    deltaRcp = Teuchos::rcp(new TV(gammaMapRcp, true));
     invKappaRcp = Teuchos::rcp(new TV(gammaMapRcp, true));
-    biFlagRcp = Teuchos::rcp(new TV(gammaMapRcp, true));
     gammaGuessRcp = Teuchos::rcp(new TV(gammaMapRcp, true));
-    auto delta0 = delta0Rcp->getLocalView<Kokkos::HostSpace>();
+    auto delta = deltaRcp->getLocalView<Kokkos::HostSpace>();
     auto gammaGuess = gammaGuessRcp->getLocalView<Kokkos::HostSpace>();
     auto invKappa = invKappaRcp->getLocalView<Kokkos::HostSpace>();
-    auto biFlag = biFlagRcp->getLocalView<Kokkos::HostSpace>();
-    delta0Rcp->modify<Kokkos::HostSpace>();
+    deltaRcp->modify<Kokkos::HostSpace>();
     gammaGuessRcp->modify<Kokkos::HostSpace>();
     invKappaRcp->modify<Kokkos::HostSpace>();
-    biFlagRcp->modify<Kokkos::HostSpace>();
 
 #pragma omp parallel for num_threads(cQueNum)
     for (int que = 0; que < cQueNum; que++) {
@@ -410,12 +432,9 @@ int ConstraintCollector::buildConstraintMatrixVector(const Teuchos::RCP<const TM
         for (int j = 0; j < queSize; j++) {
             const auto &block = cQue[j];
             const auto idx = cIndexBase + j;
-            delta0(idx, 0) = block.delta0;
+            delta(idx, 0) = block.delta;
             gammaGuess(idx, 0) = block.gamma;
-            if (block.bilateral) {
-                invKappa(idx, 0) = block.kappa > 0 ? 1 / block.kappa : 0;
-                biFlag(idx, 0) = 1;
-            }
+            invKappa(idx, 0) = block.invKappa;
         }
     }
 
@@ -454,6 +473,27 @@ int ConstraintCollector::writeBackGamma(const Teuchos::RCP<const TV> &gammaRcp) 
             for (int k = 0; k < 9; k++) {
                 cPool[i][j].stress[k] *= cPool[i][j].gamma;
             }
+        }
+    }
+
+    return 0;
+}
+
+int ConstraintCollector::writeBackDelta(const Teuchos::RCP<const TV> &deltaRcp) {
+    auto &cPool = *constraintPoolPtr; // the constraint pool
+    const int cQueNum = cPool.size();
+
+    std::vector<int> cQueSize;
+    std::vector<int> cQueIndex;
+    buildConIndex(cQueSize, cQueIndex);
+
+    auto deltaPtr = deltaRcp->getLocalView<Kokkos::HostSpace>();
+
+#pragma omp parallel for num_threads(cQueNum)
+    for (int i = 0; i < cQueNum; i++) {
+        const int cQueSize = cPool[i].size();
+        for (int j = 0; j < cQueSize; j++) {
+            cPool[i][j].delta = deltaPtr(cQueIndex[i] + j, 0);
         }
     }
 

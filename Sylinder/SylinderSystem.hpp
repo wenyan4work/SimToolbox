@@ -48,11 +48,9 @@ class SylinderSystem {
 
     // Constraint stuff
     std::shared_ptr<ConstraintSolver> conSolverPtr;       ///< pointer to ConstraintSolver
-    std::shared_ptr<ConstraintCollector> conCollectorPtr; ///<  pointer to ConstraintCollector
-    Teuchos::RCP<const TV> forceUniRcp;                   ///< unilateral constraint force
-    Teuchos::RCP<const TV> velocityUniRcp;                ///< unilateral constraint velocity
-    Teuchos::RCP<const TV> forceBiRcp;                    ///< bilateral constraint force
-    Teuchos::RCP<const TV> velocityBiRcp;                 ///< bilateral constraint velocity
+    std::shared_ptr<ConstraintCollector> conCollectorPtr; ///< pointer to ConstraintCollector
+    Teuchos::RCP<const TV> forceConRcp;                   ///< constraint force
+    Teuchos::RCP<const TV> velocityConRcp;                ///< constraint velocity
 
     // computed without knowledge of constraints
     Teuchos::RCP<TV> forcePartNonBrownRcp;    ///< force specified by setForceNonBrown()
@@ -119,7 +117,6 @@ class SylinderSystem {
     /**
      * @brief update the sylinderMap and sylinderMobilityMap
      *
-     * This function is called in prepareStep(), and no adding/removing/exchanging is allowed before runStep()
      */
     void updateSylinderMap(); ///< update sylindermap and sylinderMobilityMap
 
@@ -297,19 +294,6 @@ class SylinderSystem {
     Teuchos::RCP<const TCOMM> &getCommRcp() { return commRcp; }
 
     /**
-     * @brief prepare a step
-     *
-     * apply simBox boundary condition
-     * decomposeDomain() for every 50 steps
-     * exchangeSylinder() at every step
-     * clear velocity
-     * rebuild map
-     * compute mobility matrix&operator
-     * between prepareStep() and runStep(), sylinders should not be moved, added, or removed
-     */
-    void prepareStep();
-
-    /**
      * @brief Set the (optional) forceNonBrownRcp
      *
      * This is optional.
@@ -435,6 +419,11 @@ class SylinderSystem {
      */
     std::shared_ptr<ZDD<SylinderNearEP>> &getSylinderNearDataDirectory() { return sylinderNearDataDirectoryPtr; }
 
+    // TODO: add comments to these functions and reorganize
+    void reset();
+    void applyMonolayer();
+    void advanceParticles();
+
     // resolve constraints
     void collectPairCollision();     ///< collect pair collision constraints
     void collectBoundaryCollision(); ///< collect boundary collision constraints
@@ -443,7 +432,7 @@ class SylinderSystem {
     void resolveConstraints();           ///< resolve constraints
     void saveForceVelocityConstraints(); ///< write back to sylinder.velCol and velBi
 
-    void stepEuler(); ///< Euler step update position and orientation, with both collision and non-collision velocity
+    void stepEuler(const int stepType); ///< Euler step update position and orientation, with both collision and non-collision velocity
 
     // write results
     std::string getCurrentResultFolder();          ///< get the current output folder path
@@ -462,10 +451,8 @@ class SylinderSystem {
     Teuchos::RCP<TV> getVelocityNonCon() const { return velocityNonConRcp; };
 
     // constraint parts
-    Teuchos::RCP<const TV> getForceUni() const { return forceUniRcp; };
-    Teuchos::RCP<const TV> getVelocityUni() const { return velocityUniRcp; };
-    Teuchos::RCP<const TV> getForceBi() const { return forceBiRcp; };
-    Teuchos::RCP<const TV> getVelocityBi() const { return velocityBiRcp; };
+    Teuchos::RCP<const TV> getForceCon() const { return forceConRcp; };
+    Teuchos::RCP<const TV> getVelocityCon() const { return velocityConRcp; };
 
     // mobility
     Teuchos::RCP<TCMAT> getMobMatrix() { return mobilityMatrixRcp; };

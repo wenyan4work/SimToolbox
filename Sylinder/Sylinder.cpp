@@ -14,16 +14,20 @@ Sylinder::Sylinder(const int &gid_, const double &radius_, const double &radiusC
     lengthCollision = lengthCollision_;
     if (pos_ == nullptr) {
         Emap3(pos).setZero();
+        Emap3(posCurrent).setZero();
     } else {
         for (int i = 0; i < 3; i++) {
             pos[i] = pos_[i];
+            posCurrent[i] = pos_[i];
         }
     }
     if (orientation_ == nullptr) {
         Emapq(orientation).setIdentity();
+        Emapq(orientationCurrent).setIdentity();
     } else {
         for (int i = 0; i < 4; i++) {
             orientation[i] = orientation_[i];
+            orientationCurrent[i] = orientation_[i];
         }
     }
 
@@ -34,19 +38,15 @@ Sylinder::Sylinder(const int &gid_, const double &radius_, const double &radiusC
 void Sylinder::clear() {
     Emap3(vel).setZero();
     Emap3(omega).setZero();
-    Emap3(velCol).setZero();
-    Emap3(omegaCol).setZero();
-    Emap3(velBi).setZero();
-    Emap3(omegaBi).setZero();
+    Emap3(velCon).setZero();
+    Emap3(omegaCon).setZero();
     Emap3(velNonB).setZero();
     Emap3(omegaNonB).setZero();
 
     Emap3(force).setZero();
     Emap3(torque).setZero();
-    Emap3(forceCol).setZero();
-    Emap3(torqueCol).setZero();
-    Emap3(forceBi).setZero();
-    Emap3(torqueBi).setZero();
+    Emap3(forceCon).setZero();
+    Emap3(torqueCon).setZero();
     Emap3(forceNonB).setZero();
     Emap3(torqueNonB).setZero();
 
@@ -88,14 +88,60 @@ void Sylinder::dumpSylinder() const {
     printf("orient %g, %g, %g, %g\n", orientation[0], orientation[1], orientation[2], orientation[3]);
 }
 
-void Sylinder::stepEuler(double dt) {
-    Emap3(pos) += Emap3(vel) * dt;
+void Sylinder::stepEuler(const double dt, const int stepType) {
+    // allow for different step types
+    double veltmp[3];
+    double omegatmp[3];
+    switch (stepType) {
+        case 0: // all
+            for (int i = 0; i < 3; i++) {
+                veltmp[i] = velBrown[i] + velNonB[i] + velCon[i];
+                omegatmp[i] = omegaBrown[i] + omegaNonB[i] + omegaCon[i];
+            }
+            break;
+        case 1: // non-constraint
+            for (int i = 0; i < 3; i++) {
+                veltmp[i] = velBrown[i] + velNonB[i];
+                omegatmp[i] = omegaBrown[i] + omegaNonB[i];
+            }
+            break;
+        case 2: // constraint
+            for (int i = 0; i < 3; i++) {
+                veltmp[i] = velCon[i];
+                omegatmp[i] = omegaCon[i];
+            }
+            break;
+    }
+
+    // take the Euler step
+    for (int i = 0; i < 3; i++) {
+        pos[i] += veltmp[i] * dt;
+    }
+    
     Equatn currOrient = Emapq(orientation);
-    EquatnHelper::rotateEquatn(currOrient, Emap3(omega), dt);
+    EquatnHelper::rotateEquatn(currOrient, Emap3(omegatmp), dt);
     Emapq(orientation).x() = currOrient.x();
     Emapq(orientation).y() = currOrient.y();
     Emapq(orientation).z() = currOrient.z();
     Emapq(orientation).w() = currOrient.w();
+}
+
+void Sylinder::resetConfiguration() {
+    for (int i = 0; i < 3; i++) {
+        pos[i] = posCurrent[i];
+    }
+    for (int i = 0; i < 4; i++) {
+        orientation[i] = orientationCurrent[i];
+    }
+}
+
+void Sylinder::advance() {
+    for (int i = 0; i < 3; i++) {
+        posCurrent[i] = pos[i];
+    }
+    for (int i = 0; i < 4; i++) {
+        orientationCurrent[i] = orientation[i];
+    }
 }
 
 void Sylinder::writeAscii(FILE *fptr) const {

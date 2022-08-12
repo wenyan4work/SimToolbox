@@ -77,6 +77,7 @@ class ConstraintOperator : public TOP {
     Teuchos::RCP<TV> getForce() { return forceRcp; }
     Teuchos::RCP<TV> getVel() { return velRcp; }
     Teuchos::RCP<TCMAT> getDMat() { return DMatRcp; }
+    Teuchos::RCP<TCMAT> getDMatTrans() { return DMatTransRcp; }
 
   private:
     // comm
