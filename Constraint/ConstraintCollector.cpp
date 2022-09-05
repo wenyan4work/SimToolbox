@@ -363,12 +363,12 @@ Teuchos::RCP<TCMAT> ConstraintCollector::buildConstraintMatrixVector(const Teuch
     }
     // this is the list of the columns that have nnz entries
     // if the column index is out of [mobMinLID, mobMaxLID], add it to the map
-    const int colIndexNum = columnIndices.extent(0);
+    const auto colIndexNum = columnIndices.extent(0);
     if (colIndexNum != colIndexCount) {
         spdlog::critical("colIndexNum error");
         std::exit(1);
     }
-    for (int i = 0; i < colIndexNum; i++) {
+    for (size_t i = 0; i < colIndexNum; i++) {
         if (columnIndices[i] < mobMin || columnIndices[i] > mobMax)
             colMapIndex.push_back(columnIndices[i]);
     }
@@ -385,7 +385,7 @@ Teuchos::RCP<TCMAT> ConstraintCollector::buildConstraintMatrixVector(const Teuch
     // convert columnIndices from global column index to local column index according to colMap
     auto &colmap = *colMapRcp;
 #pragma omp parallel for
-    for (int i = 0; i < colIndexNum; i++) {
+    for (size_t i = 0; i < colIndexNum; i++) {
         columnIndices[i] = colmap.getLocalElement(columnIndices[i]);
     }
 

@@ -275,9 +275,9 @@ evalModelImpl(const Thyra::ModelEvaluatorBase::InArgs<Scalar> &inArgs,
         auto projMaskPtr = projMaskRcp_->getLocalView<Kokkos::HostSpace>();
         auto partialSepPartialGammaDiagPtr = partialSepPartialGammaDiagRcp_->getLocalView<Kokkos::HostSpace>();
         fRcp->modify<Kokkos::HostSpace>();
-        const int localSize = fPtr.extent(0);
+        const auto localSize = fPtr.extent(0);
   #pragma omp parallel for
-        for (int idx = 0; idx < localSize; idx++) {
+        for (size_t idx = 0; idx < localSize; idx++) {
           // scale the projection for Min Map
           if (projMaskPtr(idx, 0) < 0.5) { 
             // no projection (do nothing)
@@ -447,9 +447,9 @@ apply(const TMV& X, TMV& Y, Teuchos::ETransp mode,
       auto constraintDiagonalPtr = constraintDiagonalRcp_->getLocalView<Kokkos::HostSpace>();
       auto partialSepPartialGammaDiagPtr = partialSepPartialGammaDiagRcp_->getLocalView<Kokkos::HostSpace>();
       YcolRcp->modify<Kokkos::HostSpace>();
-      const int localSize = YcolPtr.extent(0);
+      const auto localSize = YcolPtr.extent(0);
 #pragma omp parallel for
-      for (int idx = 0; idx < localSize; idx++) {
+      for (size_t idx = 0; idx < localSize; idx++) {
         // apply projection for Min Map
         if (projMaskPtr(idx, 0) < 0.5) { // no projection
           if (beta == Teuchos::ScalarTraits<Scalar>::zero()) {

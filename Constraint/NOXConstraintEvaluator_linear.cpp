@@ -243,9 +243,9 @@ evalModelImpl(const Thyra::ModelEvaluatorBase::InArgs<Scalar> &inArgs,
       auto constraintScalePtr = constraintScaleRcp_->getLocalView<Kokkos::HostSpace>();
       auto constraintDiagonalPtr = constraintDiagonalRcp_->getLocalView<Kokkos::HostSpace>();
       constraintScaleRcp_->modify<Kokkos::HostSpace>();
-      const int localSize = xPtr.extent(0);
+      const auto localSize = xPtr.extent(0);
 #pragma omp parallel for
-      for (int idx = 0; idx < localSize; idx++) {
+      for (size_t idx = 0; idx < localSize; idx++) {
         if (constraintFlagPtr(idx, 0)) { // spring constraint
           constraintScalePtr(idx, 0) = 1.0;
           constraintDiagonalPtr(idx, 0) = 1.0 / constraintKappaPtr(idx, 0); // TODO: this class needs access to kappa 
@@ -283,9 +283,9 @@ evalModelImpl(const Thyra::ModelEvaluatorBase::InArgs<Scalar> &inArgs,
         auto constrainedSepPtr = constrainedSepRcp_->getLocalView<Kokkos::HostSpace>();
         auto constraintKappaPtr = constraintKappaRcp_->getLocalView<Kokkos::HostSpace>();
         fRcp->modify<Kokkos::HostSpace>();
-        const int localSize = xPtr.extent(0);
+        const auto localSize = xPtr.extent(0);
 #pragma omp parallel for
-        for (int idx = 0; idx < localSize; idx++) {
+        for (size_t idx = 0; idx < localSize; idx++) {
           if (constraintFlagPtr(idx, 0)) { // spring constraint
             // spring constraint
             // this is the value of linear spring constraint evaluated at q^k+1, gamma^k
@@ -411,9 +411,9 @@ apply(const TMV& X, TMV& Y, Teuchos::ETransp mode,
       auto constraintScalePtr = constraintScaleRcp_->getLocalView<Kokkos::HostSpace>();
       auto constraintDiagonalPtr = constraintDiagonalRcp_->getLocalView<Kokkos::HostSpace>();
       changeInSepRcp_->modify<Kokkos::HostSpace>();
-      const int localSize = changeInSepPtr.extent(0);
+      const auto localSize = changeInSepPtr.extent(0);
 #pragma omp parallel for
-      for (int idx = 0; idx < localSize; idx++) {
+      for (size_t idx = 0; idx < localSize; idx++) {
         if (beta == Teuchos::ScalarTraits<Scalar>::zero()) {
           YcolPtr(idx, 0) = alpha * constraintScalePtr(idx, 0) * changeInSepPtr(idx, 0) 
                           + alpha * constraintDiagonalPtr(idx, 0) * XcolPtr(idx, 0);        
