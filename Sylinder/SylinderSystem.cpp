@@ -34,8 +34,8 @@ SylinderSystem::SylinderSystem(const SylinderConfig &runConfig_, const std::stri
 
 void SylinderSystem::initialize(const SylinderConfig &runConfig_, const std::string &posFile, int argc, char **argv) {
     runConfig = runConfig_;
-    stepCount = 0;
-    snapID = 0; // the first snapshot starts from 0 in writeResult
+    stepCount = -1;
+    snapID = -1; // the first snapshot starts from 0 in writeResult
 
     // store the random seed
     restartRngSeed = runConfig.rngSeed;
@@ -88,6 +88,12 @@ void SylinderSystem::initialize(const SylinderConfig &runConfig_, const std::str
     if (!runConfig.sylinderFixed) {
         // 100 NON-B steps to resolve initial configuration collisions
         // no output
+        advanceParticles(); 
+        writeResult();
+
+
+
+
         spdlog::warn("Initial Collision Resolution Begin");
         for (int i = 0; i < runConfig.initPreSteps; i++) {
             spdlog::warn("CurrentStep {}", stepCount);
@@ -175,6 +181,12 @@ void SylinderSystem::reinitialize(const SylinderConfig &runConfig_, const std::s
     setInitialFromVTKFile(baseFolder + pvtpFileName);
 
     setLinkMapFromFile(baseFolder + asciiFileName);
+
+
+    advanceParticles(); 
+    writeResult();
+
+
 
     // VTK data is wrote before the Euler step, thus we need to run one Euler step below
     if (eulerStep) {
@@ -864,6 +876,7 @@ void SylinderSystem::advanceParticles() {
     }
 }
 
+
 void SylinderSystem::resolveConstraints() {
 
     Teuchos::RCP<Teuchos::Time> collectColTimer =
@@ -882,6 +895,12 @@ void SylinderSystem::resolveConstraints() {
         Teuchos::TimeMonitor mon(*collectLinkTimer);
         collectLinkBilateral();
     }
+
+    advanceParticles(); 
+    writeResult();
+
+
+
 
     // solve collision
     // positive buffer value means collision radius is effectively smaller
@@ -1004,7 +1023,7 @@ void SylinderSystem::runStep() {
     // output //
     ////////////
     if (getIfWriteResultCurrentStep()) {
-        // write result before moving. guarantee data written is consistent to geometry
+        // write result before moving. guarantee data written is consistent to geometry       
         writeResult();
     }
 
@@ -1121,8 +1140,9 @@ void SylinderSystem::calcVelocityBrown() {
 }
 
 void SylinderSystem::collectBoundaryCollision() {
-    auto collisionPoolPtr = conCollectorPtr->constraintPoolPtr; // shared_ptr
-    const int nThreads = collisionPoolPtr->size();
+    auto constraintPoolPtr = conCollectorPtr->constraintPoolPtr; // shared_ptr
+    auto constraintBlockPoolPtr = conCollectorPtr->constraintBlockPoolPtr; // shared_ptr
+    const int nThreads = constraintBlockPoolPtr->size();
     const int nLocal = sylinderContainer.getNumberOfParticleLocal();
 
     // process collisions with all boundaries
@@ -1130,7 +1150,8 @@ void SylinderSystem::collectBoundaryCollision() {
 #pragma omp parallel num_threads(nThreads)
         {
             const int threadId = omp_get_thread_num();
-            auto &que = (*collisionPoolPtr)[threadId];
+            auto &conQue = (*constraintPoolPtr)[threadId];
+            auto &conBlockQue = (*constraintBlockPoolPtr)[threadId];
 #pragma omp for
             for (int i = 0; i < nLocal; i++) {
                 const auto &sy = sylinderContainer[i];
@@ -1158,12 +1179,16 @@ void SylinderSystem::collectBoundaryCollision() {
                     unscaledTorqueComI[2] = norm[1] * posI[0] - norm[0] * posI[1];         
 
                     if ((Query - ECmap3(Proj)).dot(ECmap3(delta)) < 0) { // outside boundary
-                        que.emplace_back(-deltanorm - radius, 0, sy.gid, sy.gid, sy.globalIndex, sy.globalIndex,
+                        std::unique_ptr<NoPenetration> noPen = std::make_unique<NoPenetration>();
+                        conQue.push_back(std::move(noPen));
+                        conBlockQue.emplace_back(-deltanorm - radius, 0, sy.gid, sy.gid, sy.globalIndex, sy.globalIndex,
                                          unscaledForceComI.data(), unscaledForceComI.data(), unscaledTorqueComI.data(), unscaledTorqueComI.data(), 
                                          Query.data(), Proj, true, 0, 0.0);
                     } else if (deltanorm <
                                (1 + runConfig.sylinderColBuf * 2) * sy.radiusCollision) { // inside boundary but close
-                        que.emplace_back(deltanorm - radius, 0, sy.gid, sy.gid, sy.globalIndex, sy.globalIndex,
+                        std::unique_ptr<NoPenetration> noPen = std::make_unique<NoPenetration>();
+                        conQue.push_back(std::move(noPen));
+                        conBlockQue.emplace_back(deltanorm - radius, 0, sy.gid, sy.gid, sy.globalIndex, sy.globalIndex,
                                          unscaledForceComI.data(), unscaledForceComI.data(), unscaledTorqueComI.data(), unscaledTorqueComI.data(),
                                          Query.data(), Proj, true, 0, 0.0);
                     }
@@ -1189,7 +1214,8 @@ void SylinderSystem::collectBoundaryCollision() {
 
 void SylinderSystem::collectPairCollision() {
 
-    CalcSylinderNearForce calcColFtr(conCollectorPtr->constraintPoolPtr);
+    CalcSylinderNearForce calcColFtr(conCollectorPtr->constraintPoolPtr, 
+                                     conCollectorPtr->constraintBlockPoolPtr);
 
     TEUCHOS_ASSERT(treeSylinderNearPtr);
     const int nLocal = sylinderContainer.getNumberOfParticleLocal();
@@ -1416,6 +1442,8 @@ void SylinderSystem::collectLinkBilateral() {
 
     const int nLocal = sylinderContainer.getNumberOfParticleLocal();
     auto &conPool = *(this->conCollectorPtr->constraintPoolPtr);
+    auto &conBlockPool = *(this->conCollectorPtr->constraintBlockPoolPtr);
+
     if (conPool.size() != omp_get_max_threads()) {
         spdlog::critical("conPool multithread mismatch error");
         std::exit(1);
@@ -1448,6 +1476,7 @@ void SylinderSystem::collectLinkBilateral() {
     {
         const int threadId = omp_get_thread_num();
         auto &conQue = conPool[threadId];
+        auto &conBlockQue = conBlockPool[threadId];
 #pragma omp for
         for (int i = 0; i < nLocal; i++) {
             const auto &syI = sylinderContainer[i]; // sylinder
@@ -1455,6 +1484,10 @@ void SylinderSystem::collectLinkBilateral() {
             const int ub = gidDisp[i + 1];
 
             for (int j = lb; j < ub; j++) {
+                // create a spring constraint
+                std::unique_ptr<Spring> springCon = std::make_unique<Spring>();
+                conQue.push_back(std::move(springCon));
+
                 const auto &syJ = sylinderNearDataDirectoryPtr->dataToFind[j]; // sylinderNear
 
                 const Evec3 &centerI = ECmap3(syI.pos);
@@ -1492,25 +1525,12 @@ void SylinderSystem::collectLinkBilateral() {
                 // Links generate three constraints, one for each direction x,y,z
                 // unscaledForce = x,y,or z direction
                 // unscaledTorque = relative position cross x,y,or z direction
-                Evec3 unscaledForceComI;
-                Evec3 unscaledForceComJ;
-                Evec3 unscaledTorqueComI;
-                Evec3 unscaledTorqueComJ;
-
                 {
                     // x-direction constraint
-                    unscaledForceComI[0] = 1.0;
-                    unscaledForceComI[1] = 0.0;
-                    unscaledForceComI[2] = 0.0;
-                    unscaledForceComJ[0] = -1.0;
-                    unscaledForceComJ[1] = 0.0;
-                    unscaledForceComJ[2] = 0.0;
-                    unscaledTorqueComI[0] = 0.0;
-                    unscaledTorqueComI[1] = posI[2];
-                    unscaledTorqueComI[2] = posI[1];
-                    unscaledTorqueComJ[0] = 0.0;
-                    unscaledTorqueComJ[1] = -posJ[2];
-                    unscaledTorqueComJ[2] = -posJ[1];
+                    const Evec3 unscaledForceComI(1.0, 0.0, 0.0);
+                    const Evec3 unscaledForceComJ(-1.0, 0.0, 0.0);
+                    const Evec3 unscaledTorqueComI(0.0, posI[2], posI[1]);
+                    const Evec3 unscaledTorqueComJ(0.0, -posJ[2], -posJ[1]);
                     const double delta0 = rvec[0] - normI[0] * (syI.radius + syJ.radius + runConfig.linkGap);
                     const double gamma = delta0 < 0 ? -delta0 : 0;
                     ConstraintBlock conBlock(delta0 * normI[0], gamma * normI[0],  // current separation projected onto the x-axis, initial guess of gamma
@@ -1525,22 +1545,14 @@ void SylinderSystem::collectLinkBilateral() {
                     CalcSylinderNearForce::collideStress(directionI, directionJ, centerI, centerJ, syI.length, syJ.length,
                                                         syI.radius, syJ.radius, 1.0, Ploc, Qloc, stressIJ);
                     conBlock.setStress(stressIJ);
-                    conQue.push_back(conBlock);
+                    conBlockQue.push_back(conBlock);
                 }
                 {
                     // y-direction constraint
-                    unscaledForceComI[0] = 0.0;
-                    unscaledForceComI[1] = 1.0;
-                    unscaledForceComI[2] = 0.0;
-                    unscaledForceComJ[0] = 0.0;
-                    unscaledForceComJ[1] = -1.0;
-                    unscaledForceComJ[2] = 0.0;
-                    unscaledTorqueComI[0] = posI[2];
-                    unscaledTorqueComI[1] = 0.0;
-                    unscaledTorqueComI[2] = posI[0];
-                    unscaledTorqueComJ[0] = -posJ[2];
-                    unscaledTorqueComJ[1] = 0.0;
-                    unscaledTorqueComJ[2] = -posJ[0];
+                    const Evec3 unscaledForceComI(0.0, 1.0, 0.0);
+                    const Evec3 unscaledForceComJ(0.0, -1.0, 0.0);
+                    const Evec3 unscaledTorqueComI(posI[2], 0.0, posI[0]);
+                    const Evec3 unscaledTorqueComJ(-posJ[2], 0.0, -posJ[0]);
                     const double delta0 = rvec[1] - normI[1] * (syI.radius + syJ.radius + runConfig.linkGap);
                     const double gamma = delta0 < 0 ? -delta0 : 0;
                     ConstraintBlock conBlock(delta0 * normI[1], gamma * normI[1],  // current separation projected onto the y-axis, initial guess of gamma
@@ -1555,22 +1567,14 @@ void SylinderSystem::collectLinkBilateral() {
                     CalcSylinderNearForce::collideStress(directionI, directionJ, centerI, centerJ, syI.length, syJ.length,
                                                         syI.radius, syJ.radius, 1.0, Ploc, Qloc, stressIJ);
                     conBlock.setStress(stressIJ);
-                    conQue.push_back(conBlock);
+                    conBlockQue.push_back(conBlock);
                 }
                 {
                     // z-direction constraint
-                    unscaledForceComI[0] = 0.0;
-                    unscaledForceComI[1] = 0.0;
-                    unscaledForceComI[2] = 1.0;
-                    unscaledForceComJ[0] = 0.0;
-                    unscaledForceComJ[1] = 0.0;
-                    unscaledForceComJ[2] = -1.0;
-                    unscaledTorqueComI[0] = posI[1];
-                    unscaledTorqueComI[1] = posI[0];
-                    unscaledTorqueComI[2] = 0.0;
-                    unscaledTorqueComJ[0] = -posJ[1];
-                    unscaledTorqueComJ[1] = -posJ[0];
-                    unscaledTorqueComJ[2] = 0.0;
+                    const Evec3 unscaledForceComI(0.0, 0.0, 1.0);
+                    const Evec3 unscaledForceComJ(0.0, 0.0, -1.0);
+                    const Evec3 unscaledTorqueComI(posI[1], posI[0], 0.0);
+                    const Evec3 unscaledTorqueComJ(-posJ[1], -posJ[0], 0.0);
                     const double delta0 = rvec[2] - normI[2] * (syI.radius + syJ.radius + runConfig.linkGap);
                     const double gamma = delta0 < 0 ? -delta0 : 0;
                     ConstraintBlock conBlock(delta0 * normI[2], gamma * normI[2],  // current separation projected onto the z-axis, initial guess of gamma
@@ -1585,7 +1589,7 @@ void SylinderSystem::collectLinkBilateral() {
                     CalcSylinderNearForce::collideStress(directionI, directionJ, centerI, centerJ, syI.length, syJ.length,
                                                         syI.radius, syJ.radius, 1.0, Ploc, Qloc, stressIJ);
                     conBlock.setStress(stressIJ);
-                    conQue.push_back(conBlock);
+                    conBlockQue.push_back(conBlock);
                 }
             }
         }

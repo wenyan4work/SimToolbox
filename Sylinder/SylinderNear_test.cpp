@@ -48,8 +48,8 @@ void testFixedPair() {
     Evec3 Q1(2, 2 * sqrt(3), 1);
 
     CalcSylinderNearForce calc;
-    calc.conPoolPtr = std::make_shared<ConstraintBlockPool>();
-    calc.conPoolPtr->resize(1);
+    calc.conBlockPoolPtr = std::make_shared<ConstraintBlockPool>();
+    calc.conBlockPoolPtr->resize(1);
 
     std::vector<SylinderNearEP> sylinderP(1);
     std::vector<SylinderNearEP> sylinderQ(1);
@@ -89,8 +89,8 @@ void testFixedPair() {
 
     ForceNear fnear;
     calc(sylinderP.data(), 1, sylinderQ.data(), 1, &fnear);
-    printf("%zu collisions recorded\n", calc.conPoolPtr->front().size());
-    auto stress = calc.conPoolPtr->front().front().stress;
+    printf("%zu collisions recorded\n", calc.conBlockPoolPtr->front().size());
+    auto stress = calc.conBlockPoolPtr->front().front().stress;
     printf("stress:\n");
     printMat3(stress);
     bool pass = true;
@@ -119,8 +119,8 @@ void testParallel() {
     Evec3 Q1(2.005685087440173, 1.462109203504082, 1.4999983414464);
 
     CalcSylinderNearForce calc;
-    calc.conPoolPtr = std::make_shared<ConstraintBlockPool>();
-    calc.conPoolPtr->resize(1);
+    calc.conBlockPoolPtr = std::make_shared<ConstraintBlockPool>();
+    calc.conBlockPoolPtr->resize(1);
 
     std::vector<SylinderNearEP> sylinderP(1);
     std::vector<SylinderNearEP> sylinderQ(1);
@@ -159,9 +159,9 @@ void testParallel() {
     }
     ForceNear fnear;
     calc(sylinderP.data(), 1, sylinderQ.data(), 1, &fnear);
-    printf("%zu collisions recorded\n", calc.conPoolPtr->front().size());
-    auto stress = calc.conPoolPtr->front().front().stress;
-    auto block = calc.conPoolPtr->front().front();
+    printf("%zu collisions recorded\n", calc.conBlockPoolPtr->front().size());
+    auto stress = calc.conBlockPoolPtr->front().front().stress;
+    auto block = calc.conBlockPoolPtr->front().front();
     printf("stress:\n");
     printMat3(stress);
     printf("unscaledForceComI:\n");
@@ -182,8 +182,8 @@ void testSphere() {
     Evec3 Q1 = Q0 + Evec3::Random();
 
     CalcSylinderNearForce calc;
-    calc.conPoolPtr = std::make_shared<ConstraintBlockPool>();
-    calc.conPoolPtr->resize(1);
+    calc.conBlockPoolPtr = std::make_shared<ConstraintBlockPool>();
+    calc.conBlockPoolPtr->resize(1);
 
     std::vector<SylinderNearEP> sylinderP(1);
     std::vector<SylinderNearEP> sylinderQ(1);
@@ -222,9 +222,9 @@ void testSphere() {
     }
     ForceNear fnear;
     calc(sylinderP.data(), 1, sylinderQ.data(), 1, &fnear);
-    printf("%zu collisions recorded\n", calc.conPoolPtr->front().size());
-    auto stress = calc.conPoolPtr->front().front().stress;
-    auto block = calc.conPoolPtr->front().front();
+    printf("%zu collisions recorded\n", calc.conBlockPoolPtr->front().size());
+    auto stress = calc.conBlockPoolPtr->front().front().stress;
+    auto block = calc.conBlockPoolPtr->front().front();
     printf("stress:\n");
     printMat3(stress);
     printf("unscaledForceComI:\n");
@@ -260,8 +260,8 @@ void testSylinderSphere() {
     Evec3 Q1 = Q0 + Evec3(1, 0, 0);
 
     CalcSylinderNearForce calc;
-    calc.conPoolPtr = std::make_shared<ConstraintBlockPool>();
-    calc.conPoolPtr->resize(1);
+    calc.conBlockPoolPtr = std::make_shared<ConstraintBlockPool>();
+    calc.conBlockPoolPtr->resize(1);
 
     std::vector<SylinderNearEP> sylinderP(1);
     std::vector<SylinderNearEP> sylinderQ(1);
@@ -300,9 +300,9 @@ void testSylinderSphere() {
     }
     ForceNear fnear;
     calc(sylinderP.data(), 1, sylinderQ.data(), 1, &fnear);
-    printf("%zu collisions recorded\n", calc.conPoolPtr->front().size());
-    auto stress = calc.conPoolPtr->front().front().stress;
-    auto block = calc.conPoolPtr->front().front();
+    printf("%zu collisions recorded\n", calc.conBlockPoolPtr->front().size());
+    auto stress = calc.conBlockPoolPtr->front().front().stress;
+    auto block = calc.conBlockPoolPtr->front().front();
     printf("stress:\n");
     printMat3(stress);
     printf("unscaledForceComI:\n");

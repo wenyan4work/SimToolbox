@@ -5,16 +5,23 @@
 
 ConstraintCollector::ConstraintCollector() {
     const int totalThreads = omp_get_max_threads();
-    constraintPoolPtr = std::make_shared<ConstraintBlockPool>();
+
+    constraintPoolPtr = std::make_shared<ConstraintPool>();
     constraintPoolPtr->resize(totalThreads);
     for (auto &queue : *constraintPoolPtr) {
         queue.clear();
     }
 
-    spdlog::debug("ConstraintCollector constructed for {} threads", constraintPoolPtr->size());
+    constraintBlockPoolPtr = std::make_shared<ConstraintBlockPool>();
+    constraintBlockPoolPtr->resize(totalThreads);
+    for (auto &queue : *constraintBlockPoolPtr) {
+        queue.clear();
+    }
+
+    spdlog::debug("ConstraintCollector constructed for {} threads", constraintBlockPoolPtr->size());
 }
 
-bool ConstraintCollector::valid() const { return constraintPoolPtr->empty(); }
+bool ConstraintCollector::valid() const { return (constraintPoolPtr->empty() && constraintBlockPoolPtr->empty()); }
 
 void ConstraintCollector::clear() {
     assert(constraintPoolPtr);
@@ -22,9 +29,15 @@ void ConstraintCollector::clear() {
         (*constraintPoolPtr)[i].clear();
     }
 
+    assert(constraintBlockPoolPtr);
+    for (int i = 0; i < constraintBlockPoolPtr->size(); i++) {
+        (*constraintBlockPoolPtr)[i].clear();
+    }
+
     // keep the total number of queues
     const int totalThreads = omp_get_max_threads();
-    constraintPoolPtr->resize(totalThreads);
+    constraintPoolPtr->resize(totalThreads); 
+    constraintBlockPoolPtr->resize(totalThreads);
 }
 
 int ConstraintCollector::getLocalNumberOfConstraints() {
@@ -35,9 +48,18 @@ int ConstraintCollector::getLocalNumberOfConstraints() {
     return sum;
 }
 
+
+int ConstraintCollector::getLocalNumberOfBlocks() {
+    int sum = 0;
+    for (int i = 0; i < constraintBlockPoolPtr->size(); i++) {
+        sum += (*constraintBlockPoolPtr)[i].size();
+    }
+    return sum;
+}
+
 void ConstraintCollector::sumLocalConstraintStress(Emat3 &conStress, bool withOneSide) const {
     // TODO: this needs thread parallelized 
-    const auto &cPool = *constraintPoolPtr;
+    const auto &cPool = *constraintBlockPoolPtr;
     const int poolSize = cPool.size();
 
     Emat3 conStressTotal = Emat3::Zero();
@@ -95,7 +117,7 @@ void ConstraintCollector::writePVTP(const std::string &folder, const std::string
 
 void ConstraintCollector::writeVTP(const std::string &folder, const std::string &prefix, const std::string &postfix,
                                    int rank) const {
-    const auto &cPool = *constraintPoolPtr;
+    const auto &cPool = *constraintBlockPoolPtr;
     const int cQueNum = cPool.size();
     std::vector<int> cQueSize;
     std::vector<int> cQueIndex;
@@ -220,12 +242,25 @@ void ConstraintCollector::writeVTP(const std::string &folder, const std::string 
 }
 
 void ConstraintCollector::dumpBlocks() const {
-    std::cout << "number of collision queues: " << constraintPoolPtr->size() << std::endl;
+    std::cout << "number of constraint block queues: " << constraintBlockPoolPtr->size() << std::endl;
     // dump constraint blocks
-    for (const auto &blockQue : (*constraintPoolPtr)) {
-        std::cout << blockQue.size() << " constraints in this queue" << std::endl;
-        for (const auto &block : blockQue) {
+    for (const auto &conBlockQue : (*constraintBlockPoolPtr)) {
+        std::cout << conBlockQue.size() << " DOF in this queue" << std::endl;
+        for (const auto &block : conBlockQue) {
             std::cout << block.globalIndexI << " " << block.globalIndexJ << "  delta:" << block.delta << std::endl;
+        }
+    }
+}
+
+void ConstraintCollector::dumpConstraints() const {
+    std::cout << "number of constraint queues: " << constraintPoolPtr->size() << std::endl;
+    // dump constraint blocks
+    for (const auto &conQue : (*constraintPoolPtr)) {
+        std::cout << conQue.size() << " constraints in this queue" << std::endl;
+        for (const auto &con : conQue) {
+            const int id = con->getID();
+            const int numDOF = con->getNumDOF();  
+            std::cout << "ID: " << id << " | NumDOF: " << numDOF << std::endl;
         }
     }
 }
@@ -266,21 +301,21 @@ TODO: Improve constraimnts to have multiple degrees of freedom
 
 int ConstraintCollector::buildConstraintMatrixVector(const Teuchos::RCP<const TMAP> &mobMapRcp, //
                                                      Teuchos::RCP<TCMAT> &DMatTransRcp,         //
-                                                     Teuchos::RCP<TV> &deltaRcp,               //
+                                                     Teuchos::RCP<TV> &deltaRcp,                //
                                                      Teuchos::RCP<TV> &invKappaRcp,             //
                                                      Teuchos::RCP<TV> &gammaGuessRcp) const {
     Teuchos::RCP<const TCOMM> commRcp = mobMapRcp->getComm();
 
-    const auto &cPool = *constraintPoolPtr; // the constraint pool
+    const auto &cPool = *constraintBlockPoolPtr; // the constraint pool
     const int cQueNum = cPool.size();
 
     // prepare 1, build the index for block queue
-    std::vector<int> cQueSize;
-    std::vector<int> cQueIndex;
-    buildConIndex(cQueSize, cQueIndex);
+    std::vector<int> cBlockQueSize;
+    std::vector<int> cBlockQueIndex;
+    buildConBlockIndex(cBlockQueSize, cBlockQueIndex);
 
     // prepare 2, allocate the map and vectors
-    const int localGammaSize = cQueIndex.back();
+    const int localGammaSize = cBlockQueIndex.back();
     Teuchos::RCP<const TMAP> gammaMapRcp = getTMAPFromLocalSize(localGammaSize, commRcp);
 
     // step 1, count the number of entries to each row
@@ -321,7 +356,7 @@ int ConstraintCollector::buildConstraintMatrixVector(const Teuchos::RCP<const TM
         // each thread process a queue
         const auto &cBlockQue = cPool[threadId];
         const int cBlockNum = cBlockQue.size();
-        const int cBlockIndexBase = cQueSize[threadId];
+        const int cBlockIndexBase = cBlockQueIndex[threadId];
         int kk = colIndexPool[threadId];
 
         for (int j = 0; j < cBlockNum; j++) {
@@ -406,45 +441,178 @@ int ConstraintCollector::buildConstraintMatrixVector(const Teuchos::RCP<const TM
     invKappaRcp = Teuchos::rcp(new TV(gammaMapRcp, true));
     gammaGuessRcp = Teuchos::rcp(new TV(gammaMapRcp, true));
     auto delta = deltaRcp->getLocalView<Kokkos::HostSpace>();
-    auto gammaGuess = gammaGuessRcp->getLocalView<Kokkos::HostSpace>();
     auto invKappa = invKappaRcp->getLocalView<Kokkos::HostSpace>();
+    auto gammaGuess = gammaGuessRcp->getLocalView<Kokkos::HostSpace>();
     deltaRcp->modify<Kokkos::HostSpace>();
-    gammaGuessRcp->modify<Kokkos::HostSpace>();
     invKappaRcp->modify<Kokkos::HostSpace>();
+    gammaGuessRcp->modify<Kokkos::HostSpace>();
 
 #pragma omp parallel for num_threads(cQueNum)
     for (int que = 0; que < cQueNum; que++) {
         const auto &cQue = cPool[que];
-        const int cIndexBase = cQueIndex[que];
+        const int cIndexBase = cBlockQueIndex[que];
         const int queSize = cQue.size();
         for (int j = 0; j < queSize; j++) {
             const auto &block = cQue[j];
             const auto idx = cIndexBase + j;
             delta(idx, 0) = block.delta;
-            gammaGuess(idx, 0) = block.gamma;
             invKappa(idx, 0) = block.invKappa;
+            gammaGuess(idx, 0) = block.gamma;
         }
     }
 
     return 0;
 }
 
+int ConstraintCollector::applyProjectionToDOF(const Teuchos::RCP<TV> &gammaRcp) const {
+    // build the index for block queue
+    std::vector<int> cQueSize;
+    std::vector<int> cQueIndex;
+    buildConIndex(cQueSize, cQueIndex);
+
+    // multi-thread projecting. nThreads = poolSize, each thread processes a queue
+    const auto &cPool = *constraintPoolPtr;
+    auto gammaPtr = gammaRcp->getLocalView<Kokkos::HostSpace>();
+    gammaRcp->modify<Kokkos::HostSpace>();
+
+    const int nThreads = cPool.size();
+#pragma omp parallel for num_threads(nThreads)
+    for (int threadId = 0; threadId < nThreads; threadId++) {
+        // each thread process a queue
+        const auto &cQue = cPool[threadId];
+        int kk = cQueIndex[threadId];
+
+        const int cNum = cQue.size();
+        for (int j = 0; j < cNum; j++) {
+            // extract the constrained dof
+            const int numDOF = cQue[j]->getNumDOF(); 
+            std::vector<double> gammas(numDOF);
+            for (int d = 0; d < numDOF; d++) {
+                gammas[d] = gammaPtr(kk + d, 0);
+            }
+            
+            // for (auto i: gammas)
+            //     std::cout << i << ' ';
+            // std::cout << std::endl;
+
+            // apply the projection
+            cQue[j]->projectDOF(gammas);
+
+            // for (auto i: gammas)
+            //     std::cout << i << ' ';
+            // std::cout << std::endl;
+
+            // write back the result
+            for (int d = 0; d < numDOF; d++) {
+                gammaPtr(kk + d, 0) = gammas[d];
+            }
+
+            // increment the index
+            kk += numDOF;
+        }
+    }
+    return 0;
+}
+
+int ConstraintCollector::applyProjectionToValues(const Teuchos::RCP<const TV> &gammaRcp,
+                                                 const Teuchos::RCP<TV> &valuesRcp) const {
+    // build the index for block queue
+    std::vector<int> cQueSize;
+    std::vector<int> cQueIndex;
+    buildConIndex(cQueSize, cQueIndex);
+
+    // multi-thread projecting. nThreads = poolSize, each thread processes a queue
+    const auto &cPool = *constraintPoolPtr;
+    auto gammaPtr = gammaRcp->getLocalView<Kokkos::HostSpace>();
+    auto valuesPtr = valuesRcp->getLocalView<Kokkos::HostSpace>();
+    valuesRcp->modify<Kokkos::HostSpace>();
+
+    const int nThreads = cPool.size();
+#pragma omp parallel for num_threads(nThreads)
+    for (int threadId = 0; threadId < nThreads; threadId++) {
+        // each thread process a queue
+        const auto &cQue = cPool[threadId];
+        int kk = cQueIndex[threadId];
+
+        const int cNum = cQue.size();
+        for (int j = 0; j < cNum; j++) {
+            // extract the constrained dof and values
+            const int numDOF = cQue[j]->getNumDOF(); 
+            std::vector<double> gammas(numDOF);
+            std::vector<double> values(numDOF);
+            for (int d = 0; d < numDOF; d++) {
+                gammas[d] = gammaPtr(kk + d, 0);
+                values[d] = valuesPtr(kk + d, 0);
+            }
+            
+            // for (auto i: gammas)
+            //     std::cout << i << ' ';
+            // std::cout << std::endl;
+
+            // for (auto i: values)
+            //     std::cout << i * 0.0001 << ' ';
+            // std::cout << std::endl;
+
+            // apply the projection
+            cQue[j]->projectValues(gammas, values);
+
+            // for (auto i: values)
+            //     std::cout << i * 0.0001 << ' ';
+            // std::cout << std::endl;
+
+            // write back the result
+            for (int d = 0; d < numDOF; d++) {
+                valuesPtr(kk + d, 0) = values[d];
+            }
+
+            // increment the index
+            kk += numDOF;
+        }
+    }
+    return 0;
+}
+
+
+int ConstraintCollector::buildConBlockIndex(std::vector<int> &cBlockQueSize, std::vector<int> &cBlockQueIndex) const {
+    const auto &cBlockPool = *constraintBlockPoolPtr;
+    const int cBlockQueNum = cBlockPool.size();
+    cBlockQueSize.resize(cBlockQueNum);
+    cBlockQueIndex.resize(cBlockQueNum + 1);
+    for (int i = 0; i < cBlockQueNum; i++) {
+        cBlockQueSize[i] = cBlockPool[i].size();
+    }
+    for (int i = 1; i < cBlockQueNum + 1; i++) {
+        cBlockQueIndex[i] = cBlockQueSize[i - 1] + cBlockQueIndex[i - 1];
+    }
+    return 0;
+}
+
 int ConstraintCollector::buildConIndex(std::vector<int> &cQueSize, std::vector<int> &cQueIndex) const {
     const auto &cPool = *constraintPoolPtr;
-    const int cQueNum = cPool.size();
-    cQueSize.resize(cQueNum);
-    cQueIndex.resize(cQueNum + 1);
-    for (int i = 0; i < cQueNum; i++) {
-        cQueSize[i] = cPool[i].size();
+
+    // multi-thread filling. nThreads = poolSize, each thread process a queue
+    const int nThreads = cPool.size();
+    cQueSize.resize(nThreads);
+    cQueIndex.resize(nThreads + 1);
+#pragma omp parallel for num_threads(nThreads)
+    for (int threadId = 0; threadId < nThreads; threadId++) {
+        // each thread process a queue
+        const auto &cQue = cPool[threadId];
+        const int cNum = cQue.size();
+
+        for (int j = 0; j < cNum; j++) {
+            cQueSize[threadId] += cQue[j]->getNumDOF();
+        }
     }
-    for (int i = 1; i < cQueNum + 1; i++) {
+
+    for (int i = 1; i < nThreads + 1; i++) {
         cQueIndex[i] = cQueSize[i - 1] + cQueIndex[i - 1];
     }
     return 0;
 }
 
 int ConstraintCollector::writeBackGamma(const Teuchos::RCP<const TV> &gammaRcp) {
-    auto &cPool = *constraintPoolPtr; // the constraint pool
+    auto &cPool = *constraintBlockPoolPtr; // the constraint pool
     const int cQueNum = cPool.size();
 
     std::vector<int> cQueSize;
@@ -468,7 +636,7 @@ int ConstraintCollector::writeBackGamma(const Teuchos::RCP<const TV> &gammaRcp) 
 }
 
 int ConstraintCollector::writeBackDelta(const Teuchos::RCP<const TV> &deltaRcp) {
-    auto &cPool = *constraintPoolPtr; // the constraint pool
+    auto &cPool = *constraintBlockPoolPtr; // the constraint pool
     const int cQueNum = cPool.size();
 
     std::vector<int> cQueSize;

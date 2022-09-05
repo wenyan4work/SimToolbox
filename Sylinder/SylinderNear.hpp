@@ -160,7 +160,8 @@ static_assert(std::is_default_constructible<ForceNear>::value, "");
 class CalcSylinderNearForce {
 
   public:
-    std::shared_ptr<ConstraintBlockPool> conPoolPtr; ///< shared object for collecting collision constraints
+    std::shared_ptr<ConstraintPool> conPoolPtr;           ///< shared object for collecting constraints
+    std::shared_ptr<ConstraintBlockPool> conBlockPoolPtr; ///< shared object for collecting constraint blocks (a.k.a constrained dof)
 
     /**
      * @brief Construct a new CalcSylinderNearForce object
@@ -173,11 +174,14 @@ class CalcSylinderNearForce {
      *
      * @param colPoolPtr_ the CollisionBlockPool object to write to
      */
-    CalcSylinderNearForce(std::shared_ptr<ConstraintBlockPool> &conPoolPtr_) {
-        spdlog::debug("stress recoder size: {}", conPoolPtr_->size());
+    CalcSylinderNearForce(std::shared_ptr<ConstraintPool> &conPoolPtr_, 
+                          std::shared_ptr<ConstraintBlockPool> &conBlockPoolPtr_) {
+        spdlog::debug("stress recoder size: {}", conBlockPoolPtr_->size());
 
         conPoolPtr = conPoolPtr_;
+        conBlockPoolPtr = conBlockPoolPtr_;
         assert(conPoolPtr);
+        assert(conBlockPoolPtr);
     }
 
     /**
@@ -195,6 +199,7 @@ class CalcSylinderNearForce {
                     const PS::S32 Njp, ForceNear *const forceNear) {
         const int myThreadId = omp_get_thread_num();
         auto &conQue = (*conPoolPtr)[myThreadId];
+        auto &conBlockQue = (*conBlockPoolPtr)[myThreadId];
 
         for (PS::S32 i = 0; i < Nip; ++i) {
             auto &syI = ep_i[i];
@@ -206,30 +211,24 @@ class CalcSylinderNearForce {
                     auto &syJ = ep_j[j];
                     if (syI.gid >= syJ.gid)
                         continue;
-                    ConstraintBlock conBlock;
                     bool collision = false;
                     if (isSphere(syJ)) {
-                        collision = sp_sp(syI, syJ, forceI, conBlock);
+                        collision = sp_sp(syI, syJ, forceI, conQue, conBlockQue);
                     } else {
-                        collision = sp_sy(syI, syJ, forceI, conBlock);
+                        collision = sp_sy(syI, syJ, forceI, conQue, conBlockQue);
                     }
-                    if (collision)
-                        conQue.push_back(conBlock);
                 }
             } else { // sylinderI collisions
                 for (int j = 0; j < Njp; j++) {
                     auto &syJ = ep_j[j];
                     if (syI.gid >= syJ.gid)
                         continue;
-                    ConstraintBlock conBlock;
                     bool collision = false;
                     if (isSphere(syJ)) {
-                        collision = sp_sy(syJ, syI, forceI, conBlock, true);
+                        collision = sp_sy(syJ, syI, forceI, conQue, conBlockQue, true);
                     } else {
-                        collision = sy_sy(syI, syJ, forceI, conBlock);
+                        collision = sy_sy(syI, syJ, forceI, conQue, conBlockQue);
                     }
-                    if (collision)
-                        conQue.push_back(conBlock);
                 }
             }
         }
@@ -248,7 +247,10 @@ class CalcSylinderNearForce {
      * @return false
      */
     bool sp_sp(const SylinderNearEP &spI, const SylinderNearEP &spJ, ForceNear &forceI,
-               ConstraintBlock &conBlock) const {
+               ConstraintQue &conQue, ConstraintBlockQue &conBlockQue) const {
+        // TODO: Switch all our pi's to M_PI
+        const double pi = 3.141592653589793238;
+
         // sphere collide with sphere
         const Evec3 centerI = ECmap3(spI.pos);
         const Evec3 centerJ = ECmap3(spJ.pos);
@@ -265,41 +267,137 @@ class CalcSylinderNearForce {
         const double sep = rnorm - (radI + radJ); // goal of constraint is sep >=0
 
         if (sep < (radI * spI.colBuf + radJ * spJ.colBuf)) {
+            collision = true;
+            std::unique_ptr<Collision> collisionCon = std::make_unique<Collision>();
+            conQue.push_back(std::move(collisionCon));
+
             const Evec3 &Ploc = centerI;
             const Evec3 &Qloc = centerJ;
-            collision = true;
-            const double delta0 = sep;
             const double gamma = sep < 0 ? -sep : 0;
             const Evec3 normI = (Ploc - Qloc).normalized();
             const Evec3 normJ = -normI;
             const Evec3 posI = Ploc - centerI;
             const Evec3 posJ = Qloc - centerJ;
 
-            // unscaledForce = normal vector
-            // unscaledTorque = relative position cross normal vector
-            const Evec3 unscaledForceComI = normI;
-            const Evec3 unscaledForceComJ = normJ;
-            Evec3 unscaledTorqueComI;
-            unscaledTorqueComI[0] = normI[2] * posI[1] - normI[1] * posI[2];
-            unscaledTorqueComI[1] = normI[0] * posI[2] - normI[2] * posI[0];
-            unscaledTorqueComI[2] = normI[1] * posI[0] - normI[0] * posI[1];         
-            Evec3 unscaledTorqueComJ;
-            unscaledTorqueComJ[0] = normJ[2] * posJ[1] - normJ[1] * posJ[2];
-            unscaledTorqueComJ[1] = normJ[0] * posJ[2] - normJ[2] * posJ[0];
-            unscaledTorqueComJ[2] = normJ[1] * posJ[0] - normJ[0] * posJ[1]; 
+            // Collisions generate three DOF, one for no-penetration and two for tangency
+            // TODO: Make this tangent computation a component of the Sylinder class! Here, we should simply call a compute function
+            // step 1: compute the tangent vectors to spI at posI 
+            // step 1.1: convert posI into spherical polar coordinates
+            //           default to using coordinates centered around the z-axis (chart A)
+            //           if chart A is degenerage (has a tangent vector of near-zero length), 
+            //           then use coordinates centered around the x-axis (chart B)
+            // chart A
+            double theta = std::atan2(std::sqrt(std::pow(posI[0], 2) + std::pow(posI[1], 2)), posI[2]);
+            double phi = std::atan2(posI[1], posI[0]);
 
-            conBlock = ConstraintBlock(delta0, gamma,              // current separation, initial guess of gamma
-                                       spI.gid, spJ.gid,           //
-                                       spI.globalIndex,            //
-                                       spJ.globalIndex,            //
-                                       unscaledForceComI.data(), unscaledForceComJ.data(),   // com force induced by this constraint for unit gamma
-                                       unscaledTorqueComI.data(), unscaledTorqueComJ.data(), // com torque induced by this constraint for unit gamma
-                                       Ploc.data(), Qloc.data(),   // location of collision in lab frame
-                                       false, 0, 0.0);
-            Emat3 stressIJ = Emat3::Zero();
-            collideStress(Evec3(0, 0, 1), Evec3(0, 0, 1), centerI, centerJ, 0, 0, // length = 0, degenerates to sphere
-                          radI, radJ, 1.0, Ploc, Qloc, stressIJ);
-            conBlock.setStress(stressIJ);
+            // compute the tangent vectors in a non-degenerate chart
+            Evec3 tangent1;
+            Evec3 tangent2; 
+            if ((theta < 0.8 * pi / 4.0 ) || (theta > 0.8 * pi)) {
+                // chart A is potentially degenerate, use chart B
+                theta = std::atan2(std::sqrt(std::pow(posI[1], 2) + std::pow(posI[2], 2)), posI[0]);
+                phi = std::atan2(posI[1], posI[2]);
+
+                // compute the tangent
+                tangent1 = Evec3(-std::sin(theta), std::cos(theta) * std::sin(phi), std::cos(theta) * std::cos(phi)); 
+                tangent2 = Evec3(0.0, std::sin(theta) * std::cos(phi), -std::sin(theta) * std::sin(phi)); 
+            } else {
+                // use chart A by default
+                // compute the tangent
+                tangent1 = Evec3(std::cos(theta) * std::cos(phi), std::cos(theta) * std::sin(phi), -std::sin(theta)); 
+                tangent2 = Evec3(-std::sin(theta) * std::sin(phi), std::sin(theta) * std::cos(phi), 0.0); 
+            }
+
+            // fill the constraint dof
+            { 
+                // no-penetration constraint
+                // unscaledForce = normal vector
+                // unscaledTorque = relative position cross normal vector
+                const Evec3 unscaledForceComI = normI;
+                const Evec3 unscaledForceComJ = normJ;
+                const Evec3 unscaledTorqueComI(
+                    normI[2] * posI[1] - normI[1] * posI[2],
+                    normI[0] * posI[2] - normI[2] * posI[0],
+                    normI[1] * posI[0] - normI[0] * posI[1]);         
+                const Evec3 unscaledTorqueComJ(
+                    normJ[2] * posJ[1] - normJ[1] * posJ[2],
+                    normJ[0] * posJ[2] - normJ[2] * posJ[0],
+                    normJ[1] * posJ[0] - normJ[0] * posJ[1]); 
+                const double delta0 = sep;
+                ConstraintBlock conBlock(delta0, gamma,             // current separation, initial guess of gamma
+                                        spI.gid, spJ.gid,           //
+                                        spI.globalIndex,            //
+                                        spJ.globalIndex,            //
+                                        unscaledForceComI.data(), unscaledForceComJ.data(),   // com force induced by this constraint for unit gamma
+                                        unscaledTorqueComI.data(), unscaledTorqueComJ.data(), // com torque induced by this constraint for unit gamma
+                                        Ploc.data(), Qloc.data(),   // location of collision in lab frame
+                                        false, 0, 0.0);
+                Emat3 stressIJ = Emat3::Zero();
+                collideStress(Evec3(0, 0, 1), Evec3(0, 0, 1), centerI, centerJ, 0, 0, // length = 0, degenerates to sphere
+                            radI, radJ, 1.0, Ploc, Qloc, stressIJ);
+                conBlock.setStress(stressIJ);
+                conBlockQue.push_back(conBlock);
+            }
+            {
+                // tangency constraint 1
+                // unscaledForce = normal vector
+                // unscaledTorque = relative position cross normal vector
+                const Evec3 unscaledForceComI(0.0, 0.0, 0.0);
+                const Evec3 unscaledForceComJ(0.0, 0.0, 0.0);
+                const Evec3 unscaledTorqueComI(
+                    normI[2] * tangent1[1] - normI[1] * tangent1[2],
+                    normI[0] * tangent1[2] - normI[2] * tangent1[0],
+                    normI[1] * tangent1[0] - normI[0] * tangent1[1]);         
+                const Evec3 unscaledTorqueComJ(
+                    normJ[2] * tangent1[1] - normJ[1] * tangent1[2],
+                    normJ[0] * tangent1[2] - normJ[2] * tangent1[0],
+                    normJ[1] * tangent1[0] - normJ[0] * tangent1[1]);
+
+                // current angle between normal and tangent1 is pi, keep it that way
+                ConstraintBlock conBlock(0.0, gamma,                // desired change in angle, initial guess of gamma
+                                        spI.gid, spJ.gid,           //
+                                        spI.globalIndex,            //
+                                        spJ.globalIndex,            //
+                                        unscaledForceComI.data(), unscaledForceComJ.data(),   // com force induced by this constraint for unit gamma
+                                        unscaledTorqueComI.data(), unscaledTorqueComJ.data(), // com torque induced by this constraint for unit gamma
+                                        Ploc.data(), Qloc.data(),   // location of collision in lab frame
+                                        false, 0, 0.0);
+                Emat3 stressIJ = Emat3::Zero();
+                collideStress(Evec3(0, 0, 1), Evec3(0, 0, 1), centerI, centerJ, 0, 0, // length = 0, degenerates to sphere
+                            radI, radJ, 1.0, Ploc, Qloc, stressIJ);
+                conBlock.setStress(stressIJ);
+                conBlockQue.push_back(conBlock);
+            }
+            {
+                // tangency constraint 2
+                // unscaledForce = normal vector
+                // unscaledTorque = relative position cross normal vector
+                const Evec3 unscaledForceComI(0.0, 0.0, 0.0);
+                const Evec3 unscaledForceComJ(0.0, 0.0, 0.0);
+                const Evec3 unscaledTorqueComI(
+                    normI[2] * tangent2[1] - normI[1] * tangent2[2],
+                    normI[0] * tangent2[2] - normI[2] * tangent2[0],
+                    normI[1] * tangent2[0] - normI[0] * tangent2[1]);      
+                const Evec3 unscaledTorqueComJ(
+                    normJ[2] * tangent2[1] - normJ[1] * tangent2[2],
+                    normJ[0] * tangent2[2] - normJ[2] * tangent2[0],
+                    normJ[1] * tangent2[0] - normJ[0] * tangent2[1]);
+
+                // current angle between normal and tangent1 is pi, keep it that way
+                ConstraintBlock conBlock(0.0, gamma,                // desired change in angle, initial guess of gamma
+                                        spI.gid, spJ.gid,           //
+                                        spI.globalIndex,            //
+                                        spJ.globalIndex,            //
+                                        unscaledForceComI.data(), unscaledForceComJ.data(),   // com force induced by this constraint for unit gamma
+                                        unscaledTorqueComI.data(), unscaledTorqueComJ.data(), // com torque induced by this constraint for unit gamma
+                                        Ploc.data(), Qloc.data(),   // location of collision in lab frame
+                                        false, 0, 0.0);
+                Emat3 stressIJ = Emat3::Zero();
+                collideStress(Evec3(0, 0, 1), Evec3(0, 0, 1), centerI, centerJ, 0, 0, // length = 0, degenerates to sphere
+                            radI, radJ, 1.0, Ploc, Qloc, stressIJ);
+                conBlock.setStress(stressIJ);
+                conBlockQue.push_back(conBlock);
+            }
         }
         return collision;
     }
@@ -315,8 +413,12 @@ class CalcSylinderNearForce {
      * @return true
      * @return false
      */
-    bool sp_sy(const SylinderNearEP &spI, const SylinderNearEP &syJ, ForceNear &forceI, ConstraintBlock &conBlock,
+    bool sp_sy(const SylinderNearEP &spI, const SylinderNearEP &syJ, ForceNear &forceI, 
+               ConstraintQue &conQue, ConstraintBlockQue &conBlockQue,
                bool reverseIJ = false) const {
+        // TODO: Switch all our pi's to M_PI
+        const double pi = 3.141592653589793238;
+
         // sphere collide with sylinder
         // effective radius of sphere = sp.lengthCollision*0.5 + sp.radiusCollision
 
@@ -339,6 +441,10 @@ class CalcSylinderNearForce {
 
         if (sep < (radI * spI.colBuf + syJ.radiusCollision * syJ.colBuf)) {
             collision = true;
+            std::unique_ptr<Collision> collisionCon = std::make_unique<Collision>();
+            // std::unique_ptr<NoPenetration> collisionCon = std::make_unique<NoPenetration>();
+            conQue.push_back(std::move(collisionCon));
+
             const double delta0 = sep;
             const double gamma = sep < 0 ? -sep : 0;
             const Evec3 normI = (Ploc - Qloc).normalized();
@@ -346,35 +452,132 @@ class CalcSylinderNearForce {
             const Evec3 posI = Ploc - centerI;
             const Evec3 posJ = Qloc - centerJ;
 
-            // unscaledForce = normal vector
-            // unscaledTorque = relative position cross normal vector
-            const Evec3 unscaledForceComI = normI;
-            const Evec3 unscaledForceComJ = normJ;
-            Evec3 unscaledTorqueComI;
-            unscaledTorqueComI[0] = normI[2] * posI[1] - normI[1] * posI[2];
-            unscaledTorqueComI[1] = normI[0] * posI[2] - normI[2] * posI[0];
-            unscaledTorqueComI[2] = normI[1] * posI[0] - normI[0] * posI[1];         
-            Evec3 unscaledTorqueComJ;
-            unscaledTorqueComJ[0] = normJ[2] * posJ[1] - normJ[1] * posJ[2];
-            unscaledTorqueComJ[1] = normJ[0] * posJ[2] - normJ[2] * posJ[0];
-            unscaledTorqueComJ[2] = normJ[1] * posJ[0] - normJ[0] * posJ[1];         
 
-            // create the constraint
-            conBlock = ConstraintBlock(delta0, gamma,     // current separation, initial guess of gamma
-                                       spI.gid, syJ.gid,  //
-                                       spI.globalIndex,   //
-                                       syJ.globalIndex,   //
-                                       unscaledForceComI.data(), unscaledForceComJ.data(),   // com force induced by this constraint for unit gamma
-                                       unscaledTorqueComI.data(), unscaledTorqueComJ.data(), // com torque induced by this constraint for unit gamma
-                                       Ploc.data(), Qloc.data(),   // location of constraint in lab frame
-                                       false, 0, 0.0);
-            if (reverseIJ) {
-                conBlock.reverseIJ();
+            // Collisions generate three constraints, one for no-penetration and two for tangency
+            // TODO: Make this computation a component of the Sylinder class! Here, we should simply call a compute function
+            // step 1: compute the tangent vectors to spI at posI 
+            // step 1.1: convert posI into spherical polar coordinates
+            //           default to using coordinates centered around the z-axis (chart A)
+            //           if chart A is degenerage (has a tangent vector of near-zero length), 
+            //           then use coordinates centered around the x-axis (chart B)
+            // chart A
+            double theta = std::atan2(std::sqrt(std::pow(posI[0], 2) + std::pow(posI[1], 2)), posI[2]);
+            double phi = std::atan2(posI[1], posI[0]);
+
+            // compute the tangent vectors in a non-degenerate chart
+            Evec3 tangent1;
+            Evec3 tangent2; 
+            if ((theta < 0.8 * pi / 4.0 ) || (theta > 0.8 * pi)) {
+                // chart A is potentially degenerate, use chart B
+                theta = std::atan2(std::sqrt(std::pow(posI[1], 2) + std::pow(posI[2], 2)), posI[0]);
+                phi = std::atan2(posI[1], posI[2]);
+
+                // compute the tangent (in the current config!)
+                tangent1 = Evec3(-std::sin(theta), std::cos(theta) * std::sin(phi), std::cos(theta) * std::cos(phi)); 
+                tangent2 = Evec3(0.0, std::sin(theta) * std::cos(phi), -std::sin(theta) * std::sin(phi)); 
+            } else {
+                // use chart A by default
+                // compute the tangent (in the current config!)
+                tangent1 = Evec3(std::cos(theta) * std::cos(phi), std::cos(theta) * std::sin(phi), -std::sin(theta)); 
+                tangent2 = Evec3(-std::sin(theta) * std::sin(phi), std::sin(theta) * std::cos(phi), 0.0); 
             }
-            Emat3 stressIJ = Emat3::Zero();
-            collideStress(Evec3(0, 0, 1), directionJ, centerI, centerJ, 0, syJ.lengthCollision, radI,
-                          syJ.radiusCollision, 1.0, Ploc, Qloc, stressIJ);
-            conBlock.setStress(stressIJ);
+
+            // fill the constraints
+            { 
+                // no-penetration constraint
+                // unscaledForce = normal vector
+                // unscaledTorque = relative position cross normal vector
+                const Evec3 unscaledForceComI = normI;
+                const Evec3 unscaledForceComJ = normJ;
+                const Evec3 unscaledTorqueComI(
+                    normI[2] * posI[1] - normI[1] * posI[2],
+                    normI[0] * posI[2] - normI[2] * posI[0],
+                    normI[1] * posI[0] - normI[0] * posI[1]);         
+                const Evec3 unscaledTorqueComJ(
+                    normJ[2] * posJ[1] - normJ[1] * posJ[2],
+                    normJ[0] * posJ[2] - normJ[2] * posJ[0],
+                    normJ[1] * posJ[0] - normJ[0] * posJ[1]); 
+                ConstraintBlock conBlock(delta0, gamma,           // current separation, initial guess of gamma
+                                        spI.gid, syJ.gid,           //
+                                        spI.globalIndex,            //
+                                        syJ.globalIndex,            //
+                                        unscaledForceComI.data(), unscaledForceComJ.data(),   // com force induced by this constraint for unit gamma
+                                        unscaledTorqueComI.data(), unscaledTorqueComJ.data(), // com torque induced by this constraint for unit gamma
+                                        Ploc.data(), Qloc.data(),   // location of collision in lab frame
+                                        false, 0, 0.0);
+                if (reverseIJ) {
+                    conBlock.reverseIJ();
+                }
+                Emat3 stressIJ = Emat3::Zero();
+                collideStress(Evec3(0, 0, 1), directionJ, centerI, centerJ, 0, syJ.lengthCollision, radI,
+                            syJ.radiusCollision, 1.0, Ploc, Qloc, stressIJ);
+                conBlock.setStress(stressIJ);
+                conBlockQue.push_back(conBlock);
+            }
+            {
+                // tangency constraint 1
+                // unscaledForce = normal vector
+                // unscaledTorque = relative position cross normal vector
+                const Evec3 unscaledForceComI(0.0, 0.0, 0.0);
+                const Evec3 unscaledForceComJ(0.0, 0.0, 0.0);
+                const Evec3 unscaledTorqueComI(
+                    normI[2] * tangent1[1] - normI[1] * tangent1[2],
+                    normI[0] * tangent1[2] - normI[2] * tangent1[0],
+                    normI[1] * tangent1[0] - normI[0] * tangent1[1]);         
+                const Evec3 unscaledTorqueComJ(
+                    normJ[2] * tangent1[1] - normJ[1] * tangent1[2],
+                    normJ[0] * tangent1[2] - normJ[2] * tangent1[0],
+                    normJ[1] * tangent1[0] - normJ[0] * tangent1[1]);
+                // current angle between normal and tangent1 is pi, keep it that way
+                ConstraintBlock conBlock(0.0, gamma,                // desired change in angle, initial guess of gamma
+                                        spI.gid, syJ.gid,           //
+                                        spI.globalIndex,            //
+                                        syJ.globalIndex,            //
+                                        unscaledForceComI.data(), unscaledForceComJ.data(),   // com force induced by this constraint for unit gamma
+                                        unscaledTorqueComI.data(), unscaledTorqueComJ.data(), // com torque induced by this constraint for unit gamma
+                                        Ploc.data(), Qloc.data(),   // location of collision in lab frame
+                                        false, 0, 0.0);
+                if (reverseIJ) {
+                    conBlock.reverseIJ();
+                }
+                Emat3 stressIJ = Emat3::Zero();
+                collideStress(Evec3(0, 0, 1), directionJ, centerI, centerJ, 0, syJ.lengthCollision, radI,
+                            syJ.radiusCollision, 1.0, Ploc, Qloc, stressIJ);
+                conBlock.setStress(stressIJ);
+                conBlockQue.push_back(conBlock);
+            }
+            {
+                // tangency constraint 2
+                // unscaledForce = normal vector
+                // unscaledTorque = relative position cross normal vector
+                const Evec3 unscaledForceComI(0.0, 0.0, 0.0);
+                const Evec3 unscaledForceComJ(0.0, 0.0, 0.0);
+                const Evec3 unscaledTorqueComI(
+                    normI[2] * tangent2[1] - normI[1] * tangent2[2],
+                    normI[0] * tangent2[2] - normI[2] * tangent2[0],
+                    normI[1] * tangent2[0] - normI[0] * tangent2[1]);         
+                const Evec3 unscaledTorqueComJ(
+                    normJ[2] * tangent2[1] - normJ[1] * tangent2[2],
+                    normJ[0] * tangent2[2] - normJ[2] * tangent2[0],
+                    normJ[1] * tangent2[0] - normJ[0] * tangent2[1]);
+                // current angle between normal and tangent1 is pi, keep it that way
+                ConstraintBlock conBlock(0.0, gamma,                // desired change in angle, initial guess of gamma
+                                        spI.gid, syJ.gid,           //
+                                        spI.globalIndex,            //
+                                        syJ.globalIndex,            //
+                                        unscaledForceComI.data(), unscaledForceComJ.data(),   // com force induced by this constraint for unit gamma
+                                        unscaledTorqueComI.data(), unscaledTorqueComJ.data(), // com torque induced by this constraint for unit gamma
+                                        Ploc.data(), Qloc.data(),   // location of collision in lab frame
+                                        false, 0, 0.0);
+                if (reverseIJ) {
+                    conBlock.reverseIJ();
+                }
+                Emat3 stressIJ = Emat3::Zero();
+                collideStress(Evec3(0, 0, 1), directionJ, centerI, centerJ, 0, syJ.lengthCollision, radI,
+                            syJ.radiusCollision, 1.0, Ploc, Qloc, stressIJ);
+                conBlock.setStress(stressIJ);
+                conBlockQue.push_back(conBlock);
+            }
         }
         return collision;
     }
@@ -390,7 +593,10 @@ class CalcSylinderNearForce {
      * @return false
      */
     bool sy_sy(const SylinderNearEP &syI, const SylinderNearEP &syJ, ForceNear &forceI,
-               ConstraintBlock &conBlock) const {
+               ConstraintQue &conQue, ConstraintBlockQue &conBlockQue) const {
+        // TODO: Switch all our pi's to M_PI
+        const double pi = 3.141592653589793238;
+
         // sylinder collide with sylinder
         DCPQuery<3, double, Evec3> DistSegSeg3;
 
@@ -415,6 +621,10 @@ class CalcSylinderNearForce {
 
         if (sep < (syI.radiusCollision * syI.colBuf + syJ.radiusCollision * syJ.colBuf)) {
             collision = true;
+            std::unique_ptr<Collision> collisionCon = std::make_unique<Collision>();
+            // std::unique_ptr<NoPenetration> collisionCon = std::make_unique<NoPenetration>();
+            conQue.push_back(std::move(collisionCon));
+
             const double delta0 = sep;
             const double gamma = sep < 0 ? -sep : 0;
             const Evec3 normI = (Ploc - Qloc).normalized();
@@ -422,31 +632,127 @@ class CalcSylinderNearForce {
             const Evec3 posI = Ploc - centerI;
             const Evec3 posJ = Qloc - centerJ;
 
-            // unscaledForce = normal vector
-            // unscaledTorque = relative position cross normal vector
-            const Evec3 unscaledForceComI = normI;
-            const Evec3 unscaledForceComJ = normJ;
-            Evec3 unscaledTorqueComI;
-            unscaledTorqueComI[0] = normI[2] * posI[1] - normI[1] * posI[2];
-            unscaledTorqueComI[1] = normI[0] * posI[2] - normI[2] * posI[0];
-            unscaledTorqueComI[2] = normI[1] * posI[0] - normI[0] * posI[1];         
-            Evec3 unscaledTorqueComJ;
-            unscaledTorqueComJ[0] = normJ[2] * posJ[1] - normJ[1] * posJ[2];
-            unscaledTorqueComJ[1] = normJ[0] * posJ[2] - normJ[2] * posJ[0];
-            unscaledTorqueComJ[2] = normJ[1] * posJ[0] - normJ[0] * posJ[1]; 
+            // Collisions generate three constraints, one for no-penetration and two for tangency
+            // TODO: Make this computation a component of the Sylinder class! Here, we should simply call a compute function
+            // step 1: compute the tangent vectors to spI at posI 
+            // step 1.1: convert posI into spherical polar coordinates
+            //           default to using coordinates centered around the z-axis (chart A)
+            //           if chart A is degenerage (has a tangent vector of near-zero length), 
+            //           then use coordinates centered around the x-axis (chart B)
+            Equatn quatI = Equatn::FromTwoVectors(Evec3(0, 0, 1), directionI);
+            const Evec3 normIRefConfig = quatI.inverse() * normI; 
 
-            conBlock = ConstraintBlock(delta0, gamma,              // current separation, initial guess of gamma
-                                       syI.gid, syJ.gid,           //
-                                       syI.globalIndex,            //
-                                       syJ.globalIndex,            //
-                                       unscaledForceComI.data(), unscaledForceComJ.data(),   // com force induced by this constraint for unit gamma
-                                       unscaledTorqueComI.data(), unscaledTorqueComJ.data(), // com torque induced by this constraint for unit gamma
-                                       Ploc.data(), Qloc.data(),   // location of collision in lab frame
-                                       false, 0, 0.0);
-            Emat3 stressIJ = Emat3::Zero();
-            collideStress(directionI, directionJ, centerI, centerJ, syI.lengthCollision, syJ.lengthCollision,
-                          syI.radiusCollision, syJ.radiusCollision, 1.0, Ploc, Qloc, stressIJ);
-            conBlock.setStress(stressIJ);
+            // compute the tangent vectors in a non-degenerate chart
+            Evec3 tangent1;
+            Evec3 tangent2; 
+
+            // chart A
+            double theta = std::atan2(std::sqrt(std::pow(normIRefConfig[0], 2) + std::pow(normIRefConfig[1], 2)), normIRefConfig[2]);
+            double phi = std::atan2(normIRefConfig[1], normIRefConfig[0]);
+
+            if ((theta < 0.8 * pi / 4.0 ) || (theta > 0.8 * pi)) {
+                // chart A is potentially degenerate, use chart B
+                theta = std::atan2(std::sqrt(std::pow(normIRefConfig[1], 2) + std::pow(normIRefConfig[2], 2)), normIRefConfig[0]);
+                phi = std::atan2(normIRefConfig[1], normIRefConfig[2]);
+
+                // compute the tangent (in the current config!)
+                tangent1 = quatI * Evec3(-std::sin(theta), std::cos(theta) * std::sin(phi), std::cos(theta) * std::cos(phi)).normalized(); 
+                tangent2 = quatI * Evec3(0.0, std::sin(theta) * std::cos(phi), -std::sin(theta) * std::sin(phi)).normalized(); 
+            } else {
+                // use chart A
+                // compute the tangent (in the current config!)
+                tangent1 = quatI * Evec3(std::cos(theta) * std::cos(phi), std::cos(theta) * std::sin(phi), -std::sin(theta)).normalized(); 
+                tangent2 = quatI * Evec3(-std::sin(theta) * std::sin(phi), std::sin(theta) * std::cos(phi), 0.0).normalized(); 
+            }
+
+            // fill the constraints
+            { 
+                // no-penetration constraint
+                // unscaledForce = normal vector
+                // unscaledTorque = relative position cross normal vector
+                const Evec3 unscaledForceComI = normI;
+                const Evec3 unscaledForceComJ = normJ;
+                const Evec3 unscaledTorqueComI(
+                    normI[2] * posI[1] - normI[1] * posI[2],
+                    normI[0] * posI[2] - normI[2] * posI[0],
+                    normI[1] * posI[0] - normI[0] * posI[1]);         
+                const Evec3 unscaledTorqueComJ(
+                    normJ[2] * posJ[1] - normJ[1] * posJ[2],
+                    normJ[0] * posJ[2] - normJ[2] * posJ[0],
+                    normJ[1] * posJ[0] - normJ[0] * posJ[1]); 
+                ConstraintBlock conBlock(delta0, gamma,             // current separation, initial guess of gamma
+                                        syI.gid, syJ.gid,           //
+                                        syI.globalIndex,            //
+                                        syJ.globalIndex,            //
+                                        unscaledForceComI.data(), unscaledForceComJ.data(),   // com force induced by this constraint for unit gamma
+                                        unscaledTorqueComI.data(), unscaledTorqueComJ.data(), // com torque induced by this constraint for unit gamma
+                                        Ploc.data(), Qloc.data(),   // location of collision in lab frame
+                                        false, 0, 0.0);
+                Emat3 stressIJ = Emat3::Zero();
+                collideStress(directionI, directionJ, centerI, centerJ, syI.lengthCollision, syJ.lengthCollision,
+                            syI.radiusCollision, syJ.radiusCollision, 1.0, Ploc, Qloc, stressIJ);
+                conBlock.setStress(stressIJ);
+                conBlockQue.push_back(conBlock);
+            }
+            {
+                // tangency constraint 1
+                // unscaledForce = normal vector
+                // unscaledTorque = relative position cross normal vector
+                const Evec3 unscaledForceComI(0.0, 0.0, 0.0);
+                const Evec3 unscaledForceComJ(0.0, 0.0, 0.0);
+                const Evec3 unscaledTorqueComI(
+                    normI[2] * tangent1[1] - normI[1] * tangent1[2],
+                    normI[0] * tangent1[2] - normI[2] * tangent1[0],
+                    normI[1] * tangent1[0] - normI[0] * tangent1[1]);         
+                const Evec3 unscaledTorqueComJ(
+                    normJ[2] * tangent1[1] - normJ[1] * tangent1[2],
+                    normJ[0] * tangent1[2] - normJ[2] * tangent1[0],
+                    normJ[1] * tangent1[0] - normJ[0] * tangent1[1]);
+                // current angle between normal and tangent1 is pi, keep it that way
+                ConstraintBlock conBlock(0.0, gamma,                // desired change in angle, initial guess of gamma
+                                        syI.gid, syJ.gid,           //
+                                        syI.globalIndex,            //
+                                        syJ.globalIndex,            //
+                                        unscaledForceComI.data(), unscaledForceComJ.data(),   // com force induced by this constraint for unit gamma
+                                        unscaledTorqueComI.data(), unscaledTorqueComJ.data(), // com torque induced by this constraint for unit gamma
+                                        Ploc.data(), Qloc.data(),   // location of collision in lab frame
+                                        false, 0, 0.0);
+                Emat3 stressIJ = Emat3::Zero();
+                collideStress(directionI, directionJ, centerI, centerJ, syI.lengthCollision, syJ.lengthCollision,
+                            syI.radiusCollision, syJ.radiusCollision, 1.0, Ploc, Qloc, stressIJ);
+                conBlock.setStress(stressIJ);
+                conBlockQue.push_back(conBlock);
+            }
+            {
+                // tangency constraint 2
+                // unscaledForce = normal vector
+                // unscaledTorque = relative position cross normal vector
+                const Evec3 unscaledForceComI(0.0, 0.0, 0.0);
+                const Evec3 unscaledForceComJ(0.0, 0.0, 0.0);
+                const Evec3 unscaledTorqueComI(
+                    normI[2] * tangent2[1] - normI[1] * tangent2[2],
+                    normI[0] * tangent2[2] - normI[2] * tangent2[0],
+                    normI[1] * tangent2[0] - normI[0] * tangent2[1]);         
+                const Evec3 unscaledTorqueComJ(
+                    normJ[2] * tangent2[1] - normJ[1] * tangent2[2],
+                    normJ[0] * tangent2[2] - normJ[2] * tangent2[0],
+                    normJ[1] * tangent2[0] - normJ[0] * tangent2[1]);
+
+                // current angle between normal and tangent1 is pi, keep it that way
+                ConstraintBlock conBlock(0.0, gamma,                // desired change in angle, initial guess of gamma
+                                        syI.gid, syJ.gid,           //
+                                        syI.globalIndex,            //
+                                        syJ.globalIndex,            //
+                                        unscaledForceComI.data(), unscaledForceComJ.data(),   // com force induced by this constraint for unit gamma
+                                        unscaledTorqueComI.data(), unscaledTorqueComJ.data(), // com torque induced by this constraint for unit gamma
+                                        Ploc.data(), Qloc.data(),   // location of collision in lab frame
+                                        false, 0, 0.0);
+                Emat3 stressIJ = Emat3::Zero();
+                collideStress(directionI, directionJ, centerI, centerJ, syI.lengthCollision, syJ.lengthCollision,
+                            syI.radiusCollision, syJ.radiusCollision, 1.0, Ploc, Qloc, stressIJ);
+                conBlock.setStress(stressIJ);
+                conBlockQue.push_back(conBlock);
+            }
         }
         return collision;
     }

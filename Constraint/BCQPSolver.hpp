@@ -12,6 +12,7 @@
 #ifndef BCQPSOLVER_HPP_
 #define BCQPSOLVER_HPP_
 
+#include "ConstraintCollector.hpp"
 #include "Trilinos/TpetraUtil.hpp"
 
 #include <array>
@@ -34,7 +35,7 @@ class BCQPSolver {
      * @param A_ the linear operator \f$A\f$
      * @param b_ the vector \f$b\f$
      */
-    BCQPSolver(const Teuchos::RCP<const TOP> &ARcp, const Teuchos::RCP<const TV> &bRcp);
+    BCQPSolver(ConstraintCollector &conCollector_, const Teuchos::RCP<const TOP> &ARcp, const Teuchos::RCP<const TV> &bRcp);
 
     /**
      * @brief Construct a new CPSolver object generating \f$A,b\f$ for internal test
@@ -43,40 +44,6 @@ class BCQPSolver {
      * @param diagonal
      */
     BCQPSolver(int localSize, double diagonal = 0.0);
-
-    /**
-     * @brief Set lb for the problem
-     * bound must have compatible map to A & b
-     * @param lbRcp
-     */
-    void setLowerBound(const Teuchos::RCP<TV> &lbRcp_) {
-        lbSet = true;
-        lbRcp = lbRcp_;
-    }
-
-    /**
-     * @brief Set ub for the problem
-     * bound must have compatible map to A & b
-     * @param ubRcp
-     */
-    void setUpperBound(const Teuchos::RCP<TV> &ubRcp_) {
-        ubSet = true;
-        ubRcp = ubRcp_;
-    };
-
-    Teuchos::RCP<TV> getLowerBound(){
-      return lbRcp;
-    }
-
-    Teuchos::RCP<TV> getUpperBound(){
-      return ubRcp;
-    }
-
-    /**
-     * @brief call this before any solve() functions
-     *
-     */
-    void prepareSolver() { setDefaultBounds(); }
 
     /**
      * @brief Nesterov accelerated PGD
@@ -111,44 +78,11 @@ class BCQPSolver {
     int selfTest(double tol, int maxIte, int solverChoice);
 
   private:
+    ConstraintCollector conCollector; ///< constraints
     Teuchos::RCP<const TOP> ARcp;      ///< linear operator \f$A\f$
     Teuchos::RCP<const TV> bRcp;       ///< vector \f$b\f$
     Teuchos::RCP<const TMAP> mapRcp;   ///< map for the distribution of xsolRcp, bRcp, and ARcp->rowMap
     Teuchos::RCP<const TCOMM> commRcp; ///< Teuchos::MpiComm
-    Teuchos::RCP<TV> lbRcp;      ///< lower bound
-    Teuchos::RCP<TV> ubRcp;      ///< upper bound
-    bool lbSet = false;
-    bool ubSet = false;
-
-    /**
-     * @brief Set default bounds (infinity) if no bounds set
-     *
-     */
-    void setDefaultBounds();
-
-    /**
-     * @brief project the vector to [lb,ub]
-     *
-     * @param vecRcp
-     */
-    void boundProjection(Teuchos::RCP<TV> &vecRcp) const;
-
-    /**
-     * @brief check the residual with EQ 2.2 of Dai & Fletcher 2005
-     *
-     * @param XRcp X
-     * @param YRcp Y=AX+b
-     * @param QRcp temporary working space
-     * @return double
-     */
-    double checkProjectionResidual(const Teuchos::RCP<const TV> &XRcp, const Teuchos::RCP<const TV> &YRcp,
-                                   const Teuchos::RCP<TV> &QRcp) const;
-
-    /**
-     * @brief generate random lb and ub, used for internal tests only
-     *
-     */
-    void generateRandomBounds();
 };
 
 #endif

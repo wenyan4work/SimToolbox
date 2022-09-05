@@ -17,21 +17,21 @@
 
 #include <algorithm>
 #include <cmath>
-#include <deque>
 #include <type_traits>
 #include <vector>
 
 /**
- * @brief collision constraint information block
+ * @brief constraint information block
  *
- * Each block stores the information for one collision constraint.
+ * Each block stores the information for one constraint.
  * The blocks are collected by ConstraintCollector and then used to construct the sparse fcTrans matrix
  * 
- * Constraints can have the following types:
+ * Constraints can (currently) have the following types:
  *   id=0: collision              | 3 constrained DOF | prevents penetration and enforces tangency of colliding surfaces
- *   id=1: hookean spring         | 3 constrained DOF | resists relative translational motion between two points
- *   id=2: angular hookean spring | 3 constrained DOF | resists relative rotational motion between two vectors
- *   id=3: ball and socket        | 3 constrained DOF | prevents the separation of two points
+ *   id=1: no penetration         | 1 constrained DOF | prevents penetration
+ *   id=2: hookean spring         | 3 constrained DOF | resists relative translational motion between two points
+ *   id=3: angular hookean spring | 3 constrained DOF | resists relative rotational motion between two vectors
+ *   id=4: ball and socket        | 3 constrained DOF | prevents the separation of two points
  * 
  */
 struct ConstraintBlock {
@@ -76,13 +76,13 @@ struct ConstraintBlock {
      * @param unscaledTorqueComJ_
      * @param labI_
      * @param labJ_
-     * @param oneSide_ flag for one side constarint
+     * @param oneSide_ flag for one side constraint
      * @param invKappa_ kappa of bilateral constraint
      */
     ConstraintBlock(double delta_, double gamma_, int gidI_, int gidJ_, int globalIndexI_, int globalIndexJ_,
                     const double unscaledForceComI_[3], const double unscaledForceComJ_[3], const double unscaledTorqueComI_[3], const double unscaledTorqueComJ_[3],
                     const double labI_[3], const double labJ_[3], 
-                    bool oneSide_, bool id_, double invKappa_)
+                    bool oneSide_, int id_, double invKappa_)
         : delta(delta_), gamma(gamma_), gidI(gidI_), gidJ(gidJ_), globalIndexI(globalIndexI_),
           globalIndexJ(globalIndexJ_), oneSide(oneSide_), id(id_), invKappa(invKappa_) {
         for (int d = 0; d < 3; d++) {
@@ -134,7 +134,7 @@ struct ConstraintBlock {
 static_assert(std::is_trivially_copyable<ConstraintBlock>::value, "");
 static_assert(std::is_default_constructible<ConstraintBlock>::value, "");
 
-using ConstraintBlockQue = std::deque<ConstraintBlock>;      ///< a queue contains blocks collected by one thread
-using ConstraintBlockPool = std::vector<ConstraintBlockQue>; ///< a pool contains queues on different threads
+using ConstraintBlockQue = std::vector<ConstraintBlock>;     ///< a vector contains blocks collected by one thread
+using ConstraintBlockPool = std::vector<ConstraintBlockQue>; ///< a pool contains vectors on different threads
 
 #endif

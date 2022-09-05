@@ -11,6 +11,7 @@
 #ifndef CONSTRAINTCOLLECTOR_HPP_
 #define CONSTRAINTCOLLECTOR_HPP_
 
+#include "Constraint.hpp"
 #include "ConstraintBlock.hpp"
 
 #include "Trilinos/TpetraUtil.hpp"
@@ -29,8 +30,9 @@
  */
 class ConstraintCollector {
   public:
-    ///< all copy of collector share a pointer to collision pool
-    std::shared_ptr<ConstraintBlockPool> constraintPoolPtr;
+    ///< FDPS requires that ConstraintCollector have low copy overhead
+    std::shared_ptr<ConstraintBlockPool> constraintBlockPoolPtr;
+    std::shared_ptr<ConstraintPool> constraintPoolPtr;
 
     ConstraintCollector();
 
@@ -73,6 +75,13 @@ class ConstraintCollector {
      * @return int
      */
     int getLocalNumberOfConstraints();
+
+    /**
+     * @brief get the number of collision blocks on the local node
+     *
+     * @return int
+     */
+    int getLocalNumberOfBlocks();
 
     /**
      * @brief compute the total constraint stress of all constraints (blocks)
@@ -120,6 +129,12 @@ class ConstraintCollector {
     void dumpBlocks() const;
 
     /**
+     * @brief dump the constraints to screen for debugging
+     *
+     */
+    void dumpConstraints() const;
+
+    /**
      * @brief build the matrix and vectors used in constraint solver
      *
      * @param [in] mobMapRcp  mobility map
@@ -132,7 +147,7 @@ class ConstraintCollector {
      */
     int buildConstraintMatrixVector(const Teuchos::RCP<const TMAP> &mobMapRcp, //
                                     Teuchos::RCP<TCMAT> &DMatTransRcp,         //
-                                    Teuchos::RCP<TV> &deltaRcp,               //
+                                    Teuchos::RCP<TV> &deltaRcp,                //
                                     Teuchos::RCP<TV> &invKappaRcp,             //
                                     Teuchos::RCP<TV> &gammaGuessRcp) const;
 
@@ -143,6 +158,20 @@ class ConstraintCollector {
     //  * @return int  error code (future)
     //  */
     // int buildInvKappa(std::vector<double> &invKappa) const;
+
+    int applyProjectionToDOF(const Teuchos::RCP<TV> &gammaRcp) const;
+
+    int applyProjectionToValues(const Teuchos::RCP<const TV> &gammaRcp,
+                                const Teuchos::RCP<TV> &valuesRcp) const;
+
+    /**
+     * @brief build the index of constraint blocks in the ConstraintBlockPool
+     *
+     * @param cBlockQueSize size of each queue
+     * @param cBlockQueIndex index of queue
+     * @return int error code (future)
+     */
+    int buildConBlockIndex(std::vector<int> &cBlockQueSize, std::vector<int> &cBlockQueIndex) const;
 
     /**
      * @brief build the index of constraints in the ConstraintPool

@@ -7,8 +7,9 @@
 
 #include <limits>
 #include <random>
+#include <exception>
 
-BCQPSolver::BCQPSolver(const Teuchos::RCP<const TOP> &A_, const Teuchos::RCP<const TV> &b_)
+BCQPSolver::BCQPSolver(ConstraintCollector &conCollector_, const Teuchos::RCP<const TOP> &A_, const Teuchos::RCP<const TV> &b_)
     : ARcp(A_), bRcp(b_), mapRcp(b_->getMap()), commRcp(b_->getMap()->getComm()) {
     // make sure A and b match the map and comm specified
     TEUCHOS_TEST_FOR_EXCEPTION(!(ARcp->getDomainMap()->isSameAs(*(bRcp->getMap()))), std::invalid_argument,
@@ -17,7 +18,8 @@ BCQPSolver::BCQPSolver(const Teuchos::RCP<const TOP> &A_, const Teuchos::RCP<con
                                "map and b do not have the same Map.");
     TEUCHOS_TEST_FOR_EXCEPTION(!(mapRcp->isSameAs(*(ARcp->getDomainMap()))), std::invalid_argument,
                                "map and b do not have the same Map.");
-    setDefaultBounds();
+    
+    conCollector = conCollector_;
 }
 
 BCQPSolver::BCQPSolver(int localSize, double diagonal) {
@@ -127,8 +129,6 @@ BCQPSolver::BCQPSolver(int localSize, double diagonal) {
     // dump problem
     dumpTCMAT(Atemp, "Amat");
     dumpTV(bRcp, "bvec");
-
-    generateRandomBounds();
 }
 
 int BCQPSolver::solveBBPGD(Teuchos::RCP<TV> &xsolRcp, const double tol, const int iteMax, IteHistory &history) const {
@@ -150,13 +150,18 @@ int BCQPSolver::solveBBPGD(Teuchos::RCP<TV> &xsolRcp, const double tol, const in
     Teuchos::RCP<TV> gkdiffRcp = Teuchos::rcp(new TV(this->mapRcp.getConst(), true)); // gkdiff = gk - gkm1
     Teuchos::RCP<TV> xkdiffRcp = Teuchos::rcp(new TV(this->mapRcp.getConst(), true)); // xkdiff = xk - xkm1
 
+    // project the initial guess
+    conCollector.applyProjectionToDOF(xkm1Rcp);    // Projection xkm1
+
     // compute grad
     ARcp->apply(*xkm1Rcp, *gradkm1Rcp); // gkm1 = A.dot(xkm1)
     mvCount++;
     gradkm1Rcp->update(1.0, *bRcp, 1.0); // gkm1 = A.dot(xkm1)+b
 
-    // check if initial guess works, use xkdiffRcp as temporary space
-    double resPhi = checkProjectionResidual(xkm1Rcp, gradkm1Rcp, xkdiffRcp);
+    // check if projected initial guess works
+    xkdiffRcp->scale(1.0, *gradkm1Rcp); // use xkdiffRcp as temporary space
+    conCollector.applyProjectionToValues(xkm1Rcp, xkdiffRcp);    // Projection gkm1
+    double resPhi = xkdiffRcp->norm2(); 
     history.push_back(std::array<double, 6>{{1.0 * iteCount, 0, 0, 0, resPhi, 1.0 * mvCount}});
     if (fabs(resPhi) < tol) {
         // initial guess works, return
@@ -189,15 +194,19 @@ int BCQPSolver::solveBBPGD(Teuchos::RCP<TV> &xsolRcp, const double tol, const in
 
         // update xk
         xkRcp->update(-alpha, *gradkm1Rcp, 1.0, *xkm1Rcp, 0.0); // xk = xkm1 - alpha*gkm1
-        boundProjection(xkRcp);                                 // Projection xk
+        conCollector.applyProjectionToDOF(xkRcp);    // Projection xk
 
         // compute new grad with xk
         ARcp->apply(*xkRcp, *gradkRcp); // gk = A.dot(xk)
         mvCount++;
         gradkRcp->update(1.0, *bRcp, 1.0); // gk = A.dot(xk)+b
 
-        // check convergence, use xkdiffRcp as temporary space
-        double resPhi = checkProjectionResidual(xkRcp, gradkRcp, xkdiffRcp);
+        // check convergence
+        // convergence is determined using equation 2.1 and 2.2 of Dai and Fletcher 2005
+        // we make a slight modification and use the ininite norm, as this is a physically meaningful quantity
+        xkdiffRcp->scale(1.0, *gradkRcp); // use xkdiffRcp as temporary space
+        conCollector.applyProjectionToValues(xkRcp, xkdiffRcp);    // Projection gk
+        const double resPhi = xkdiffRcp->normInf(); 
 
         // use simple phi tolerance check
         history.push_back(std::array<double, 6>{{1.0 * iteCount, 0, 0, alpha, resPhi, 1.0 * mvCount}});
@@ -236,6 +245,11 @@ int BCQPSolver::solveBBPGD(Teuchos::RCP<TV> &xsolRcp, const double tol, const in
         // swap the contents of pointers directly, be careful
         xkm1Rcp.swap(xkRcp);
         gradkm1Rcp.swap(gradkRcp);
+    }
+
+    if (iteCount == iteMax) {
+        spdlog::critical("Constraint solver failed to converge!");
+        throw std::runtime_error("Constraint solver failed to converge");
     }
 
     xsolRcp = xkRcp; // return solution
@@ -302,7 +316,7 @@ int BCQPSolver::solveAPGD(Teuchos::RCP<TV> &xsolRcp, const double tol, const int
         gVecRcp->update(1.0, *bRcp, 1.0, *AxbRcp, 0.0);
         // line 8 of Mazhar, 2015
         xkp1Rcp->update(1.0, *ykRcp, -tk, *gVecRcp, 0);
-        boundProjection(xkp1Rcp);
+        conCollector.applyProjectionToDOF(xkp1Rcp);
 
         double rightTerm1 = ykRcp->dot(*AxbRcp) * 0.5; // yk.dot(A.dot(yk))*0.5
         double rightTerm2 = ykRcp->dot(*bRcp);         // yk.dot(b)
@@ -331,7 +345,7 @@ int BCQPSolver::solveAPGD(Teuchos::RCP<TV> &xsolRcp, const double tol, const int
 
             // line 12 of Mazhar, 2015
             xkp1Rcp->update(1.0, *ykRcp, -tk, *gVecRcp, 0.0);
-            boundProjection(xkp1Rcp);
+            conCollector.applyProjectionToDOF(xkp1Rcp);
         }
 
         if (tk < std::numeric_limits<double>::epsilon() * 10) {
@@ -348,7 +362,9 @@ int BCQPSolver::solveAPGD(Teuchos::RCP<TV> &xsolRcp, const double tol, const int
 
         // check convergence, line 17, Mazhar, 2015. Replace the metric with the minimum-map function
         Axbkp1Rcp->update(1.0, *bRcp, 1.0); // Axkp1 = A*xkp1 in the Lifshitz loop
-        double resPhi = checkProjectionResidual(xkp1Rcp, Axbkp1Rcp, tempVecRcp);
+        tempVecRcp->scale(1.0, *Axbkp1Rcp); // use tempVecRcp as temporary space
+        conCollector.applyProjectionToValues(xkp1Rcp, tempVecRcp);    // Projection Axkp1
+        double resPhi = tempVecRcp->norm2(); 
         resPhi = fabs(resPhi);
 
         // line 18-21, Mazhar, 2015
@@ -380,6 +396,12 @@ int BCQPSolver::solveAPGD(Teuchos::RCP<TV> &xsolRcp, const double tol, const int
         xkRcp.swap(xkp1Rcp); // xk=xkp1, xkp1 to be updated;
         thetak = thetakp1;
     }
+
+    if (iteCount == iteMax) {
+        spdlog::critical("Constraint solver failed to converge!");
+        throw std::runtime_error("Constraint solver failed to converge");
+    }
+
     xsolRcp = xhatkRcp;
     if (stagFlag) {
         return 1;
@@ -392,12 +414,8 @@ int BCQPSolver::selfTest(double tol, int maxIte, int solverChoice) {
     IteHistory history;
 
     Teuchos::RCP<TV> xsolRcp = Teuchos::rcp(new TV(this->mapRcp.getConst(), true)); // zero initial guess
-    prepareSolver();
 
     // dump problem
-    dumpTV(lbRcp, "lbvec");
-    dumpTV(ubRcp, "ubvec");
-
     spdlog::info("START TEST");
 
     switch (solverChoice) {
@@ -426,109 +444,4 @@ int BCQPSolver::selfTest(double tol, int maxIte, int solverChoice) {
         }
 
     return 0;
-}
-
-void BCQPSolver::boundProjection(Teuchos::RCP<TV> &vecRcp) const {
-
-    auto vecPtr = vecRcp->getLocalView<Kokkos::HostSpace>(); // LeftLayout
-    vecRcp->modify<Kokkos::HostSpace>();
-    const auto ibound = vecPtr.extent(0);
-    const int c = 0; // vecRcp, lbRcp, ubRcp have only 1 column
-
-    // project to lb
-    TEUCHOS_TEST_FOR_EXCEPTION(!(vecRcp->getMap()->isSameAs(*(lbRcp->getMap()))), std::invalid_argument,
-                               "vec and lb do not have the same Map.");
-    auto lbPtr = lbRcp->getLocalView<Kokkos::HostSpace>();
-#pragma omp parallel for
-    for (size_t i = 0; i < ibound; i++) {
-        const double temp = vecPtr(i, c);
-        vecPtr(i, c) = std::max(temp, lbPtr(i, c));
-    }
-
-    // project to ub
-    TEUCHOS_TEST_FOR_EXCEPTION(!(vecRcp->getMap()->isSameAs(*(ubRcp->getMap()))), std::invalid_argument,
-                               "vec and ub do not have the same Map.");
-    auto ubPtr = ubRcp->getLocalView<Kokkos::HostSpace>();
-#pragma omp parallel for
-    for (size_t i = 0; i < ibound; i++) {
-        const double temp = vecPtr(i, c);
-        vecPtr(i, c) = std::min(temp, ubPtr(i, c));
-    }
-
-    return;
-}
-
-double BCQPSolver::checkProjectionResidual(const Teuchos::RCP<const TV> &XRcp, const Teuchos::RCP<const TV> &YRcp,
-                                           const Teuchos::RCP<TV> &QRcp) const {
-    const double eps = std::numeric_limits<double>::epsilon() * 100;
-    auto xPtr = XRcp->getLocalView<Kokkos::HostSpace>();   // LeftLayout
-    auto yPtr = YRcp->getLocalView<Kokkos::HostSpace>();   // LeftLayout
-    auto lbPtr = lbRcp->getLocalView<Kokkos::HostSpace>(); // LeftLayout
-    auto ubPtr = ubRcp->getLocalView<Kokkos::HostSpace>(); // LeftLayout
-    auto qPtr = QRcp->getLocalView<Kokkos::HostSpace>();   // LeftLayout
-    QRcp->modify<Kokkos::HostSpace>();
-    const auto ibound = xPtr.extent(0);
-    const int c = 0; // vecRcp, lbRcp, ubRcp have only 1 column
-
-    bool projectionError = false;
-// EQ 2.2 of Dai & Fletcher 2005
-#pragma omp parallel for
-    for (size_t i = 0; i < ibound; i++) {
-        if (xPtr(i, c) < lbPtr(i, c) + eps) {
-            qPtr(i, c) = std::min(yPtr(i, c), 0.0);
-        } else if (xPtr(i, c) > ubPtr(i, c) - eps) {
-            qPtr(i, c) = std::max(yPtr(i, c), 0.0);
-        } else if (xPtr(i, c) > lbPtr(i, c) && xPtr(i, c) < ubPtr(i, c)) {
-            qPtr(i, c) = yPtr(i, c);
-        } else {
-            spdlog::error("projection error occured");
-            projectionError = true;
-        }
-    }
-
-    if (projectionError) {
-        dumpTV(XRcp, "XRcp");
-        dumpTV(YRcp, "YRcp");
-        dumpTV(QRcp, "QRcp");
-        std::exit(1);
-    }
-
-    return QRcp->norm2();
-}
-
-void BCQPSolver::setDefaultBounds() {
-    if (!lbSet) {
-        const auto &vec = Teuchos::rcp(new TV(bRcp->getMap(), false));
-        vec->putScalar(-std::numeric_limits<double>::max() / 10);
-        setLowerBound(vec);
-    }
-    if (!ubSet) {
-        const auto &vec = Teuchos::rcp(new TV(bRcp->getMap(), false));
-        vec->putScalar(std::numeric_limits<double>::max() / 10);
-        setUpperBound(vec);
-    }
-}
-
-void BCQPSolver::generateRandomBounds() {
-    const auto &vec1 = Teuchos::rcp(new TV(bRcp->getMap(), true));
-    vec1->randomize(-1, 1);
-
-    const auto &vec2 = Teuchos::rcp(new TV(bRcp->getMap(), true));
-    vec2->randomize(-1, 1);
-
-    auto vec1Ptr = vec1->getLocalView<Kokkos::HostSpace>(); // LeftLayout
-    auto vec2Ptr = vec2->getLocalView<Kokkos::HostSpace>(); // LeftLayout
-    vec1->modify<Kokkos::HostSpace>();
-    vec2->modify<Kokkos::HostSpace>();
-    const auto ibound = vec1Ptr.extent(0);
-#pragma omp parallel for
-    for (size_t i = 0; i < ibound; i++) {
-        double a = vec1Ptr(i, 0);
-        double b = vec2Ptr(i, 0);
-        vec1Ptr(i, 0) = std::min(a, b);
-        vec2Ptr(i, 0) = std::max(a, b);
-    }
-
-    setLowerBound(vec1);
-    setUpperBound(vec2);
 }

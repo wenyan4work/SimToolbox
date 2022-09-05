@@ -107,9 +107,9 @@ class ConstraintSolver {
 
     // composite vectors and operators
     Teuchos::RCP<TCMAT> DMatTransRcp; ///< D^Trans matrix
-    Teuchos::RCP<TV> invKappaRcp; ///< K^{-1} diagonal matrix
-    Teuchos::RCP<TV> deltaRcp;  ///< the current (geometric) delta vector containing the constraint function values
-                                ///< the initial delta value is the constant part of BCQP problem
+    Teuchos::RCP<TV> invKappaRcp;     ///< K^{-1} diagonal matrix
+    Teuchos::RCP<TV> deltaRcp;        ///< the current (geometric) delta vector containing the constraint function values
+                                      ///< the initial delta value is the constant part of BCQP problem
 
     // the constraint problem M gamma + q
     Teuchos::RCP<ConstraintOperator> MOpRcp; ///< the operator of BCQP problem. M = D^T M D + K^{-1}

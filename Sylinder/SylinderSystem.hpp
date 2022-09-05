@@ -311,7 +311,7 @@ class SylinderSystem {
      */
     void setVelocityNonBrown(const std::vector<double> &velNonBrown);
 
-    ConstraintBlockPool &getConstraintPoolNonConst() { return *(conCollectorPtr->constraintPoolPtr); };
+    ConstraintBlockPool &getConstraintPoolNonConst() { return *(conCollectorPtr->constraintBlockPoolPtr); };
 
     /**
      * @brief resolve collision with given nonBrownian motion and advance the system configuration

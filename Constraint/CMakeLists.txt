@@ -2,6 +2,8 @@
 # target_include_directories target_link_libraries
 
 add_executable(BCQPSolver_test BCQPSolver_test.cpp BCQPSolver.cpp
+                               ${PROJECT_SOURCE_DIR}/Constraint/ConstraintCollector.cpp
+                               ${PROJECT_SOURCE_DIR}/Util/Base64.cpp
                                ${PROJECT_SOURCE_DIR}/Trilinos/TpetraUtil.cpp)
 target_compile_options(BCQPSolver_test PRIVATE ${OpenMP_CXX_FLAGS})
 target_include_directories(
@@ -10,6 +12,7 @@ target_link_libraries(
   BCQPSolver_test PRIVATE ${Trilinos_LIBRARIES} 
                           ${Trilinos_TPL_LIBRARIES}
                           trng4
+                          Eigen3::Eigen
                           OpenMP::OpenMP_CXX 
                           MPI::MPI_CXX)
 add_test(NAME BCQPSolver COMMAND python BCQPSolver_verify.py)

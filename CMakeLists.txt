@@ -15,16 +15,16 @@ find_package(MPI REQUIRED)
 # Get VTK
 find_package(VTK REQUIRED COMPONENTS IOXML HINTS ${SFTPATH}/lib/cmake
                                      $ENV{VTK_BASE} $ENV{VTK_ROOT})
-if(VTK_FOUND)
-  # add_definitions("-D USE_VTK")
-  message("Found VTK at ${VTK_DIR}")
-endif()
+message("Found VTK at ${VTK_DIR}")
 
 find_package(Eigen3 REQUIRED HINTS ${SFTPATH}/share/eigen3/cmake
              $ENV{EIGEN_BASE} $ENV{EIGEN_ROOT})
-find_package(Boost REQUIRED HINTS ${SFTPATH}/lib/cmake $ENV{BOOST_BASE}
+message("Found Eigen at ${Eigen3_DIR}")
+  
+find_package(Boost REQUIRED ALL HINTS ${SFTPATH}/lib/cmake $ENV{BOOST_BASE}
              $ENV{BOOST_ROOT})
-
+message("Found Boost at ${Boost_DIR}")
+  
 # Get Trilinos as one entity
 find_package(Trilinos REQUIRED HINTS ${SFTPATH}/lib/cmake $ENV{TRILINOS_BASE}
              $ENV{TRILINOS_ROOT})

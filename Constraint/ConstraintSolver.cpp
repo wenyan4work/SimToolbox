@@ -37,7 +37,7 @@ void ConstraintSolver::reset() {
     invKappaRcp.reset();  ///< K^{-1} diagonal matrix
     deltaRcp.reset();    ///< the current (geometric) delta vector delta = deltau
                          ///< this is the constant part of BCQP problem. q = delta (the initial separation)
-
+    
     // the constraint problem M gamma + q
     MOpRcp.reset();   ///< the operator of BCQP problem. M = D^T M D + 1/h K^{-1}
     gammaRcp.reset(); ///< the unknown constraint lagrange multiplier
@@ -49,13 +49,8 @@ void ConstraintSolver::solveConstraints() {
     ///////////
     const auto &commRcp = gammaRcp->getMap()->getComm();
     // solver
-    BCQPSolver solver(MOpRcp, deltaRcp);
+    BCQPSolver solver(conCollector, MOpRcp, deltaRcp);
     spdlog::debug("solver constructed");
-
-    // the bound of BCQP. 0 for all constraints
-    Teuchos::RCP<TV> lbRcp = solver.getLowerBound();
-    lbRcp->scale(0, *gammaRcp); // 0 for all flags and the same size as gamma
-    spdlog::debug("bound constructed");
 
     ///////////
     // solve //
@@ -63,13 +58,13 @@ void ConstraintSolver::solveConstraints() {
     IteHistory history;
     switch (solverChoice) {
     case 0:
-        solver.solveBBPGD(gammaRcp, res, maxIte, history);
+        solver.solveBBPGD(gammaRcp, res * (1.0 / dt), maxIte, history);
         break;
     case 1:
-        solver.solveAPGD(gammaRcp, res, maxIte, history);
+        solver.solveAPGD(gammaRcp, res * (1.0 / dt), maxIte, history);
         break;
     default:
-        solver.solveBBPGD(gammaRcp, res, maxIte, history);
+        solver.solveBBPGD(gammaRcp, res * (1.0 / dt), maxIte, history);
         break;
     }
 
@@ -94,7 +89,7 @@ void ConstraintSolver::solveConstraints() {
 
     // calculate the final delta value 
     Teuchos::RCP<TCMAT> DMatTransRcp = MOpRcp->getDMatTrans();
-    DMatTransRcp->apply(*velConRcp, *deltaRcp, Teuchos::NO_TRANS, dt, 0.0);
+    DMatTransRcp->apply(*velConRcp, *deltaRcp, Teuchos::NO_TRANS, dt, dt);
 }
 
 void ConstraintSolver::writebackGamma() { 
