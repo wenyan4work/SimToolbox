@@ -1,4 +1,6 @@
-add_executable(SylinderNear_test SylinderNear_test.cpp)
+add_executable(SylinderNear_test 
+               SylinderNear_test.cpp
+               ${PROJECT_SOURCE_DIR}/Constraint/Constraint.cpp)
 target_compile_options(SylinderNear_test PRIVATE ${OpenMP_CXX_FLAGS})
 target_include_directories(SylinderNear_test PRIVATE ${PROJECT_SOURCE_DIR}
                                                      ${Trilinos_INCLUDE_DIRS})

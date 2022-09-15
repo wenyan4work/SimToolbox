@@ -11,7 +11,7 @@
 #ifndef CONSTRAINTCOLLECTOR_HPP_
 #define CONSTRAINTCOLLECTOR_HPP_
 
-#include "ConstraintBlock.hpp"
+#include "Constraint.hpp"
 
 #include "Trilinos/TpetraUtil.hpp"
 #include "Util/IOHelper.hpp"
@@ -29,8 +29,9 @@
  */
 class ConstraintCollector {
   public:
-    std::shared_ptr<ConstraintBlockPool> constraintPoolPtr;  
-
+    ///< FDPS requires that ConstraintCollector have low copy overhead
+    std::shared_ptr<ConstraintPool> constraintPoolPtr;
+    
     ConstraintCollector();
 
     /**
@@ -71,12 +72,19 @@ class ConstraintCollector {
     int getLocalNumberOfConstraints();
 
     /**
+     * @brief get the number of constraints DOF on the local node
+     *
+     * @return int
+     */
+    int getLocalNumberOfDOF();
+
+    /**
      * @brief compute the total constraint stress of all constraints (blocks)
      *
-     * @param stress the sum of all stress blocks for all threads on the local rank
+     * @param conStress the sum of all stress blocks for all threads on the local rank
      * @param withOneSide include the stress (without proper definition) of one side constraints
      */
-    void sumLocalConstraintStress(Emat3 &uniStress, Emat3 &biStress, bool withOneSide = false) const;
+    void sumLocalConstraintStress(Emat3 &conStress, bool withOneSide = false) const;
 
     /**
      * @brief write VTK XML PVTP Header file from rank 0
@@ -110,19 +118,16 @@ class ConstraintCollector {
     void writeVTP(const std::string &folder, const std::string &prefix, const std::string &postfix, int rank) const;
 
     /**
-     * @brief dump the blocks to screen for debugging
+     * @brief dump the constraints to screen for debugging
      *
      */
-    void dumpBlocks() const;
+    void dumpConstraints() const;
 
     /**
      * @brief build the matrix and vectors used in constraint solver
      *
-     * @param [in] mobMapRcp  mobility map
-     * @param DTransRcp D^TraConstraintBlockPoolns matrix
-     * @param invKappaRcp K^{-1} vector
-     * @param biFlagRcp 1 for bilateral, 1 for unilateral
-     * @param gammaGuessRcp initial guess of gamma
+     * @param mobMapRcp  mobility map
+     * @param gammaMapRcp gamma map
      * @return DMatTransRcp D^Trans matrix
      */
     Teuchos::RCP<TCMAT> buildConstraintMatrixVector(const Teuchos::RCP<const TMAP> &mobMapRcp,
@@ -130,29 +135,14 @@ class ConstraintCollector {
 
     void updateConstraintMatrixVector(const Teuchos::RCP<TCMAT> &AMatTransRcp) const;
 
-    int fillConstraintInformation(const Teuchos::RCP<const TCOMM>& commRcp,
-                                  const Teuchos::RCP<TV> &gammaGuessRcp,
-                                  const Teuchos::RCP<TV> &constraintKappaRcp,
-                                  const Teuchos::RCP<TV> &constraintFlagRcp) const;
-
-    int evalConstraintScale(const Teuchos::RCP<const TV> &gammaRcp,
-                            const Teuchos::RCP<TV> &constraintScaleRcp) const;
+    int fillConstraintGuess(const Teuchos::RCP<TV> &gammaGuessRcp) const;
 
     int evalConstraintDiagonal(const Teuchos::RCP<const TV> &gammaRcp, 
                                const Teuchos::RCP<TV> &constraintDiagonalRcp) const;
 
     int evalConstraintValues(const Teuchos::RCP<const TV> &gammaRcp,
                              const Teuchos::RCP<TV> &constraintValueRcp, 
-                             const Teuchos::RCP<TV> &constraintMaskRcp) const;
-
-
-    // /**
-    //  * @brief build the K^{-1} diagonal matrix
-    //  *
-    //  * @param invKappa
-    //  * @return int  error code (future)
-    //  */
-    // int buildInvKappa(std::vector<double> &invKappa) const;
+                             const Teuchos::RCP<TV> &constraintStatusRcp);
 
     /**
      * @brief build the index of constraints in the ConstraintPool
@@ -164,7 +154,7 @@ class ConstraintCollector {
     int buildConIndex(std::vector<int> &cQueSize, std::vector<int> &cQueIndex) const;
 
     /**
-     * @brief write back the solution gamma to the blocks
+     * @brief write back the solution gamma to the constraints
      *
      * @param gammaRcp solution
      * @return int error code (future)

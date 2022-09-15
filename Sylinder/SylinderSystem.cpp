@@ -24,10 +24,11 @@
 #include <mpi.h>
 #include <omp.h>
 
-SylinderSystem::SylinderSystem(const SylinderConfig &runConfig_, 
-    const Teuchos::RCP<const TCOMM> &commRcp_, std::shared_ptr<TRngPool> rngPoolPtr_,  
-    std::shared_ptr<ConstraintCollector> conCollectorPtr_) 
-    : runConfig(runConfig_), rngPoolPtr(std::move(rngPoolPtr_)), conCollectorPtr(std::move(conCollectorPtr_)), commRcp(commRcp_) {}
+SylinderSystem::SylinderSystem(const SylinderConfig &runConfig_, const Teuchos::RCP<const TCOMM> &commRcp_,
+                               std::shared_ptr<TRngPool> rngPoolPtr_,
+                               std::shared_ptr<ConstraintCollector> conCollectorPtr_)
+    : runConfig(runConfig_), rngPoolPtr(std::move(rngPoolPtr_)), conCollectorPtr(std::move(conCollectorPtr_)),
+      commRcp(commRcp_) {}
 
 void SylinderSystem::initialize(const std::string &posFile) {
     dinfo.initialize(); // init DomainInfo
@@ -98,7 +99,7 @@ void SylinderSystem::reinitialize(const std::string &pvtpFileName_) {
 
     // make sure the current position and orientation are updated
     advanceParticles();
-    
+
     spdlog::warn("SylinderSystem Initialized. {} local sylinders", sylinderContainer.getNumberOfParticleLocal());
 }
 
@@ -302,8 +303,7 @@ void SylinderSystem::setInitialFromFile(const std::string &filename) {
     }
 }
 
-
-// TODO: this should be part of the constraint collector (init from file functionality) 
+// TODO: this should be part of the constraint collector (init from file functionality)
 // Set constraints from file, allowing any type of constraint to be initialized
 void SylinderSystem::setLinkMapFromFile(const std::string &filename) {
     spdlog::warn("Reading file " + filename);
@@ -738,7 +738,7 @@ void SylinderSystem::applyMonolayer() {
     }
 }
 
-void SylinderSystem::getForceVelocityNonConstraint(const Teuchos::RCP<TV> &forceNCRcp, 
+void SylinderSystem::getForceVelocityNonConstraint(const Teuchos::RCP<TV> &forceNCRcp,
                                                    const Teuchos::RCP<TV> &velocityNCRcp) const {
     // save results
     auto forceNCPtr = forceNCRcp->getLocalView<Kokkos::HostSpace>();
@@ -769,7 +769,7 @@ void SylinderSystem::getForceVelocityNonConstraint(const Teuchos::RCP<TV> &force
     }
 }
 
-void SylinderSystem::saveForceVelocityConstraints(const Teuchos::RCP<const TV> &forceRcp, 
+void SylinderSystem::saveForceVelocityConstraints(const Teuchos::RCP<const TV> &forceRcp,
                                                   const Teuchos::RCP<const TV> &velocityRcp) {
     // save results
     auto velPtr = velocityRcp->getLocalView<Kokkos::HostSpace>();
@@ -853,11 +853,10 @@ void SylinderSystem::calcVelocityBrown() {
     }
 }
 
-
 // TODO: move to particle wall interaction class
 void SylinderSystem::collectBoundaryCollision() {
-    auto collisionPoolPtr = conCollectorPtr->constraintPoolPtr; // shared_ptr
-    const int nThreads = collisionPoolPtr->size();
+    auto constraintPoolPtr = conCollectorPtr->constraintPoolPtr; // shared_ptr
+    const int nThreads = constraintPoolPtr->size();
     const int nLocal = sylinderContainer.getNumberOfParticleLocal();
 
     // process collisions with all boundaries
@@ -865,7 +864,7 @@ void SylinderSystem::collectBoundaryCollision() {
 #pragma omp parallel num_threads(nThreads)
         {
             const int threadId = omp_get_thread_num();
-            auto &que = (*collisionPoolPtr)[threadId];
+            auto &conQue = (*constraintPoolPtr)[threadId];
 #pragma omp for
             for (int i = 0; i < nLocal; i++) {
                 const auto &sy = sylinderContainer[i];
@@ -884,21 +883,32 @@ void SylinderSystem::collectBoundaryCollision() {
                     Evec3 norm = Emap3(delta) * (1 / deltanorm);
                     Evec3 posI = Query - center;
 
-                    double sepDist;
                     if ((Query - ECmap3(Proj)).dot(ECmap3(delta)) < 0) { // outside boundary
-                        sepDist = -deltanorm - radius;
+                        const double sep = -deltanorm - radius;
+                        Constraint con = noPenetrationConstraint(
+                            sep,                        // amount of overlap,
+                            sy.gid, sy.gid,           //
+                            sy.globalIndex,            //
+                            sy.globalIndex,            //
+                            posI.data(), posI.data(),   // location of collision relative to particle center
+                            Query.data(), Proj,   // location of collision in lab frame
+                            norm.data(), // direction of collision force
+                            false);
+                        conQue.push_back(con);
                     } else if (deltanorm <
                                (1 + runConfig.sylinderColBuf * 2) * sy.radiusCollision) { // inside boundary but close
-                        sepDist = -deltanorm - radius;
+                        const double sep = deltanorm - radius;
+                        Constraint con = noPenetrationConstraint(
+                            sep,                        // amount of overlap,
+                            sy.gid, sy.gid,           //
+                            sy.globalIndex,            //
+                            sy.globalIndex,            //
+                            posI.data(), posI.data(),   // location of collision relative to particle center
+                            Query.data(), Proj,   // location of collision in lab frame
+                            norm.data(), // direction of collision force
+                            false);
+                        conQue.push_back(con);
                     }
-
-                    // compute the ficher bermister stuff
-                    // TODO MODULARIZE! 
-                    const double gammaGuess = 0.0;
-                    const double nan = std::numeric_limits<double>::quiet_NaN();
-                    que.emplace_back(sepDist, gammaGuess, nan, sy.gid, sy.gid, sy.globalIndex, sy.globalIndex,
-                                        norm.data(), norm.data(), posI.data(), posI.data(), Query.data(), Proj, true,
-                                        false);
                 };
 
                 if (sy.isSphere(true)) {
@@ -987,39 +997,29 @@ void SylinderSystem::calcConStress() {
     if (runConfig.logLevel > spdlog::level::info)
         return;
 
-    Emat3 sumBiStress = Emat3::Zero();
-    Emat3 sumUniStress = Emat3::Zero();
-    conCollectorPtr->sumLocalConstraintStress(sumUniStress, sumBiStress, false);
+    Emat3 sumConStress = Emat3::Zero();
+    conCollectorPtr->sumLocalConstraintStress(sumConStress, false);
 
     // scale to nkBT
     const double scaleFactor = 1 / (sylinderMapRcp->getGlobalNumElements() * runConfig.KBT);
-    sumBiStress *= scaleFactor;
-    sumUniStress *= scaleFactor;
+    sumConStress *= scaleFactor;
+
     // mpi reduction
-    double uniStressLocal[9];
-    double biStressLocal[9];
-    double uniStressGlobal[9];
-    double biStressGlobal[9];
+    double conStressLocal[9];
+    double conStressGlobal[9];
     for (int i = 0; i < 3; i++) {
         for (int j = 0; j < 3; j++) {
-            uniStressLocal[i * 3 + j] = sumUniStress(i, j);
-            uniStressGlobal[i * 3 + j] = 0;
-            biStressLocal[i * 3 + j] = sumBiStress(i, j);
-            biStressGlobal[i * 3 + j] = 0;
+            conStressLocal[i * 3 + j] = sumConStress(i, j);
+            conStressGlobal[i * 3 + j] = 0;
         }
     }
 
-    Teuchos::reduceAll(*commRcp, Teuchos::SumValueReductionOp<int, double>(), 9, uniStressLocal, uniStressGlobal);
-    Teuchos::reduceAll(*commRcp, Teuchos::SumValueReductionOp<int, double>(), 9, biStressLocal, biStressGlobal);
+    Teuchos::reduceAll(*commRcp, Teuchos::SumValueReductionOp<int, double>(), 9, conStressLocal, conStressGlobal);
 
     spdlog::info("RECORD: ColXF,{:g},{:g},{:g},{:g},{:g},{:g},{:g},{:g},{:g}", //
-                 uniStressGlobal[0], uniStressGlobal[1], uniStressGlobal[2],   //
-                 uniStressGlobal[3], uniStressGlobal[4], uniStressGlobal[5],   //
-                 uniStressGlobal[6], uniStressGlobal[7], uniStressGlobal[8]);
-    spdlog::info("RECORD: BiXF,{:g},{:g},{:g},{:g},{:g},{:g},{:g},{:g},{:g}", //
-                 biStressGlobal[0], biStressGlobal[1], biStressGlobal[2],     //
-                 biStressGlobal[3], biStressGlobal[4], biStressGlobal[5],     //
-                 biStressGlobal[6], biStressGlobal[7], biStressGlobal[8]);
+                 conStressGlobal[0], conStressGlobal[1], conStressGlobal[2],   //
+                 conStressGlobal[3], conStressGlobal[4], conStressGlobal[5],   //
+                 conStressGlobal[6], conStressGlobal[7], conStressGlobal[8]);
 }
 
 void SylinderSystem::calcOrderParameter() {
@@ -1158,9 +1158,8 @@ void SylinderSystem::updatesylinderNearDataDirectory() {
 
 // TODO: move to particle-particle interaction class
 void SylinderSystem::collectPairCollision() {
-
-    CalcSylinderNearForce calcColFtr(conCollectorPtr->constraintPoolPtr, runConfig.dt, runConfig.viscosity, 
-                                     runConfig.simBoxPBC, runConfig.simBoxLow, runConfig.simBoxHigh);
+    CalcSylinderNearForce calcColFtr(conCollectorPtr->constraintPoolPtr, runConfig.simBoxPBC, runConfig.simBoxLow,
+                                     runConfig.simBoxHigh);
 
     TEUCHOS_ASSERT(treeSylinderNearPtr);
     const int nLocal = sylinderContainer.getNumberOfParticleLocal();
@@ -1174,9 +1173,9 @@ void SylinderSystem::collectLinkBilateral() {
     // uses special treatment for periodic boundary conditions
 
     const int nLocal = sylinderContainer.getNumberOfParticleLocal();
-    auto &cPool = *(this->conCollectorPtr->constraintPoolPtr);
-    if (cPool.size() != omp_get_max_threads()) {
-        spdlog::critical("cPool multithread mismatch error");
+    auto &conPool = *(this->conCollectorPtr->constraintPoolPtr);
+    if (conPool.size() != omp_get_max_threads()) {
+        spdlog::critical("conPool multithread mismatch error");
         std::exit(1);
     }
 
@@ -1206,7 +1205,7 @@ void SylinderSystem::collectLinkBilateral() {
 #pragma omp parallel
     {
         const int threadId = omp_get_thread_num();
-        auto &cBlockQue = cPool[threadId];
+        auto &conQue = conPool[threadId];
 #pragma omp for
         for (int i = 0; i < nLocal; i++) {
             const auto &syI = sylinderContainer[i]; // sylinder
@@ -1214,6 +1213,7 @@ void SylinderSystem::collectLinkBilateral() {
             const int ub = gidDisp[i + 1];
 
             for (int j = lb; j < ub; j++) {
+                // create a spring constraint
                 const auto &syJ = sylinderNearDataDirectoryPtr->dataToFind[j]; // sylinderNear
 
                 const Evec3 &centerI = ECmap3(syI.pos);
@@ -1236,37 +1236,33 @@ void SylinderSystem::collectLinkBilateral() {
                 // constraint is always added between Pp and Qm
                 // constraint target length is radiusI + radiusJ + runConfig.linkGap
                 const Evec3 directionI = ECmapq(syI.orientation) * Evec3(0, 0, 1);
-                const Evec3 Pp = centerI + directionI * (0.5 * syI.length); // plus end
                 const Evec3 directionJ = ECmap3(syJ.direction);
+                const Evec3 Pp = centerI + directionI * (0.5 * syI.length); // plus end
                 const Evec3 Qm = centerJ - directionJ * (0.5 * syJ.length);
                 const Evec3 Ploc = Pp;
                 const Evec3 Qloc = Qm;
                 const Evec3 rvec = Qloc - Ploc;
                 const double rnorm = rvec.norm();
-                const double sep = rnorm - syI.radius - syJ.radius - runConfig.linkGap;
-
-                const double Pi = 3.14159265358979323846;
-                const double mu = runConfig.viscosity;
-                // const double gammaGuess = sep < 0 ? -0.5 * sep / runConfig.dt * 6 * Pi * mu : 0;
-                const double gammaGuess = sep < 0 ? -sep : 0;
-
                 const Evec3 normI = (Ploc - Qloc).normalized();
                 const Evec3 normJ = -normI;
                 const Evec3 posI = Ploc - centerI;
                 const Evec3 posJ = Qloc - centerJ;
-                ConstraintBlock conBlock(sep, gammaGuess, runConfig.linkKappa, // current separation, initial guess of gamma, spring constant
-                                         syI.gid, syJ.gid,           //
-                                         syI.globalIndex,            //
-                                         syJ.globalIndex,            //
-                                         normI.data(), normJ.data(), // direction of collision force
-                                         posI.data(), posJ.data(), // location of collision relative to particle center
-                                         Ploc.data(), Qloc.data(), // location of collision in lab frame
-                                         false, true);
-                Emat3 stressIJ;
-                CalcSylinderNearForce::collideStress(directionI, directionJ, centerI, centerJ, syI.length, syJ.length,
-                                                     syI.radius, syJ.radius, 1.0, Ploc, Qloc, stressIJ);
-                conBlock.setStress(stressIJ);
-                cBlockQue.push_back(conBlock);
+                const double restLength = syI.radius + syJ.radius + runConfig.linkGap;
+
+                Constraint con = springConstraint(rnorm, restLength, // length of spring, rest length of spring
+                                       runConfig.linkKappa,          // spring constant
+                                       syI.gid, syJ.gid,             //
+                                       syI.globalIndex,              //
+                                       syJ.globalIndex,              //
+                                       posI.data(), posJ.data(),     // location of collision relative to particle center
+                                       Ploc.data(), Qloc.data(),     // location of collision in lab frame
+                                       normI.data(),                 // direction of collision force
+                                       false);
+                Emat3 stressIJ = Emat3::Zero();
+                CalcSylinderNearForce::collideStress(directionI, directionJ, centerI, centerJ, syI.length,
+                                                        syJ.length, syI.radius, syJ.radius, 1.0, Ploc, Qloc, stressIJ);
+                con.setStress(0, stressIJ); //TODO: this stress computation is incorrect because it assumes the direction of the constraint force
+                conQue.push_back(con);
             }
         }
     }
@@ -1274,13 +1270,13 @@ void SylinderSystem::collectLinkBilateral() {
 
 // TODO: Move this into particle-particle interaction class
 void SylinderSystem::updatePairCollision() {
-    // update the collision constraints stored in the constraintPool 
+    // update the collision constraints stored in the constraintPool
     // uses special treatment for periodic boundary conditions
 
     const int nLocal = sylinderContainer.getNumberOfParticleLocal();
-    auto &cPool = *(this->conCollectorPtr->constraintPoolPtr);
+    auto &conPool = *(this->conCollectorPtr->constraintPoolPtr);
 
-    if (cPool.size() != omp_get_max_threads()) {
+    if (conPool.size() != omp_get_max_threads()) {
         spdlog::critical("cPool multithread mismatch error");
         std::exit(1);
     }
@@ -1292,16 +1288,15 @@ void SylinderSystem::updatePairCollision() {
     //      GID's are filled contiguously based on threadID
     //      threadOffset stores the index of the start of each thread's region of access in gidToFind
     // This is exactly conCollectorPtr->buildConIndex with slight modification
-    const int nThreads = cPool.size();
+    const int nThreads = conPool.size();
     std::vector<int> threadOffset(nThreads + 1, 0); // last entry is the total GID's to find (2 per constraint)
     for (int threadId = 0; threadId < nThreads; threadId++) {
-        const auto &cBlockQue = cPool[threadId];
-        threadOffset[threadId + 1] = threadOffset[threadId] + 2 * cBlockQue.size();
+        const auto &conQue = conPool[threadId];
+        threadOffset[threadId + 1] = threadOffset[threadId] + 2 * conQue.size();
     }
     assert(threadOffset.back() == 2 * conCollectorPtr->getLocalNumberOfConstraints());
 
-
-    // Step 1.2 loop over all constraints and add gidI and gidJ to gidToFind 
+    // Step 1.2 loop over all constraints and add gidI and gidJ to gidToFind
     auto &gidToFind = sylinderNearDataDirectoryPtr->gidToFind;
     gidToFind.clear();
     gidToFind.resize(threadOffset.back());
@@ -1309,35 +1304,32 @@ void SylinderSystem::updatePairCollision() {
     // multi-thread filling. nThreads = poolSize, each thread process a queue
 #pragma omp parallel for num_threads(nThreads)
     for (int threadId = 0; threadId < nThreads; threadId++) {
-        const auto &cBlockQue = cPool[threadId];
-        const int cBlockNum = cBlockQue.size();
-        const int cBlockIndexBase = threadOffset[threadId];
-        for (int j = 0; j < cBlockNum; j++) {
-            gidToFind[cBlockIndexBase + 2 * j + 0] = cBlockQue[j].gidI;
-            gidToFind[cBlockIndexBase + 2 * j + 1] = cBlockQue[j].gidJ;
+        const auto &conQue = conPool[threadId];
+        const int conNum = conQue.size();
+        const int conIndexBase = threadOffset[threadId];
+        for (int j = 0; j < conNum; j++) {
+            gidToFind[conIndexBase + 2 * j + 0] = conQue[j].gidI;
+            gidToFind[conIndexBase + 2 * j + 1] = conQue[j].gidJ;
         }
     }
 
     sylinderNearDataDirectoryPtr->find();
 
-
     // Step 2. Update each constraint
-    //TODO: rewrite CalcSylinderNearForce/SylinderNear to be more of a utils class without memory storage
-    //      we need a function that generates the constraint info using two particles/links/walls and the constraint type between them
-    CalcSylinderNearForce calcColFtr(conCollectorPtr->constraintPoolPtr, runConfig.dt, runConfig.viscosity, 
+    CalcSylinderNearForce calcColFtr(conCollectorPtr->constraintPoolPtr,
                                      runConfig.simBoxPBC, runConfig.simBoxLow, runConfig.simBoxHigh);
 
     // multi-thread filling. nThreads = poolSize, each thread process a queue
 #pragma omp parallel for num_threads(nThreads)
     for (int threadId = 0; threadId < nThreads; threadId++) {
-        auto &cBlockQue = cPool[threadId];
-        const int cBlockNum = cBlockQue.size();
-        const int cBlockIndexBase = threadOffset[threadId];
-        for (int j = 0; j < cBlockNum; j++) {
-            const int idx = cBlockIndexBase + 2 * j;
+        auto &conQue = conPool[threadId];
+        const int conNum = conQue.size();
+        const int conIndexBase = threadOffset[threadId];
+        for (int j = 0; j < conNum; j++) {
+            const int idx = conIndexBase + 2 * j;
             const auto &syI = sylinderNearDataDirectoryPtr->dataToFind[idx + 0]; // sylinderNearI
             const auto &syJ = sylinderNearDataDirectoryPtr->dataToFind[idx + 1]; // sylinderNearJ
-            calcColFtr.updateCollisionBlock(syI, syJ, cBlockQue[j]);
+            calcColFtr.updateCollisionBlock(syI, syJ, conQue[j]);
         }
     }
 }

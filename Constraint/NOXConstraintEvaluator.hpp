@@ -109,15 +109,13 @@ private: // data members
   Teuchos::RCP<TCMAT> partialSepPartialGammaMatRcp_; ///< dt S^T A^T M A S which takes gamma to change in sep w.r.t gamma
   Teuchos::RCP<TV> partialSepPartialGammaDiagRcp_; ///< the diagonal of dt S^T A^T M A S 
 
-  Teuchos::RCP<TV> projMaskRcp_; ///< projection mask: if 1 for apply projection, otherwise 0. 
+  Teuchos::RCP<TV> statusRcp_; ///< status mask: if 1 for active, otherwise 0. 
   Teuchos::RCP<TV> forceRcp_; ///< force = A forceMag
   Teuchos::RCP<TV> forceMagRcp_;   ///< forceMag = S gamma
   Teuchos::RCP<TV> velRcp_;   ///< vel = M force
   Teuchos::RCP<TV> constraintFlagRcp_; ///< bilateral flag vector
-  Teuchos::RCP<TV> constraintKappaRcp_; ///< Constraint constant TODO: modularize!
   Teuchos::RCP<TV> constraintDiagonalRcp_; ///< Diagonal of the matrix to add to the jacobian
   Teuchos::RCP<TV> xGuessRcp_; ///< initial guess
-  Teuchos::RCP<TV> initialSepRcp_; ///< initial separation. Could be overlap, spring length, angle, etc. 
 
   Teuchos::RCP<const thyra_vec_space> xSpaceRcp_;
   Teuchos::RCP<const TMAP> xMapRcp_;
@@ -171,11 +169,12 @@ private:
 
   // constant operators
   const Teuchos::RCP<const TMAP> xMapRcp_;       ///< map for combined vector [gammau; gammab]^T
-  Teuchos::RCP<const TV> projMaskRcp_;           ///< projection mask: if 1 for apply projection, otherwise 0. 
+  Teuchos::RCP<const TV> statusRcp_;           ///< projection mask: if 1 for apply projection, otherwise 0. 
   Teuchos::RCP<const TV> constraintDiagonalRcp_; ///< K^{-1} diagonal matrix
   Teuchos::RCP<const TV> partialSepPartialGammaDiagRcp_;   ///< diagonal of dt A^T M A
   Teuchos::RCP<const TCMAT> partialSepPartialGammaMatRcp_; ///< dt S^T A^T M A S, which maps gamma to change in sep w.r.t gamma
 
+  Teuchos::RCP<TV> activeXcolRcp_;  ///< active input
   Teuchos::RCP<TV> changeInSepRcp_; ///< force_mag = S gamma
 };
 

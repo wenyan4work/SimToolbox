@@ -128,21 +128,6 @@ class DryPhysicsController {
      * one-step high level API
      */
     // get information
-    /**
-     * @brief Get the RngPoolPtr object
-     *
-     * @return std::shared_ptr<TRngPool>&
-     */
-    std::shared_ptr<TRngPool> &getRngPoolPtr() { return rngPoolPtr; }
-
-    /**
-     * @brief Get the CommRcp object
-     *
-     * @return Teuchos::RCP<const TCOMM>&
-     */
-    const Teuchos::RCP<const TCOMM> &getCommRcp() { return commRcp; }
-
-    ConstraintBlockPool &getConstraintPoolNonConst() { return *(conCollectorPtr->constraintPoolPtr); };
 
     // write results
     std::string getCurrentResultFolder();          ///< get the current output folder path

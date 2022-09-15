@@ -35,13 +35,12 @@ EvaluatorTpetraConstraint::EvaluatorTpetraConstraint(const Teuchos::RCP<const TC
   TEUCHOS_ASSERT(nonnull(velRcp_));
 
   // initialize the various objects
-  const int numLocalConstraints = conCollectorPtr_->getLocalNumberOfConstraints();
+  const int numLocalConstraints = conCollectorPtr_->getLocalNumberOfDOF();
+
   xMapRcp_ = getTMAPFromLocalSize(numLocalConstraints, commRcp_);
   xGuessRcp_ = Teuchos::rcp(new TV(xMapRcp_, true));
   forceMagRcp_ = Teuchos::rcp(new TV(xMapRcp_, true));
-  projMaskRcp_ = Teuchos::rcp(new TV(xMapRcp_, true));
-  constraintFlagRcp_ = Teuchos::rcp(new TV(xMapRcp_, true));
-  constraintKappaRcp_ = Teuchos::rcp(new TV(xMapRcp_, true));
+  statusRcp_ = Teuchos::rcp(new TV(xMapRcp_, true));
   constraintDiagonalRcp_ = Teuchos::rcp(new TV(xMapRcp_, true));
   partialSepPartialGammaDiagRcp_ = Teuchos::rcp(new TV(xMapRcp_, true));
 
@@ -71,9 +70,8 @@ EvaluatorTpetraConstraint::EvaluatorTpetraConstraint(const Teuchos::RCP<const TC
   // build the diagonal of dt (D^p)^T M^k D^p
   partialSepPartialGammaMatRcp_->getLocalDiagCopy(*partialSepPartialGammaDiagRcp_); 
   
-  // fill the fixed constraint information from ConstraintCollector
-  conCollectorPtr_->fillConstraintInformation(commRcp_, xGuessRcp_, 
-                                              constraintKappaRcp_, constraintFlagRcp_); 
+  // fill the initial guess
+  conCollectorPtr_->fillConstraintGuess(xGuessRcp_);
 
   // setup in/out args
   typedef Thyra::ModelEvaluatorBase MEB;
@@ -266,25 +264,24 @@ evalModelImpl(const Thyra::ModelEvaluatorBase::InArgs<Scalar> &inArgs,
     if (fill_f) {
       Teuchos::TimeMonitor mon(*debugTimer2);
       // evaluate F(q^k+1(gamma^k), gamma^k)
-      conCollectorPtr_->evalConstraintValues(xRcp, fRcp, projMaskRcp_); 
+      conCollectorPtr_->evalConstraintValues(xRcp, fRcp, statusRcp_); 
 
       // scale the projected values by the diagonal of dt D^T M D
       // this converts their units from force to distance
       {
         auto fPtr = fRcp->getLocalView<Kokkos::HostSpace>();
-        auto projMaskPtr = projMaskRcp_->getLocalView<Kokkos::HostSpace>();
+        auto statusMaskPtr = statusRcp_->getLocalView<Kokkos::HostSpace>();
         auto partialSepPartialGammaDiagPtr = partialSepPartialGammaDiagRcp_->getLocalView<Kokkos::HostSpace>();
         fRcp->modify<Kokkos::HostSpace>();
         const auto localSize = fPtr.extent(0);
   #pragma omp parallel for
         for (size_t idx = 0; idx < localSize; idx++) {
-          // scale the projection for Min Map
-          if (projMaskPtr(idx, 0) < 0.5) { 
-            // no projection (do nothing)
+          if (statusMaskPtr(idx, 0) > 0.5) { 
+            // active (do nothing)
           } else {
-            // projection (scale by the approximnate diagonal of dt D^T M D)
-            // fPtr(idx, 0) = fPtr(idx, 0) * partialSepPartialGammaDiagPtr(idx, 0);        
-            fPtr(idx, 0) = fPtr(idx, 0);        
+            // inactive (scale by the approximate diagonal of dt D^T M D)
+            fPtr(idx, 0) = fPtr(idx, 0) * partialSepPartialGammaDiagPtr(idx, 0);        
+            // fPtr(idx, 0) = fPtr(idx, 0);        
           }
         }
       }
@@ -316,11 +313,11 @@ evalModelImpl(const Thyra::ModelEvaluatorBase::InArgs<Scalar> &inArgs,
       conCollectorPtr_->evalConstraintDiagonal(xRcp, constraintDiagonalRcp_); 
 
       // setup J(q^k, q^k+1, gamma^k)
-      conCollectorPtr_->evalConstraintValues(xRcp, forceMagRcp_, projMaskRcp_); 
-      JRcp->initialize(partialSepPartialGammaMatRcp_, partialSepPartialGammaDiagRcp_, constraintDiagonalRcp_, projMaskRcp_, dt_);
+      conCollectorPtr_->evalConstraintValues(xRcp, forceMagRcp_, statusRcp_); 
+      JRcp->initialize(partialSepPartialGammaMatRcp_, partialSepPartialGammaDiagRcp_, constraintDiagonalRcp_, statusRcp_, dt_);
 
       // // for debug, dump to file
-      // dumpToFile(JRcp, forceMagRcp_, projMaskRcp_, partialSepPartialGammaDiagRcp_, xRcp, mobMatRcp_, AMatTransRcp_, AMatRcp_, constraintDiagonalRcp_);
+      // dumpToFile(JRcp, forceMagRcp_, statusRcp_, partialSepPartialGammaDiagRcp_, xRcp, mobMatRcp_, AMatTransRcp_, AMatRcp_, constraintDiagonalRcp_);
 
       // std::cout << "" << std::endl;
     }
@@ -340,7 +337,7 @@ evalModelImpl(const Thyra::ModelEvaluatorBase::InArgs<Scalar> &inArgs,
 
 void EvaluatorTpetraConstraint::dumpToFile(const Teuchos::RCP<const TOP> &JRcp, 
                                            const Teuchos::RCP<const TV> &fRcp,
-                                           const Teuchos::RCP<const TV> &projMaskRcp,
+                                           const Teuchos::RCP<const TV> &statusRcp,
                                            const Teuchos::RCP<const TV> &partialSepPartialGammaDiagRcp,
                                            const Teuchos::RCP<const TV> &xRcp, 
                                            const Teuchos::RCP<const TCMAT> &mobMatRcp,
@@ -350,7 +347,7 @@ void EvaluatorTpetraConstraint::dumpToFile(const Teuchos::RCP<const TOP> &JRcp,
   // only dump nonnull objects
   if (nonnull(JRcp)) {dumpTOP(JRcp, "Jacobian");}
   if (nonnull(fRcp)) {dumpTV(fRcp, "f");}
-  if (nonnull(projMaskRcp)) {dumpTV(projMaskRcp, "mask");}
+  if (nonnull(statusRcp)) {dumpTV(statusRcp, "mask");}
   if (nonnull(partialSepPartialGammaDiagRcp)) {dumpTV(partialSepPartialGammaDiagRcp, "PrecInv");}
   if (nonnull(xRcp)) {dumpTV(xRcp, "Gamma");}
   if (nonnull(mobMatRcp)) {dumpTCMAT(mobMatRcp, "Mobility");}
@@ -370,12 +367,12 @@ JacobianOperator::JacobianOperator(const Teuchos::RCP<const TMAP> &xMapRcp) :
 void JacobianOperator::initialize(const Teuchos::RCP<const TCMAT> &partialSepPartialGammaMatRcp, 
                                   const Teuchos::RCP<const TV> &partialSepPartialGammaDiagRcp, 
                                   const Teuchos::RCP<const TV> &constraintDiagonalRcp, 
-                                  const Teuchos::RCP<const TV> &projMaskRcp,
+                                  const Teuchos::RCP<const TV> &statusRcp,
                                   const double dt)
 {
   // store the objects to be used in apply
   dt_ = dt;
-  projMaskRcp_ = projMaskRcp;
+  statusRcp_ = statusRcp;
   constraintDiagonalRcp_ = constraintDiagonalRcp;
   partialSepPartialGammaMatRcp_ = partialSepPartialGammaMatRcp;
   partialSepPartialGammaDiagRcp_ = partialSepPartialGammaDiagRcp;
@@ -388,13 +385,15 @@ void JacobianOperator::initialize(const Teuchos::RCP<const TCMAT> &partialSepPar
 
   // create the internal data structures
   changeInSepRcp_ = Teuchos::rcp(new TV(xMapRcp_, true));
+  activeXcolRcp_ = Teuchos::rcp(new TV(xMapRcp_, true));
 }
 
 
 void JacobianOperator::unitialize()
 {
   dt_ = 0.0;
-  projMaskRcp_.reset();
+  statusRcp_.reset();
+  activeXcolRcp_.reset();
   changeInSepRcp_.reset(); 
   constraintDiagonalRcp_.reset(); 
   partialSepPartialGammaMatRcp_.reset(); 
@@ -433,16 +432,21 @@ apply(const TMV& X, TMV& Y, Teuchos::ETransp mode,
     auto XcolRcp = X.getVector(i);
     auto YcolRcp = Y.getVectorNonConst(i);
 
-    // step 1. change_in_sep = dt D^T M D X
-    partialSepPartialGammaMatRcp_->apply(*XcolRcp, *changeInSepRcp_);
+    // step 1. determine the active set of constraints
+    activeXcolRcp_->elementWiseMultiply(1.0, *XcolRcp, *statusRcp_, 0.0);
+
+    // step 2. change_in_sep = dt D^T M D Xactive
+    partialSepPartialGammaMatRcp_->apply(*activeXcolRcp_, *changeInSepRcp_);
  
-    // step 2/3/4. solve dt D^T M D X and add on the diagonal Diag X
+    // step 3/4/5. solve dt D^T M D X and add on the diagonal Diag X
     // and apply the projection (with scaling of projected values)
     // also, account for Y = alpha Op X + beta Y
+    // TODO: can this be rewrote using Tpetra operations like update?
     {
       auto XcolPtr = XcolRcp->getLocalView<Kokkos::HostSpace>();
       auto YcolPtr = YcolRcp->getLocalView<Kokkos::HostSpace>();
-      auto projMaskPtr = projMaskRcp_->getLocalView<Kokkos::HostSpace>();
+      auto statusPtr = statusRcp_->getLocalView<Kokkos::HostSpace>();
+      auto activeXcolPtr = activeXcolRcp_->getLocalView<Kokkos::HostSpace>();
       auto changeInSepPtr = changeInSepRcp_->getLocalView<Kokkos::HostSpace>();
       auto constraintDiagonalPtr = constraintDiagonalRcp_->getLocalView<Kokkos::HostSpace>();
       auto partialSepPartialGammaDiagPtr = partialSepPartialGammaDiagRcp_->getLocalView<Kokkos::HostSpace>();
@@ -450,21 +454,20 @@ apply(const TMV& X, TMV& Y, Teuchos::ETransp mode,
       const auto localSize = YcolPtr.extent(0);
 #pragma omp parallel for
       for (size_t idx = 0; idx < localSize; idx++) {
-        // apply projection for Min Map
-        if (projMaskPtr(idx, 0) < 0.5) { // no projection
+        if (statusPtr(idx, 0) > 0.5) { // active
           if (beta == Teuchos::ScalarTraits<Scalar>::zero()) {
-            YcolPtr(idx, 0) = alpha * changeInSepPtr(idx, 0) + alpha * constraintDiagonalPtr(idx, 0) * XcolPtr(idx, 0);        
+            YcolPtr(idx, 0) = alpha * changeInSepPtr(idx, 0) + alpha * constraintDiagonalPtr(idx, 0) * activeXcolPtr(idx, 0);        
           } else { // TODO: VERY IMPORTANT! Why does YcolPtr originally have -nan values?
-            YcolPtr(idx, 0) = alpha * changeInSepPtr(idx, 0) + alpha * constraintDiagonalPtr(idx, 0) * XcolPtr(idx, 0) 
+            YcolPtr(idx, 0) = alpha * changeInSepPtr(idx, 0) + alpha * constraintDiagonalPtr(idx, 0) * activeXcolPtr(idx, 0) 
                             + beta * YcolPtr(idx, 0); 
           }
-        } else { // project
+        } else { // inactive
           if (beta == Teuchos::ScalarTraits<Scalar>::zero()) {
-            // YcolPtr(idx, 0) = alpha * partialSepPartialGammaDiagPtr(idx, 0) * XcolPtr(idx, 0);        
-            YcolPtr(idx, 0) = alpha * XcolPtr(idx, 0);        
+            YcolPtr(idx, 0) = alpha * partialSepPartialGammaDiagPtr(idx, 0) * XcolPtr(idx, 0);        
+            // YcolPtr(idx, 0) = alpha * XcolPtr(idx, 0);        
           } else { // TODO: VERY IMPORTANT! Why does YcolPtr originally have -nan values?
-            // YcolPtr(idx, 0) = alpha * partialSepPartialGammaDiagPtr(idx, 0) * XcolPtr(idx, 0) + beta * YcolPtr(idx, 0); 
-            YcolPtr(idx, 0) = alpha * XcolPtr(idx, 0) + beta * YcolPtr(idx, 0); 
+            YcolPtr(idx, 0) = alpha * partialSepPartialGammaDiagPtr(idx, 0) * XcolPtr(idx, 0) + beta * YcolPtr(idx, 0); 
+            // YcolPtr(idx, 0) = alpha * XcolPtr(idx, 0) + beta * YcolPtr(idx, 0); 
           }        
         }
       }

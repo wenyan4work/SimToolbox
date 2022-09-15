@@ -48,7 +48,7 @@ void testFixedPair() {
     Evec3 Q1(2, 2 * sqrt(3), 1);
 
     CalcSylinderNearForce calc;
-    calc.conPoolPtr = std::make_shared<ConstraintBlockPool>();
+    calc.conPoolPtr = std::make_shared<ConstraintPool>();
     calc.conPoolPtr->resize(1);
 
     std::vector<SylinderNearEP> sylinderP(1);
@@ -89,7 +89,8 @@ void testFixedPair() {
     ForceNear fnear;
     calc(sylinderP.data(), 1, sylinderQ.data(), 1, &fnear);
     printf("%zu collisions recorded\n", calc.conPoolPtr->front().size());
-    auto stress = calc.conPoolPtr->front().front().stress;
+    double stress[9];
+    calc.conPoolPtr->front().front().getStress(0, stress);
     printf("stress:\n");
     printMat3(stress);
     bool pass = true;
@@ -118,7 +119,7 @@ void testParallel() {
     Evec3 Q1(2.005685087440173, 1.462109203504082, 1.4999983414464);
 
     CalcSylinderNearForce calc;
-    calc.conPoolPtr = std::make_shared<ConstraintBlockPool>();
+    calc.conPoolPtr = std::make_shared<ConstraintPool>();
     calc.conPoolPtr->resize(1);
 
     std::vector<SylinderNearEP> sylinderP(1);
@@ -159,14 +160,15 @@ void testParallel() {
     ForceNear fnear;
     calc(sylinderP.data(), 1, sylinderQ.data(), 1, &fnear);
     printf("%zu collisions recorded\n", calc.conPoolPtr->front().size());
-    auto stress = calc.conPoolPtr->front().front().stress;
-    auto block = calc.conPoolPtr->front().front();
+    double stress[9];
+    calc.conPoolPtr->front().front().getStress(0, stress);
+    auto con = calc.conPoolPtr->front().front();
     printf("stress:\n");
     printMat3(stress);
-    printf("posI:\n");
-    printVec3(block.posI);
-    printf("posJ:\n");
-    printVec3(block.posJ);
+    printf("labI:\n");
+    printVec3(con.labI);
+    printf("labJ:\n");
+    printVec3(con.labJ);
 }
 
 void testSphere() {
@@ -177,7 +179,7 @@ void testSphere() {
     Evec3 Q1 = Q0 + Evec3::Random();
 
     CalcSylinderNearForce calc;
-    calc.conPoolPtr = std::make_shared<ConstraintBlockPool>();
+    calc.conPoolPtr = std::make_shared<ConstraintPool>();
     calc.conPoolPtr->resize(1);
 
     std::vector<SylinderNearEP> sylinderP(1);
@@ -218,18 +220,19 @@ void testSphere() {
     ForceNear fnear;
     calc(sylinderP.data(), 1, sylinderQ.data(), 1, &fnear);
     printf("%zu collisions recorded\n", calc.conPoolPtr->front().size());
-    auto stress = calc.conPoolPtr->front().front().stress;
-    auto block = calc.conPoolPtr->front().front();
+    double stress[9];
+    calc.conPoolPtr->front().front().getStress(0, stress);
+    auto con = calc.conPoolPtr->front().front();
     printf("stress:\n");
     printMat3(stress);
-    printf("posI:\n");
-    printVec3(block.posI);
-    printf("posJ:\n");
-    printVec3(block.posJ);
+    printf("labI:\n");
+    printVec3(con.labI);
+    printf("labJ:\n");
+    printVec3(con.labJ);
 
     // check correctness, stress = xf for spheres
-    Emat3 stress1;
-    block.getStress(stress1);
+    Emat3 stress1 = Emat3::Zero();
+    calc.conPoolPtr->front().front().getStress(0, stress1);
     Evec3 rij = Emap3(sylinderQ[0].pos) - Emap3(sylinderP[0].pos);
     Evec3 rijunit = rij.normalized();
     Emat3 stress2 = rij * rijunit.transpose();
@@ -251,7 +254,7 @@ void testSylinderSphere() {
     Evec3 Q1 = Q0 + Evec3(1, 0, 0);
 
     CalcSylinderNearForce calc;
-    calc.conPoolPtr = std::make_shared<ConstraintBlockPool>();
+    calc.conPoolPtr = std::make_shared<ConstraintPool>();
     calc.conPoolPtr->resize(1);
 
     std::vector<SylinderNearEP> sylinderP(1);
@@ -292,14 +295,15 @@ void testSylinderSphere() {
     ForceNear fnear;
     calc(sylinderP.data(), 1, sylinderQ.data(), 1, &fnear);
     printf("%zu collisions recorded\n", calc.conPoolPtr->front().size());
-    auto stress = calc.conPoolPtr->front().front().stress;
-    auto block = calc.conPoolPtr->front().front();
+    double stress[9];
+    calc.conPoolPtr->front().front().getStress(0, stress);
+    auto con = calc.conPoolPtr->front().front();
     printf("stress:\n");
     printMat3(stress);
-    printf("posI:\n");
-    printVec3(block.posI);
-    printf("posJ:\n");
-    printVec3(block.posJ);
+    printf("labI:\n");
+    printVec3(con.labI);
+    printf("labJ:\n");
+    printVec3(con.labJ);
 }
 
 int main() {
@@ -309,9 +313,9 @@ int main() {
     testFixedPair();
     printf("---testing stability of parallel sylinders\n");
     testParallel();
-    printf("---------------------------------------------\ntesting short sylinders as spheres\n");
-    testSphere();
     printf("---------------------------------------------\ntesting sylinder-sphere \n");
     testSylinderSphere();
+    printf("---------------------------------------------\ntesting short sylinders as spheres\n");
+    testSphere();
     return 0;
 }

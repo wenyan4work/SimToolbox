@@ -12,8 +12,6 @@ ConstraintSolver::ConstraintSolver(const Teuchos::RCP<const Teuchos::Comm<int> >
     //////////////////////////////////////////
     // Create the NOX linear solver factory //
     //////////////////////////////////////////
-    // TODO: switch to CG. J is SPD, so CG will be far faster than GMRES
-    //       Is the min map or FB Jacobian actually SPD?
     Teuchos::RCP<Teuchos::ParameterList> params = Teuchos::parameterList();
     params->set("Linear Solver Type", "Belos");
     Teuchos::ParameterList &belosList = params->sublist("Linear Solver Types").sublist("Belos");
@@ -21,14 +19,14 @@ ConstraintSolver::ConstraintSolver(const Teuchos::RCP<const Teuchos::Comm<int> >
     belosList.sublist("Solver Types").sublist("Pseudo Block GMRES").set("Num Blocks", 10);
     belosList.sublist("Solver Types").sublist("Pseudo Block GMRES").set("Maximum Restarts", 20);
     belosList.sublist("Solver Types").sublist("Pseudo Block GMRES").set("Maximum Iterations", 1000);
-    // belosList.sublist("Solver Types").sublist("Pseudo Block GMRES").set("Convergence Tolerance", 1e-8);
+    belosList.sublist("Solver Types").sublist("Pseudo Block GMRES").set("Convergence Tolerance", 1e-8);
     belosList.sublist("Solver Types").sublist("Pseudo Block GMRES").set("Timer Label", "NOX_Linear_Belos");
     belosList.sublist("Solver Types").sublist("Pseudo Block GMRES").set("Verbosity", Belos::Errors + Belos::Warnings + Belos::TimingDetails + Belos::FinalSummary);
     // belosList.sublist("Solver Types").sublist("Pseudo Block GMRES").set("Verbosity", Belos::Errors);
     belosList.sublist("Solver Types").sublist("Pseudo Block GMRES").set("Show Maximum Residual Norm Only", false);
     belosList.sublist("Solver Types").sublist("Pseudo Block GMRES").set("Output Frequency", 100);
-    belosList.sublist("Solver Types").sublist("Pseudo Block GMRES").set("Implicit Residual Scaling", "Norm of RHS");
-    belosList.sublist("Solver Types").sublist("Pseudo Block GMRES").set("Explicit Residual Scaling", "Norm of RHS");
+    // belosList.sublist("Solver Types").sublist("Pseudo Block GMRES").set("Implicit Residual Scaling", "Norm of RHS");
+    // belosList.sublist("Solver Types").sublist("Pseudo Block GMRES").set("Explicit Residual Scaling", "Norm of RHS");
     belosList.sublist("VerboseObject").set("Verbosity Level", "medium");
     params->set("Preconditioner Type", "None");
 
@@ -64,18 +62,18 @@ ConstraintSolver::ConstraintSolver(const Teuchos::RCP<const Teuchos::Comm<int> >
     nonlinearParams_->set("Nonlinear Solver", "Line Search Based"); // Line Search Based or Trust Region Based
     nonlinearParams_->sublist("Direction").set("Method", "Newton"); // Newton or NonlinearCG
     nonlinearParams_->sublist("Direction").sublist("Newton").sublist("Linear Solver").set("Tolerance", 1.0e-4);
-    nonlinearParams_->sublist("Line Search").set("Method", "Backtrack"); // Full Step or Backtrack 
+    nonlinearParams_->sublist("Line Search").set("Method", "Polynomial"); // Full Step or Backtrack 
 
     // Set output params
-    // nonlinearParams_->sublist("Printing").sublist("Output Information").set("Debug", true);
-    // nonlinearParams_->sublist("Printing").sublist("Output Information").set("Warning", true);
-    // nonlinearParams_->sublist("Printing").sublist("Output Information").set("Error", true);
-    // nonlinearParams_->sublist("Printing").sublist("Output Information").set("Test Details", true);
-    // nonlinearParams_->sublist("Printing").sublist("Output Information").set("Details", true);
-    // nonlinearParams_->sublist("Printing").sublist("Output Information").set("Parameters", true);
-    // nonlinearParams_->sublist("Printing").sublist("Output Information").set("Linear Solver Details", true);
-    // nonlinearParams_->sublist("Printing").sublist("Output Information").set("Inner Iteration", true);
-    // nonlinearParams_->sublist("Printing").sublist("Output Information").set("Outer Iteration", true);
+    nonlinearParams_->sublist("Printing").sublist("Output Information").set("Debug", true);
+    nonlinearParams_->sublist("Printing").sublist("Output Information").set("Warning", true);
+    nonlinearParams_->sublist("Printing").sublist("Output Information").set("Error", true);
+    nonlinearParams_->sublist("Printing").sublist("Output Information").set("Test Details", true);
+    nonlinearParams_->sublist("Printing").sublist("Output Information").set("Details", true);
+    nonlinearParams_->sublist("Printing").sublist("Output Information").set("Parameters", true);
+    nonlinearParams_->sublist("Printing").sublist("Output Information").set("Linear Solver Details", true);
+    nonlinearParams_->sublist("Printing").sublist("Output Information").set("Inner Iteration", true);
+    nonlinearParams_->sublist("Printing").sublist("Output Information").set("Outer Iteration", true);
     nonlinearParams_->sublist("Printing").sublist("Output Information").set("Outer Iteration StatusTest", true);
 }
 
@@ -100,7 +98,7 @@ void ConstraintSolver::solveConstraints() {
     /////////////////////////////////////////////////
     // Check if there are any constraints to solve //
     /////////////////////////////////////////////////
-    const int numLocalConstraints = conCollectorPtr_->getLocalNumberOfConstraints();
+    const int numLocalConstraints = conCollectorPtr_->getLocalNumberOfDOF();
     int numGlobalConstraints;
     MPI_Allreduce(&numLocalConstraints, &numGlobalConstraints, 1, MPI_INT, MPI_SUM, MPI_COMM_WORLD);
 

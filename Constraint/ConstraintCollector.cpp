@@ -5,7 +5,8 @@
 
 ConstraintCollector::ConstraintCollector() {
     const int totalThreads = omp_get_max_threads();
-    constraintPoolPtr = std::make_shared<ConstraintBlockPool>();
+
+    constraintPoolPtr = std::make_shared<ConstraintPool>();
     constraintPoolPtr->resize(totalThreads);
     for (auto &queue : *constraintPoolPtr) {
         queue.clear();
@@ -14,9 +15,7 @@ ConstraintCollector::ConstraintCollector() {
     spdlog::debug("ConstraintCollector constructed for {} threads", constraintPoolPtr->size());
 }
 
-
 bool ConstraintCollector::valid() const { return constraintPoolPtr->empty(); }
-
 
 void ConstraintCollector::clear() {
     assert(constraintPoolPtr);
@@ -29,7 +28,6 @@ void ConstraintCollector::clear() {
     constraintPoolPtr->resize(totalThreads);
 }
 
-
 int ConstraintCollector::getLocalNumberOfConstraints() {
     int sum = 0;
     for (int i = 0; i < constraintPoolPtr->size(); i++) {
@@ -38,45 +36,43 @@ int ConstraintCollector::getLocalNumberOfConstraints() {
     return sum;
 }
 
+int ConstraintCollector::getLocalNumberOfDOF() {
+    std::vector<int> conQueSize;
+    std::vector<int> conQueIndex;
+    buildConIndex(conQueSize, conQueIndex);
+    return conQueIndex.back();
+}
 
-void ConstraintCollector::sumLocalConstraintStress(Emat3 &uniStress, Emat3 &biStress, bool withOneSide) const {
-    const auto &cPool = *constraintPoolPtr;
-    const int poolSize = cPool.size();
+void ConstraintCollector::sumLocalConstraintStress(Emat3 &conStress, bool withOneSide) const {
+    // TODO: this needs thread parallelized
+    const auto &conPool = *constraintPoolPtr;
+    const int conQueNum = conPool.size();
 
-    Emat3 biStressTotal = Emat3::Zero();
-    Emat3 uniStressTotal = Emat3::Zero();
+    Emat3 conStressTotal = Emat3::Zero();
 
-#pragma omp parallel for
-    for (int que = 0; que < poolSize; que++) {
+#pragma omp parallel for num_threads(conQueNum)
+    for (int que = 0; que < conQueNum; que++) {
         // reduction of stress, one que for each thread
 
-        Emat3 uniStressSumQue = Emat3::Zero();
-        Emat3 biStressSumQue = Emat3::Zero();
-        const auto &conQue = cPool[que];
-        for (const auto &cBlock : conQue) {
-            if (cBlock.oneSide && !withOneSide) {
-                // skip counting oneside collision blocks
-                continue;
-            } else {
-                Emat3 stressBlock;
-                cBlock.getStress(stressBlock);
-                if (cBlock.bilateral) {
-                    biStressSumQue = biStressSumQue + stressBlock;
+        Emat3 conStressSumQue = Emat3::Zero();
+        const auto &conQue = conPool[que];
+        for (const auto &con : conQue) {
+            for (int d = 0; d < con.numDOF; d++) {
+                if (con.oneSide && !withOneSide) {
+                    // skip counting oneside collision blocks
+                    continue;
                 } else {
-                    uniStressSumQue = uniStressSumQue + stressBlock;
+                    Emat3 stressDOF;
+                    con.getStress(d, stressDOF);
+                    conStressSumQue = conStressSumQue + stressDOF;
                 }
             }
         }
 #pragma omp critical
-        {
-            biStressTotal = biStressTotal + biStressSumQue;
-            uniStressTotal = uniStressTotal + uniStressSumQue;
-        }
+        { conStressTotal = conStressTotal + conStressSumQue; }
     }
-    uniStress = uniStressTotal;
-    biStress = biStressTotal;
+    conStress = conStressTotal;
 }
-
 
 void ConstraintCollector::writePVTP(const std::string &folder, const std::string &prefix, const std::string &postfix,
                                     const int nProcs) const {
@@ -85,16 +81,14 @@ void ConstraintCollector::writePVTP(const std::string &folder, const std::string
     std::vector<IOHelper::FieldVTU> pointDataFields;
     pointDataFields.emplace_back(1, IOHelper::IOTYPE::Int32, "gid");
     pointDataFields.emplace_back(1, IOHelper::IOTYPE::Int32, "globalIndex");
-    pointDataFields.emplace_back(3, IOHelper::IOTYPE::Float32, "posIJ");
-    pointDataFields.emplace_back(3, IOHelper::IOTYPE::Float32, "normIJ");
+    pointDataFields.emplace_back(3, IOHelper::IOTYPE::Float32, "forceComIJ");
+    pointDataFields.emplace_back(3, IOHelper::IOTYPE::Float32, "torqueComIJ");
 
     std::vector<IOHelper::FieldVTU> cellDataFields;
+    cellDataFields.emplace_back(1, IOHelper::IOTYPE::Int32, "id");
     cellDataFields.emplace_back(1, IOHelper::IOTYPE::Int32, "oneSide");
-    cellDataFields.emplace_back(1, IOHelper::IOTYPE::Int32, "bilateral");
     cellDataFields.emplace_back(1, IOHelper::IOTYPE::Float32, "value");
-    cellDataFields.emplace_back(1, IOHelper::IOTYPE::Float32, "sep");
     cellDataFields.emplace_back(1, IOHelper::IOTYPE::Float32, "gamma");
-    cellDataFields.emplace_back(1, IOHelper::IOTYPE::Float32, "diagonal");
     cellDataFields.emplace_back(9, IOHelper::IOTYPE::Float32, "Stress");
 
     for (int i = 0; i < nProcs; i++) {
@@ -106,88 +100,101 @@ void ConstraintCollector::writePVTP(const std::string &folder, const std::string
                             cellDataFields, pieceNames);
 }
 
-
 void ConstraintCollector::writeVTP(const std::string &folder, const std::string &prefix, const std::string &postfix,
                                    int rank) const {
-    const auto &cPool = *constraintPoolPtr;
-    const int cQueNum = cPool.size();
-    std::vector<int> cQueSize;
-    std::vector<int> cQueIndex;
-    buildConIndex(cQueSize, cQueIndex);
-    const int cBlockNum = cQueIndex.back();
+    const auto &conPool = *constraintPoolPtr;
+    const int conQueNum = conPool.size();
+    std::vector<int> conQueSize;
+    std::vector<int> conQueIndex;
+    buildConIndex(conQueSize, conQueIndex);
+    const int conBlockNum = conQueIndex.back();
 
     // for each block:
 
     // write VTP for basic data, use float to save some space
     // point and point data
-    std::vector<double> pos(6 * cBlockNum); // position always in Float64
-    std::vector<int32_t> gid(2 * cBlockNum);
-    std::vector<int32_t> globalIndex(2 * cBlockNum);
-    std::vector<float> posIJ(6 * cBlockNum);
-    std::vector<float> normIJ(6 * cBlockNum);
+    std::vector<double> pos(6 * conBlockNum); // position always in Float64
+    std::vector<int32_t> gid(2 * conBlockNum);
+    std::vector<int32_t> globalIndex(2 * conBlockNum);
+    std::vector<float> forceComIJ(6 * conBlockNum);
+    std::vector<float> torqueComIJ(6 * conBlockNum);
 
     // point connectivity of line
-    std::vector<int32_t> connectivity(2 * cBlockNum);
-    std::vector<int32_t> offset(cBlockNum);
+    std::vector<int32_t> connectivity(2 * conBlockNum);
+    std::vector<int32_t> offset(conBlockNum);
 
     // cell data for ColBlock
-    std::vector<int32_t> oneSide(cBlockNum);
-    std::vector<int32_t> bilateral(cBlockNum);
-    std::vector<float> constraintValue(cBlockNum);
-    std::vector<float> sepDist(cBlockNum);
-    std::vector<float> gamma(cBlockNum);
-    std::vector<float> constraintDiagonal(cBlockNum);
-    std::vector<float> Stress(9 * cBlockNum);
+    std::vector<int32_t> id(conBlockNum);
+    std::vector<int32_t> oneSide(conBlockNum);
+    std::vector<float> constraintValue(conBlockNum);
+    std::vector<float> gamma(conBlockNum);
+    std::vector<float> Stress(9 * conBlockNum);
 
 #pragma omp parallel for
     // connectivity
-    for (int i = 0; i < cBlockNum; i++) {
+    for (int i = 0; i < conBlockNum; i++) {
         connectivity[2 * i] = 2 * i;         // index of point 0 in line
         connectivity[2 * i + 1] = 2 * i + 1; // index of point 1 in line
         offset[i] = 2 * i + 2;               // offset is the end of each line. in fortran indexing
     }
 
-#pragma omp parallel for
+#pragma omp parallel for num_threads(conQueNum)
     // data
-    for (int q = 0; q < cQueNum; q++) {
-        const int queSize = cQueSize[q];
-        const int queIndex = cQueIndex[q];
+    for (int q = 0; q < conQueNum; q++) {
+        const auto &conQue = conPool[q];
+        const int queSize = conQue.size();
+        int conIndex = conQueIndex[q];
         for (int c = 0; c < queSize; c++) {
-            const int cIndex = queIndex + c;
-            const auto &block = cPool[q][c];
-            // point position
-            pos[6 * cIndex + 0] = block.labI[0];
-            pos[6 * cIndex + 1] = block.labI[1];
-            pos[6 * cIndex + 2] = block.labI[2];
-            pos[6 * cIndex + 3] = block.labJ[0];
-            pos[6 * cIndex + 4] = block.labJ[1];
-            pos[6 * cIndex + 5] = block.labJ[2];
-            // point data
-            gid[2 * cIndex + 0] = block.gidI;
-            gid[2 * cIndex + 1] = block.gidJ;
-            globalIndex[2 * cIndex + 0] = block.globalIndexI;
-            globalIndex[2 * cIndex + 1] = block.globalIndexJ;
-            posIJ[6 * cIndex + 0] = block.posI[0];
-            posIJ[6 * cIndex + 1] = block.posI[1];
-            posIJ[6 * cIndex + 2] = block.posI[2];
-            posIJ[6 * cIndex + 3] = block.posJ[0];
-            posIJ[6 * cIndex + 4] = block.posJ[1];
-            posIJ[6 * cIndex + 5] = block.posJ[2];
-            normIJ[6 * cIndex + 0] = block.normI[0];
-            normIJ[6 * cIndex + 1] = block.normI[1];
-            normIJ[6 * cIndex + 2] = block.normI[2];
-            normIJ[6 * cIndex + 3] = block.normJ[0];
-            normIJ[6 * cIndex + 4] = block.normJ[1];
-            normIJ[6 * cIndex + 5] = block.normJ[2];
-            // cell data
-            oneSide[cIndex] = block.oneSide ? 1 : 0;
-            bilateral[cIndex] = block.bilateral ? 1 : 0;
-            constraintValue[cIndex] = block.constraintValue;
-            sepDist[cIndex] = block.sepDist;
-            gamma[cIndex] = block.gamma;
-            constraintDiagonal[cIndex] = block.constraintDiagonal;
-            for (int kk = 0; kk < 9; kk++) {
-                Stress[9 * cIndex + kk] = block.stress[kk];
+            const auto &con = conQue[c];
+            const int numDOF = con.numDOF;
+            for (int d = 0; d < numDOF; d++) {
+                // point position
+                pos[6 * conIndex + 0] = con.labI[0];
+                pos[6 * conIndex + 1] = con.labI[1];
+                pos[6 * conIndex + 2] = con.labI[2];
+                pos[6 * conIndex + 3] = con.labJ[0];
+                pos[6 * conIndex + 4] = con.labJ[1];
+                pos[6 * conIndex + 5] = con.labJ[2];
+
+                // point data
+                double unscaledForceComI[3];
+                double unscaledForceComJ[3];
+                double unscaledTorqueComI[3];
+                double unscaledTorqueComJ[3];
+                const double g = con.getGamma(d);
+                con.getUnscaledForceComI(d, unscaledForceComI);
+                con.getUnscaledForceComJ(d, unscaledForceComJ);
+                con.getUnscaledTorqueComI(d, unscaledTorqueComI);
+                con.getUnscaledTorqueComJ(d, unscaledTorqueComJ);
+
+                gid[2 * conIndex + 0] = con.gidI;
+                gid[2 * conIndex + 1] = con.gidJ;
+                globalIndex[2 * conIndex + 0] = con.globalIndexI;
+                globalIndex[2 * conIndex + 1] = con.globalIndexJ;
+                forceComIJ[6 * conIndex + 0] = unscaledForceComI[0] * g;
+                forceComIJ[6 * conIndex + 1] = unscaledForceComI[1] * g;
+                forceComIJ[6 * conIndex + 2] = unscaledForceComI[2] * g;
+                forceComIJ[6 * conIndex + 3] = unscaledForceComJ[0] * g;
+                forceComIJ[6 * conIndex + 4] = unscaledForceComJ[1] * g;
+                forceComIJ[6 * conIndex + 5] = unscaledForceComJ[2] * g;
+                torqueComIJ[6 * conIndex + 0] = unscaledTorqueComI[0] * g;
+                torqueComIJ[6 * conIndex + 1] = unscaledTorqueComI[1] * g;
+                torqueComIJ[6 * conIndex + 2] = unscaledTorqueComI[2] * g;
+                torqueComIJ[6 * conIndex + 3] = unscaledTorqueComJ[0] * g;
+                torqueComIJ[6 * conIndex + 4] = unscaledTorqueComJ[1] * g;
+                torqueComIJ[6 * conIndex + 5] = unscaledTorqueComJ[2] * g;
+
+                // cell data
+                double stress[9];
+                con.getStress(d, stress);
+                id[conIndex] = con.id;
+                oneSide[conIndex] = con.oneSide ? 1 : 0;
+                constraintValue[conIndex] = con.getSep(d);
+                gamma[conIndex] = g;
+                for (int kk = 0; kk < 9; kk++) {
+                    Stress[9 * conIndex + kk] = stress[kk] * g;
+                }
+                conIndex += 1;
             }
         }
     }
@@ -199,7 +206,7 @@ void ConstraintCollector::writeVTP(const std::string &folder, const std::string 
     IOHelper::writeHeadVTP(file);
 
     // Piece starts
-    file << "<Piece NumberOfPoints=\"" << cBlockNum * 2 << "\" NumberOfLines=\"" << cBlockNum << "\">\n";
+    file << "<Piece NumberOfPoints=\"" << conBlockNum * 2 << "\" NumberOfLines=\"" << conBlockNum << "\">\n";
     // Points
     file << "<Points>\n";
     IOHelper::writeDataArrayBase64(pos, "position", 3, file);
@@ -213,17 +220,15 @@ void ConstraintCollector::writeVTP(const std::string &folder, const std::string 
     file << "<PointData Scalars=\"scalars\">\n";
     IOHelper::writeDataArrayBase64(gid, "gid", 1, file);
     IOHelper::writeDataArrayBase64(globalIndex, "globalIndex", 1, file);
-    IOHelper::writeDataArrayBase64(posIJ, "posIJ", 3, file);
-    IOHelper::writeDataArrayBase64(normIJ, "normIJ", 3, file);
+    IOHelper::writeDataArrayBase64(forceComIJ, "forceComIJ", 3, file);
+    IOHelper::writeDataArrayBase64(torqueComIJ, "torqueComIJ", 3, file);
     file << "</PointData>\n";
     // cell data
     file << "<CellData Scalars=\"scalars\">\n";
+    IOHelper::writeDataArrayBase64(id, "id", 1, file);
     IOHelper::writeDataArrayBase64(oneSide, "oneSide", 1, file);
-    IOHelper::writeDataArrayBase64(bilateral, "bilateral", 1, file);
     IOHelper::writeDataArrayBase64(constraintValue, "value", 1, file);
-    IOHelper::writeDataArrayBase64(sepDist, "sep", 1, file);
     IOHelper::writeDataArrayBase64(gamma, "gamma", 1, file);
-    IOHelper::writeDataArrayBase64(constraintDiagonal, "diagonal", 1, file);
     IOHelper::writeDataArrayBase64(Stress, "Stress", 9, file);
     file << "</CellData>\n";
     // Piece ends
@@ -233,35 +238,35 @@ void ConstraintCollector::writeVTP(const std::string &folder, const std::string 
     file.close();
 }
 
-
-void ConstraintCollector::dumpBlocks() const {
-    std::cout << "number of collision queues: " << constraintPoolPtr->size() << std::endl;
+void ConstraintCollector::dumpConstraints() const {
+    std::cout << "number of constraint queues: " << constraintPoolPtr->size() << std::endl;
     // dump constraint blocks
-    for (const auto &blockQue : (*constraintPoolPtr)) {
-        std::cout << blockQue.size() << " constraints in this queue" << std::endl;
-        for (const auto &block : blockQue) {
-            std::cout << block.globalIndexI << " " << block.globalIndexJ << std::endl;
+    for (const auto &conQue : (*constraintPoolPtr)) {
+        std::cout << conQue.size() << " constraints in this queue" << std::endl;
+        for (const auto &con : conQue) {
+            std::cout << "ID: " << con.id << " | NumDOF: " << con.numDOF << std::endl;
         }
     }
 }
 
-
-Teuchos::RCP<TCMAT> ConstraintCollector::buildConstraintMatrixVector(const Teuchos::RCP<const TMAP> &mobMapRcp,
-                                                                     const Teuchos::RCP<const TMAP> &gammaMapRcp) const {
+Teuchos::RCP<TCMAT>
+ConstraintCollector::buildConstraintMatrixVector(const Teuchos::RCP<const TMAP> &mobMapRcp,
+                                                 const Teuchos::RCP<const TMAP> &gammaMapRcp) const {
     TEUCHOS_ASSERT(nonnull(mobMapRcp));
     TEUCHOS_ASSERT(nonnull(gammaMapRcp));
 
     const Teuchos::RCP<const TCOMM> commRcp = mobMapRcp->getComm();
-
-    const auto &cPool = *constraintPoolPtr; // the constraint pool
-    const int cQueNum = cPool.size();
+    const auto &conPool = *constraintPoolPtr; // the constraint pool
+    const int conQueNum = conPool.size();
 
     // TODO: buildConIndex should store the result and only update if the number of constraints has been updated
+    //       Only after switching away from FDPS. FSPS requires this class have low copy overhead.
+    //       A shared ptr to a vector would work around this temporarily
     // prepare 1, build the index for block queue
-    std::vector<int> cQueSize;
-    std::vector<int> cQueIndex;
-    buildConIndex(cQueSize, cQueIndex);
-    const int localGammaSize = cQueIndex.back();
+    std::vector<int> conQueSize;
+    std::vector<int> conQueIndex;
+    buildConIndex(conQueSize, conQueIndex);
+    const int localGammaSize = conQueIndex.back();
 
     // step 1, count the number of entries to each row
     // each constraint block, correspoding to a gamma, occupies a row
@@ -270,18 +275,23 @@ Teuchos::RCP<TCMAT> ConstraintCollector::buildConstraintMatrixVector(const Teuch
     Kokkos::View<size_t *> rowPointers("rowPointers", localGammaSize + 1); // last entry is the total nnz in this matrix
     rowPointers[0] = 0;
 
-    std::vector<int> colIndexPool(cQueNum + 1, 0); // The beginning index in crs columnIndices for each constraint queue
+    std::vector<int> colIndexPool(conQueNum + 1,
+                                  0); // The beginning index in crs columnIndices for each constraint queue
 
     int rowPointerIndex = 0;
     int colIndexCount = 0;
-    for (int i = 0; i < cQueNum; i++) {
-        const auto &queue = cPool[i];
-        const int jsize = queue.size();
-        for (int j = 0; j < jsize; j++) {
-            rowPointerIndex++;
-            const int cBlockNNZ = (queue[j].oneSide ? 6 : 12);
-            rowPointers[rowPointerIndex] = rowPointers[rowPointerIndex - 1] + cBlockNNZ;
-            colIndexCount += cBlockNNZ;
+    for (int i = 0; i < conQueNum; i++) {
+        const auto &conQue = conPool[i];
+        const int conNum = conQue.size();
+        for (int j = 0; j < conNum; j++) {
+            const auto &con = conQue[j];
+            const int numDOF = con.numDOF;
+            for (int d = 0; d < numDOF; d++) {
+                rowPointerIndex++;
+                const int cBlockNNZ = (con.oneSide ? 6 : 12);
+                rowPointers[rowPointerIndex] = rowPointers[rowPointerIndex - 1] + cBlockNNZ;
+                colIndexCount += cBlockNNZ;
+            }
         }
         colIndexPool[i + 1] = colIndexCount;
     }
@@ -295,58 +305,58 @@ Teuchos::RCP<TCMAT> ConstraintCollector::buildConstraintMatrixVector(const Teuch
     Kokkos::View<int *> columnIndices("columnIndices", rowPointers[localGammaSize]);
     Kokkos::View<double *> values("values", rowPointers[localGammaSize]);
     // multi-thread filling. nThreads = poolSize, each thread process a queue
-#pragma omp parallel for num_threads(cQueNum)
-    for (int threadId = 0; threadId < cQueNum; threadId++) {
+#pragma omp parallel for num_threads(conQueNum)
+    for (int threadId = 0; threadId < conQueNum; threadId++) {
         // each thread process a queue
-        const auto &cBlockQue = cPool[threadId];
-        const int cBlockNum = cBlockQue.size();
-        const int cBlockIndexBase = cQueIndex[threadId];
+        const auto &conQue = conPool[threadId];
+        const int conNum = conQue.size();
         int kk = colIndexPool[threadId];
 
-        for (int j = 0; j < cBlockNum; j++) {
-            // each 6nnz for an object: gx.ux+gy.uy+gz.uz+(gzpy-gypz)wx+(gxpz-gzpx)wy+(gypx-gxpy)wz
-            // 6 nnz for I
-            const auto &cBlock = cBlockQue[j];
-            const auto idx = cBlockIndexBase + j;
-            columnIndices[kk + 0] = 6 * cBlock.globalIndexI;
-            columnIndices[kk + 1] = 6 * cBlock.globalIndexI + 1;
-            columnIndices[kk + 2] = 6 * cBlock.globalIndexI + 2;
-            columnIndices[kk + 3] = 6 * cBlock.globalIndexI + 3;
-            columnIndices[kk + 4] = 6 * cBlock.globalIndexI + 4;
-            columnIndices[kk + 5] = 6 * cBlock.globalIndexI + 5;
-            const double &gx = cBlock.normI[0];
-            const double &gy = cBlock.normI[1];
-            const double &gz = cBlock.normI[2];
-            const double &px = cBlock.posI[0];
-            const double &py = cBlock.posI[1];
-            const double &pz = cBlock.posI[2];
-            values[kk + 0] = gx;
-            values[kk + 1] = gy;
-            values[kk + 2] = gz;
-            values[kk + 3] = (gz * py - gy * pz);
-            values[kk + 4] = (gx * pz - gz * px);
-            values[kk + 5] = (gy * px - gx * py);
-            kk += 6;
-            if (!cBlock.oneSide) {
-                columnIndices[kk + 0] = 6 * cBlock.globalIndexJ;
-                columnIndices[kk + 1] = 6 * cBlock.globalIndexJ + 1;
-                columnIndices[kk + 2] = 6 * cBlock.globalIndexJ + 2;
-                columnIndices[kk + 3] = 6 * cBlock.globalIndexJ + 3;
-                columnIndices[kk + 4] = 6 * cBlock.globalIndexJ + 4;
-                columnIndices[kk + 5] = 6 * cBlock.globalIndexJ + 5;
-                const double &gx = cBlock.normJ[0];
-                const double &gy = cBlock.normJ[1];
-                const double &gz = cBlock.normJ[2];
-                const double &px = cBlock.posJ[0];
-                const double &py = cBlock.posJ[1];
-                const double &pz = cBlock.posJ[2];
-                values[kk + 0] = gx;
-                values[kk + 1] = gy;
-                values[kk + 2] = gz;
-                values[kk + 3] = (gz * py - gy * pz);
-                values[kk + 4] = (gx * pz - gz * px);
-                values[kk + 5] = (gy * px - gx * py);
+        for (int j = 0; j < conNum; j++) {
+            const auto &con = conQue[j];
+            const int numDOF = con.numDOF;
+            for (int d = 0; d < numDOF; d++) {
+                // 6 nnz for I
+                double unscaledForceComI[3];
+                double unscaledTorqueComI[3];
+                con.getUnscaledForceComI(d, unscaledForceComI);
+                con.getUnscaledTorqueComI(d, unscaledTorqueComI);
+
+                columnIndices[kk + 0] = 6 * con.globalIndexI;
+                columnIndices[kk + 1] = 6 * con.globalIndexI + 1;
+                columnIndices[kk + 2] = 6 * con.globalIndexI + 2;
+                columnIndices[kk + 3] = 6 * con.globalIndexI + 3;
+                columnIndices[kk + 4] = 6 * con.globalIndexI + 4;
+                columnIndices[kk + 5] = 6 * con.globalIndexI + 5;
+                values[kk + 0] = unscaledForceComI[0];
+                values[kk + 1] = unscaledForceComI[1];
+                values[kk + 2] = unscaledForceComI[2];
+                values[kk + 3] = unscaledTorqueComI[0];
+                values[kk + 4] = unscaledTorqueComI[1];
+                values[kk + 5] = unscaledTorqueComI[2];
+
                 kk += 6;
+                if (!con.oneSide) {
+                    // 6 nnz for J
+                    double unscaledForceComJ[3];
+                    double unscaledTorqueComJ[3];
+                    con.getUnscaledForceComJ(d, unscaledForceComJ);
+                    con.getUnscaledTorqueComJ(d, unscaledTorqueComJ);
+
+                    columnIndices[kk + 0] = 6 * con.globalIndexJ;
+                    columnIndices[kk + 1] = 6 * con.globalIndexJ + 1;
+                    columnIndices[kk + 2] = 6 * con.globalIndexJ + 2;
+                    columnIndices[kk + 3] = 6 * con.globalIndexJ + 3;
+                    columnIndices[kk + 4] = 6 * con.globalIndexJ + 4;
+                    columnIndices[kk + 5] = 6 * con.globalIndexJ + 5;
+                    values[kk + 0] = unscaledForceComJ[0];
+                    values[kk + 1] = unscaledForceComJ[1];
+                    values[kk + 2] = unscaledForceComJ[2];
+                    values[kk + 3] = unscaledTorqueComJ[0];
+                    values[kk + 4] = unscaledTorqueComJ[1];
+                    values[kk + 5] = unscaledTorqueComJ[2];
+                    kk += 6;
+                }
             }
         }
     }
@@ -395,24 +405,24 @@ Teuchos::RCP<TCMAT> ConstraintCollector::buildConstraintMatrixVector(const Teuch
     // dumpTMAP(mobMapRcp,"mobMap");
 
     // step 4, allocate the A^Trans matrix, which maps scaled force magnatude to force vector
-    Teuchos::RCP<TCMAT> AMatTransRcp = Teuchos::rcp(new TCMAT(gammaMapRcp, colMapRcp, rowPointers, columnIndices, values));
+    Teuchos::RCP<TCMAT> AMatTransRcp =
+        Teuchos::rcp(new TCMAT(gammaMapRcp, colMapRcp, rowPointers, columnIndices, values));
     AMatTransRcp->fillComplete(mobMapRcp, gammaMapRcp); // domainMap, rangeMap
 
     return AMatTransRcp;
 }
 
-
 void ConstraintCollector::updateConstraintMatrixVector(const Teuchos::RCP<TCMAT> &AMatTransRcp) const {
     TEUCHOS_ASSERT(nonnull(AMatTransRcp));
 
-    const auto &cPool = *constraintPoolPtr; // the constraint pool
-    const int cQueNum = cPool.size();
+    const auto &conPool = *constraintPoolPtr; // the constraint pool
+    const int conQueNum = conPool.size();
 
     // prepare 1, build the index for block queue
-    std::vector<int> cQueSize;
-    std::vector<int> cQueIndex;
-    buildConIndex(cQueSize, cQueIndex);
-    const int localGammaSize = cQueIndex.back();
+    std::vector<int> conQueSize;
+    std::vector<int> conQueIndex;
+    buildConIndex(conQueSize, conQueIndex);
+    const int localGammaSize = conQueIndex.back();
 
     // step 1, fill the values in each row
     const Teuchos::RCP<const TMAP> domainMapRcp = AMatTransRcp->getDomainMap();
@@ -420,121 +430,99 @@ void ConstraintCollector::updateConstraintMatrixVector(const Teuchos::RCP<TCMAT>
     AMatTransRcp->resumeFill();
 
     // multi-thread filling. nThreads = poolSize, each thread process a queue
-#pragma omp parallel for num_threads(cQueNum)
-    for (int threadId = 0; threadId < cQueNum; threadId++) {
+#pragma omp parallel for num_threads(conQueNum)
+    for (int threadId = 0; threadId < conQueNum; threadId++) {
         // each thread process a queue
-        const auto &cBlockQue = cPool[threadId];
-        const int cBlockNum = cBlockQue.size();
-        const int cBlockIndexBase = cQueIndex[threadId];
+        const auto &conQue = conPool[threadId];
+        const int conNum = conQue.size();
+        int conIndex = conQueIndex[threadId];
 
-        for (int j = 0; j < cBlockNum; j++) {
-            // each 6nnz for an object: gx.ux+gy.uy+gz.uz+(gzpy-gypz)wx+(gxpz-gzpx)wy+(gypx-gxpy)wz
-            // 6 nnz for I
-            const auto &cBlock = cBlockQue[j];
-            const auto idx = cBlockIndexBase + j;
-            const auto nnz = cBlock.oneSide ? 6 : 12;
-            GO columnIndices[nnz];
-            Scalar values[nnz];
+        for (int j = 0; j < conNum; j++) {
+            const auto &con = conQue[j];
+            const int numDOF = con.numDOF;
+            for (int d = 0; d < numDOF; d++) {
+                // 6 nnz for I
+                double unscaledForceComI[3];
+                double unscaledTorqueComI[3];
+                con.getUnscaledForceComI(d, unscaledForceComI);
+                con.getUnscaledTorqueComI(d, unscaledTorqueComI);
 
-            columnIndices[0] = 6 * cBlock.globalIndexI; //Should these be gidI or globalIndexI
-            columnIndices[1] = 6 * cBlock.globalIndexI + 1;
-            columnIndices[2] = 6 * cBlock.globalIndexI + 2;
-            columnIndices[3] = 6 * cBlock.globalIndexI + 3;
-            columnIndices[4] = 6 * cBlock.globalIndexI + 4;
-            columnIndices[5] = 6 * cBlock.globalIndexI + 5;
-            const double &gx = cBlock.normI[0];
-            const double &gy = cBlock.normI[1];
-            const double &gz = cBlock.normI[2];
-            const double &px = cBlock.posI[0];
-            const double &py = cBlock.posI[1];
-            const double &pz = cBlock.posI[2];
-            values[0] = gx;
-            values[1] = gy;
-            values[2] = gz;
-            values[3] = (gz * py - gy * pz);
-            values[4] = (gx * pz - gz * px);
-            values[5] = (gy * px - gx * py);
-            if (!cBlock.oneSide) {
-                columnIndices[6] = 6 * cBlock.globalIndexJ;
-                columnIndices[7] = 6 * cBlock.globalIndexJ + 1;
-                columnIndices[8] = 6 * cBlock.globalIndexJ + 2;
-                columnIndices[9] = 6 * cBlock.globalIndexJ + 3;
-                columnIndices[10] = 6 * cBlock.globalIndexJ + 4;
-                columnIndices[11] = 6 * cBlock.globalIndexJ + 5;
-                const double &gx = cBlock.normJ[0];
-                const double &gy = cBlock.normJ[1];
-                const double &gz = cBlock.normJ[2];
-                const double &px = cBlock.posJ[0];
-                const double &py = cBlock.posJ[1];
-                const double &pz = cBlock.posJ[2];
-                values[6] = gx;
-                values[7] = gy;
-                values[8] = gz;
-                values[9] = (gz * py - gy * pz);
-                values[10] = (gx * pz - gz * px);
-                values[11] = (gy * px - gx * py);
+                const auto nnz = con.oneSide ? 6 : 12;
+                GO columnIndices[nnz];
+                Scalar values[nnz];
+
+                columnIndices[0] = 6 * con.globalIndexI; // TODO: Should these be gidI or globalIndexI?
+                columnIndices[1] = 6 * con.globalIndexI + 1;
+                columnIndices[2] = 6 * con.globalIndexI + 2;
+                columnIndices[3] = 6 * con.globalIndexI + 3;
+                columnIndices[4] = 6 * con.globalIndexI + 4;
+                columnIndices[5] = 6 * con.globalIndexI + 5;
+                values[0] = unscaledForceComI[0];
+                values[1] = unscaledForceComI[1];
+                values[2] = unscaledForceComI[2];
+                values[3] = unscaledTorqueComI[0];
+                values[4] = unscaledTorqueComI[1];
+                values[5] = unscaledTorqueComI[2];
+                if (!con.oneSide) {
+                    // 6 nnz for J
+                    double unscaledForceComJ[3];
+                    double unscaledTorqueComJ[3];
+                    con.getUnscaledForceComJ(d, unscaledForceComJ);
+                    con.getUnscaledTorqueComJ(d, unscaledTorqueComJ);
+
+                    columnIndices[6] = 6 * con.globalIndexJ;
+                    columnIndices[7] = 6 * con.globalIndexJ + 1;
+                    columnIndices[8] = 6 * con.globalIndexJ + 2;
+                    columnIndices[9] = 6 * con.globalIndexJ + 3;
+                    columnIndices[10] = 6 * con.globalIndexJ + 4;
+                    columnIndices[11] = 6 * con.globalIndexJ + 5;
+                    values[6] = unscaledForceComI[0];
+                    values[7] = unscaledForceComI[1];
+                    values[8] = unscaledForceComI[2];
+                    values[9] = unscaledTorqueComI[0];
+                    values[10] = unscaledTorqueComI[1];
+                    values[11] = unscaledTorqueComI[2];
+                }
+
+                // update the values using global indices
+                // replaceGlobalValues (const GlobalOrdinal globalRow, const LocalOrdinal numEnt, const Scalar vals[],
+                // const GlobalOrdinal cols[])
+                const auto globalRowIdx = rangeMapRcp->getGlobalElement(conIndex);
+                AMatTransRcp->replaceGlobalValues(globalRowIdx, nnz, values, columnIndices);
+                conIndex += 1;
             }
-
-            // update the values using global indices
-            // replaceGlobalValues (const GlobalOrdinal globalRow, const LocalOrdinal numEnt, const Scalar vals[], const GlobalOrdinal cols[])
-            const auto globalRowIdx = rangeMapRcp->getGlobalElement(idx);
-            AMatTransRcp->replaceGlobalValues(globalRowIdx, nnz, values, columnIndices); 
         }
     }
     AMatTransRcp->fillComplete(domainMapRcp, rangeMapRcp);
 }
 
+int ConstraintCollector::fillConstraintGuess(const Teuchos::RCP<TV> &gammaGuessRcp) const {
+    TEUCHOS_ASSERT(nonnull(gammaGuessRcp));
 
-
-// TODO: combine some of these functions under a unified name 
-
-int ConstraintCollector::evalConstraintScale(const Teuchos::RCP<const TV> &gammaRcp,
-                                             const Teuchos::RCP<TV> &constraintScaleRcp) const {
-    TEUCHOS_ASSERT(nonnull(gammaRcp));
-    TEUCHOS_ASSERT(nonnull(constraintScaleRcp));
-
-    const auto &cPool = *constraintPoolPtr; // the constraint pool
-    const int cQueNum = cPool.size();
+    const auto &conPool = *constraintPoolPtr; // the constraint pool
+    const int conQueNum = conPool.size();
 
     // prepare 1, build the index for block queue
-    std::vector<int> cQueSize;
-    std::vector<int> cQueIndex;
-    buildConIndex(cQueSize, cQueIndex);
+    std::vector<int> conQueSize;
+    std::vector<int> conQueIndex;
+    buildConIndex(conQueSize, conQueIndex);
 
     //  fill constraintDiagonal
-    auto gammaPtr = gammaRcp->getLocalView<Kokkos::HostSpace>();
-    auto constraintScalePtr = constraintScaleRcp->getLocalView<Kokkos::HostSpace>();
-    constraintScaleRcp->modify<Kokkos::HostSpace>();
+    auto gammaGuessPtr = gammaGuessRcp->getLocalView<Kokkos::HostSpace>();
+    gammaGuessRcp->modify<Kokkos::HostSpace>();
 
-#pragma omp parallel for num_threads(cQueNum)
-    for (int threadId = 0; threadId < cQueNum; threadId++) {
-        const auto &cBlockQue = cPool[threadId];
-        const int cBlockNum = cBlockQue.size();
-        const int cBlockIndexBase = cQueIndex[threadId];
-        for (int j = 0; j < cBlockNum; j++) {
-            const auto &cBlock = cBlockQue[j];
-            const auto idx = cBlockIndexBase + j;
-            /////////////
-            // Min Map //
-            /////////////
-            constraintScalePtr(idx, 0) = 1.0;        
-
-            ////////////////////////
-            // Fischer Bermiester //
-            ////////////////////////
-            // if (cBlock.bilateral) {
-            //     // spring constraint
-            //     constraintScalePtr(idx, 0) = 1.0;
-            // } else {
-            //     // collision constraint using Fischer Bermiester function
-            //     // this is the partial derivative of the FB function (sep^k, gamma^k) w.r.t sep^k
-            //     // TODO: what number should be used here?
-            //     if ((std::abs(cBlock.sepDist) < 1e-6) && (std::abs(gammaPtr(idx, 0)) < 1e-6)) {
-            //         constraintScalePtr(idx, 0) = 0.0;
-            //     } else {
-            //         constraintScalePtr(idx, 0) = 1.0 - cBlock.sepDist / std::sqrt(std::pow(cBlock.sepDist , 2) + std::pow(gammaPtr(idx, 0) , 2));
-            //     }
-            // }
+#pragma omp parallel for num_threads(conQueNum)
+    for (int threadId = 0; threadId < conQueNum; threadId++) {
+        const auto &conQue = conPool[threadId];
+        const int queSize = conQue.size();
+        int conIndex = conQueIndex[threadId];
+        for (int j = 0; j < queSize; j++) {
+            const auto &con = conQue[j];
+            const int numDOF = con.numDOF;
+            for (int d = 0; d < numDOF; d++) {
+                gammaGuessPtr(conIndex, 0) = con.getGamma(d);
+                conIndex += 1;
+            }
         }
     }
 
@@ -546,181 +534,77 @@ int ConstraintCollector::evalConstraintDiagonal(const Teuchos::RCP<const TV> &ga
     TEUCHOS_ASSERT(nonnull(gammaRcp));
     TEUCHOS_ASSERT(nonnull(constraintDiagonalRcp));
 
-    const auto &cPool = *constraintPoolPtr; // the constraint pool
-    const int cQueNum = cPool.size();
+    const auto &conPool = *constraintPoolPtr; // the constraint pool
+    const int conQueNum = conPool.size();
 
     // prepare 1, build the index for block queue
-    std::vector<int> cQueSize;
-    std::vector<int> cQueIndex;
-    buildConIndex(cQueSize, cQueIndex);
+    std::vector<int> conQueSize;
+    std::vector<int> conQueIndex;
+    buildConIndex(conQueSize, conQueIndex);
 
     //  fill constraintDiagonal
     auto gammaPtr = gammaRcp->getLocalView<Kokkos::HostSpace>();
     auto constraintDiagonalPtr = constraintDiagonalRcp->getLocalView<Kokkos::HostSpace>();
     constraintDiagonalRcp->modify<Kokkos::HostSpace>();
 
-#pragma omp parallel for num_threads(cQueNum)
-    for (int threadId = 0; threadId < cQueNum; threadId++) {
-        const auto &cBlockQue = cPool[threadId];
-        const int cBlockNum = cBlockQue.size();
-        const int cBlockIndexBase = cQueIndex[threadId];
-        for (int j = 0; j < cBlockNum; j++) {
-            const auto &cBlock = cBlockQue[j];
-            const auto idx = cBlockIndexBase + j;
-            /////////////
-            // Min Map //
-            /////////////
-            if (cBlock.bilateral) {
-                // spring constraint
-                // this is the partial derivative of the linear spring constraint w.r.t gamma^k
-                constraintDiagonalPtr(idx, 0) = 1.0 / cBlock.kappa;
-            } else {
-                // Min Map doesn't add a diagonal to the Jacobian
-                constraintDiagonalPtr(idx, 0) = 0.0;
+#pragma omp parallel for num_threads(conQueNum)
+    for (int threadId = 0; threadId < conQueNum; threadId++) {
+        const auto &conQue = conPool[threadId];
+        const int queSize = conQue.size();
+        int conIndex = conQueIndex[threadId];
+        for (int j = 0; j < queSize; j++) {
+            const auto &con = conQue[j];
+            const int numDOF = con.numDOF;
+            for (int d = 0; d < numDOF; d++) {
+                constraintDiagonalPtr(conIndex, 0) = con.diagonal;
+                conIndex += 1;
             }
-
-            ////////////////////////
-            // Fischer Bermiester //
-            ////////////////////////
-            // if (cBlock.bilateral) {
-            //     // spring constraint
-            //     // this is the partial derivative of the linear spring constraint w.r.t gamma^k
-            //     constraintDiagonalPtr(idx, 0) = 1.0 / cBlock.kappa;
-            // } else {
-            //     // collision constraint using Ficher Bermiester function
-            //     // this is the partial derivative of the FB function (sep^k, gamma^k) w.r.t gamma^k
-            //     // TODO: what number should be used here?
-            //     if ((std::abs(cBlock.sepDist) < 1e-6) && (std::abs(gammaPtr(idx, 0)) < 1e-6)) {
-            //         constraintDiagonalPtr(idx, 0) = 1.0;
-            //     } else {
-            //         constraintDiagonalPtr(idx, 0) = 1.0 
-            //             - gammaPtr(idx, 0) / std::sqrt(std::pow(cBlock.sepDist , 2) + std::pow(gammaPtr(idx, 0) , 2));
-            //     }
-            // }
         }
     }
 
     return 0;
 }
 
-
 int ConstraintCollector::evalConstraintValues(const Teuchos::RCP<const TV> &gammaRcp,
-                                              const Teuchos::RCP<TV> &constraintValueRcp, 
-                                              const Teuchos::RCP<TV> &constraintMaskRcp) const {
+                                              const Teuchos::RCP<TV> &constraintValueRcp,
+                                              const Teuchos::RCP<TV> &constraintStatusRcp) {
     TEUCHOS_ASSERT(nonnull(gammaRcp));
     TEUCHOS_ASSERT(nonnull(constraintValueRcp));
-    TEUCHOS_ASSERT(nonnull(constraintMaskRcp));
+    TEUCHOS_ASSERT(nonnull(constraintStatusRcp));
 
-    auto &cPool = *constraintPoolPtr; // the constraint pool
-    const int cQueNum = cPool.size();
+    auto &conPool = *constraintPoolPtr; // the constraint pool
+    const int conQueNum = conPool.size();
 
     // prepare 1, build the index for block queue
-    std::vector<int> cQueSize;
-    std::vector<int> cQueIndex;
-    buildConIndex(cQueSize, cQueIndex);
+    std::vector<int> conQueSize;
+    std::vector<int> conQueIndex;
+    buildConIndex(conQueSize, conQueIndex);
 
     //  fill constraintValue
     auto gammaPtr = gammaRcp->getLocalView<Kokkos::HostSpace>();
     auto constraintValuePtr = constraintValueRcp->getLocalView<Kokkos::HostSpace>();
-    auto constraintMaskPtr = constraintMaskRcp->getLocalView<Kokkos::HostSpace>();
+    auto constraintStatusPtr = constraintStatusRcp->getLocalView<Kokkos::HostSpace>();
     constraintValueRcp->modify<Kokkos::HostSpace>();
-    constraintMaskRcp->modify<Kokkos::HostSpace>();
+    constraintStatusRcp->modify<Kokkos::HostSpace>();
 
-#pragma omp parallel for num_threads(cQueNum)
-    for (int threadId = 0; threadId < cQueNum; threadId++) {
-        auto &cQue = cPool[threadId];
-        const int cIndexBase = cQueIndex[threadId];
-        const int queSize = cQue.size();
+#pragma omp parallel for num_threads(conQueNum)
+    for (int threadId = 0; threadId < conQueNum; threadId++) {
+        auto &conQue = conPool[threadId];
+        const int queSize = conQue.size();
+        int conIndex = conQueIndex[threadId];
         for (int j = 0; j < queSize; j++) {
-            auto &cBlock = cQue[j];
-            const auto idx = cIndexBase + j;
-            /////////////
-            // Min Map //
-            /////////////
-            if (cBlock.bilateral) {
-                // spring constraint
-                // this is the value of linear spring constraint evaluated at gamma^k, q^k
-                constraintValuePtr(idx, 0) = cBlock.sepDist + 1.0 / cBlock.kappa * gammaPtr(idx, 0);
+            auto &con = conQue[j];
+            const int numDOF = con.numDOF;
+            for (int d = 0; d < numDOF; d++) {
+                // update gamma before getting the constraint value and status
+                con.setGamma(d, gammaPtr(conIndex, 0));
 
-                // no projection is applied to these constraints
-                constraintMaskPtr(idx, 0) = 0;
-            } else {
-                // collision constraint using Min Map function
-                // this is the value of the MM function evaluated at gamma^k, sep(q^k)
-                // projection is applied if gamma < sep 
-                if (cBlock.sepDist < gammaPtr(idx, 0)) {
-                    constraintValuePtr(idx, 0) = cBlock.sepDist;
-                    constraintMaskPtr(idx, 0) = 0;
-                    // std::cout << "No Projection: " << idx << " gamma " << gammaPtr(idx, 0) << " sep " << cBlock.sepDist << std::endl;
-                } else {
-                    constraintValuePtr(idx, 0) = gammaPtr(idx, 0);
-                    constraintMaskPtr(idx, 0) = 1;
-                    // std::cout << "Projection: " << idx << " gamma " << gammaPtr(idx, 0) << " sep " << cBlock.sepDist << std::endl;
-                }
-            }
+                // get the value
+                constraintValuePtr(conIndex, 0) = con.getValue(d);
 
-            ////////////////////////
-            // Fischer Bermiester //
-            ////////////////////////
-            // if (cBlock.bilateral) {
-            //     // spring constraint
-            //     // this is the value of linear spring constraint evaluated at gamma^k, q^k
-            //     constraintValuePtr(idx, 0) = cBlock.sepDist + 1.0 / cBlock.kappa * gammaPtr(idx, 0);
-            // } else {
-            //     // collision constraint using Ficher Bermiester function
-            //     // this is the value of the FB function evaluated at gamma^k, sep(q^k)
-            //     constraintValuePtr(idx, 0) = cBlock.sepDist + gammaPtr(idx, 0) 
-            //         - std::sqrt(std::pow(cBlock.sepDist , 2) + std::pow(gammaPtr(idx, 0) , 2));
-            // }
-
-            // store the value back into the constraint
-            // TODO: should this be a writeback function to increase clarity? 
-            //       or should all the other eval functions store their computed values for consistancy? 
-            cBlock.constraintValue = constraintValuePtr(idx, 0);
-        }
-    }
-
-    return 0;
-}
-
-
-int ConstraintCollector::fillConstraintInformation(const Teuchos::RCP<const TCOMM>& commRcp,
-                                                   const Teuchos::RCP<TV> &gammaGuessRcp,
-                                                   const Teuchos::RCP<TV> &constraintKappaRcp,
-                                                   const Teuchos::RCP<TV> &constraintFlagRcp) const {
-    TEUCHOS_ASSERT(nonnull(commRcp));
-    TEUCHOS_ASSERT(nonnull(gammaGuessRcp));
-    TEUCHOS_ASSERT(nonnull(constraintKappaRcp));
-    TEUCHOS_ASSERT(nonnull(constraintFlagRcp));
-
-    const auto &cPool = *constraintPoolPtr; // the constraint pool
-    const int cQueNum = cPool.size();
-
-    // prepare 1, build the index for block queue
-    std::vector<int> cQueSize;
-    std::vector<int> cQueIndex;
-    buildConIndex(cQueSize, cQueIndex);
-
-    // fill the vectors from the constraint pool
-    auto gammaGuessPtr = gammaGuessRcp->getLocalView<Kokkos::HostSpace>();
-    auto constraintKappaPtr = constraintKappaRcp->getLocalView<Kokkos::HostSpace>();
-    auto constraintFlagPtr = constraintFlagRcp->getLocalView<Kokkos::HostSpace>();
-    gammaGuessRcp->modify<Kokkos::HostSpace>();
-    constraintKappaRcp->modify<Kokkos::HostSpace>();
-    constraintFlagRcp->modify<Kokkos::HostSpace>();
-
-#pragma omp parallel for num_threads(cQueNum)
-    for (int que = 0; que < cQueNum; que++) {
-        const auto &cQue = cPool[que];
-        const int cIndexBase = cQueIndex[que];
-        const int queSize = cQue.size();
-        for (int j = 0; j < queSize; j++) {
-            const auto &block = cQue[j];
-            const auto idx = cIndexBase + j;
-            gammaGuessPtr(idx, 0) = block.gammaGuess;
-            constraintKappaPtr(idx, 0) = block.kappa;
-            if (block.bilateral) {
-                constraintFlagPtr(idx, 0) = 1;
+                // no projection is applied to inactive constraints
+                constraintStatusPtr(conIndex, 0) = con.getState(d);
+                conIndex += 1;
             }
         }
     }
@@ -728,41 +612,55 @@ int ConstraintCollector::fillConstraintInformation(const Teuchos::RCP<const TCOM
     return 0;
 }
 
+int ConstraintCollector::buildConIndex(std::vector<int> &conQueSize, std::vector<int> &conQueIndex) const {
+    const auto &conPool = *constraintPoolPtr;
 
-int ConstraintCollector::buildConIndex(std::vector<int> &cQueSize, std::vector<int> &cQueIndex) const {
-    const auto &cPool = *constraintPoolPtr;
-    const int cQueNum = cPool.size();
-    cQueSize.resize(cQueNum);
-    cQueIndex.resize(cQueNum + 1);
-    for (int i = 0; i < cQueNum; i++) {
-        cQueSize[i] = cPool[i].size();
+    // multi-thread filling. nThreads = poolSize, each thread process a queue
+    const int conQueNum = conPool.size();
+    conQueSize.resize(conQueNum);
+    conQueIndex.resize(conQueNum + 1);
+#pragma omp parallel for num_threads(conQueNum)
+    for (int threadId = 0; threadId < conQueNum; threadId++) {
+        // each thread process a queue
+        const auto &conQue = conPool[threadId];
+        const int conNum = conQue.size();
+        for (int j = 0; j < conNum; j++) {
+            conQueSize[threadId] += conQue[j].numDOF;
+        }
     }
-    for (int i = 1; i < cQueNum + 1; i++) {
-        cQueIndex[i] = cQueSize[i - 1] + cQueIndex[i - 1];
+
+    for (int i = 1; i < conQueNum + 1; i++) {
+        conQueIndex[i] = conQueSize[i - 1] + conQueIndex[i - 1];
     }
     return 0;
 }
-
 
 int ConstraintCollector::writeBackGamma(const Teuchos::RCP<const TV> &gammaRcp) {
     TEUCHOS_ASSERT(nonnull(gammaRcp));
 
-    auto &cPool = *constraintPoolPtr; // the constraint pool
-    const int cQueNum = cPool.size();
+    auto &conPool = *constraintPoolPtr; // the constraint pool
+    const int conQueNum = conPool.size();
 
-    std::vector<int> cQueSize;
-    std::vector<int> cQueIndex;
-    buildConIndex(cQueSize, cQueIndex);
+    // prepare 1, build the index for block queue
+    std::vector<int> conQueSize;
+    std::vector<int> conQueIndex;
+    buildConIndex(conQueSize, conQueIndex);
 
     auto gammaPtr = gammaRcp->getLocalView<Kokkos::HostSpace>();
 
-#pragma omp parallel for num_threads(cQueNum)
-    for (int i = 0; i < cQueNum; i++) {
-        const int cQueSize = cPool[i].size();
-        for (int j = 0; j < cQueSize; j++) {
-            cPool[i][j].gamma = gammaPtr(cQueIndex[i] + j, 0);
-            for (int k = 0; k < 9; k++) {
-                cPool[i][j].stress[k] *= cPool[i][j].gamma;
+#pragma omp parallel for num_threads(conQueNum)
+    for (int i = 0; i < conQueNum; i++) {
+        // each thread process a queue
+        auto &conQue = conPool[i];
+        const int conNum = conQue.size();
+        int conIndex = conQueIndex[i];
+
+        for (int j = 0; j < conNum; j++) {
+            auto &con = conQue[j];
+            const int numDOF = con.numDOF;
+            for (int d = 0; d < numDOF; d++) {
+                con.setGamma(d, gammaPtr(conIndex, 0));
+                conIndex += 1;
             }
         }
     }

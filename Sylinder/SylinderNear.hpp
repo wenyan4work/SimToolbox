@@ -13,12 +13,12 @@
 
 #include "Sylinder.hpp"
 
-#include "Constraint/DCPQuery.hpp"
 #include "Constraint/ConstraintCollector.hpp"
+#include "Constraint/DCPQuery.hpp"
 #include "FDPS/particle_simulator.hpp"
 #include "Util/EigenDef.hpp"
-#include "Util/Logger.hpp"
 #include "Util/GeoUtil.hpp"
+#include "Util/Logger.hpp"
 
 #include <cassert>
 #include <deque>
@@ -161,9 +161,7 @@ static_assert(std::is_default_constructible<ForceNear>::value, "");
 class CalcSylinderNearForce {
 
   public:
-    std::shared_ptr<ConstraintBlockPool> conPoolPtr; ///< shared object for collecting collision constraints
-    double dt;
-    double viscosity;
+    std::shared_ptr<ConstraintPool> conPoolPtr; ///< shared object for collecting constraints
     bool simBoxPBC[3];
     double simBoxLow[3];
     double simBoxHigh[3];
@@ -179,12 +177,10 @@ class CalcSylinderNearForce {
      *
      * @param colPoolPtr_ the CollisionBlockPool object to write to
      */
-    CalcSylinderNearForce(std::shared_ptr<ConstraintBlockPool> &conPoolPtr_, const double dt_, const double viscosity_, 
-                          const bool *simBoxPBC_, const double *simBoxLow_, const double *simBoxHigh_) {
+    CalcSylinderNearForce(std::shared_ptr<ConstraintPool> &conPoolPtr_, const bool *simBoxPBC_,
+                          const double *simBoxLow_, const double *simBoxHigh_) {
         spdlog::debug("stress recoder size: {}", conPoolPtr_->size());
 
-        dt = dt_;
-        viscosity = viscosity_;
         for (int i = 0; i < 3; i++) {
             simBoxPBC[i] = simBoxPBC_[i];
             simBoxLow[i] = simBoxLow_[i];
@@ -220,30 +216,30 @@ class CalcSylinderNearForce {
                     auto &syJ = ep_j[j];
                     if (syI.gid >= syJ.gid)
                         continue;
-                    ConstraintBlock conBlock;
+                    Constraint con;
                     bool collision = false;
                     if (isSphere(syJ)) {
-                        collision = sp_sp(syI, syJ, forceI, conBlock, false);
+                        collision = sp_sp(syI, syJ, forceI, con, false);
                     } else {
-                        collision = sp_sy(syI, syJ, forceI, conBlock, false);
+                        collision = sp_sy(syI, syJ, forceI, con, false);
                     }
                     if (collision)
-                        conQue.push_back(conBlock);
+                        conQue.push_back(con);
                 }
             } else { // sylinderI collisions
                 for (int j = 0; j < Njp; j++) {
                     auto &syJ = ep_j[j];
                     if (syI.gid >= syJ.gid)
                         continue;
-                    ConstraintBlock conBlock;
+                    Constraint con;
                     bool collision = false;
                     if (isSphere(syJ)) {
-                        collision = sp_sy(syJ, syI, forceI, conBlock, false, true);
+                        collision = sp_sy(syJ, syI, forceI, con, false, true);
                     } else {
-                        collision = sy_sy(syI, syJ, forceI, conBlock, false);
+                        collision = sy_sy(syI, syJ, forceI, con, false);
                     }
                     if (collision)
-                        conQue.push_back(conBlock);
+                        conQue.push_back(con);
                 }
             }
         }
@@ -256,21 +252,21 @@ class CalcSylinderNearForce {
      *   collision stress is also calculated in this way
      * @param syI target
      * @param syJ source
-     * @param conBlock block to update
+     * @param con block to update
      */
-    void updateCollisionBlock(const SylinderNearEP syI, const SylinderNearEP syJ, ConstraintBlock &conBlock) {
+    void updateCollisionBlock(const SylinderNearEP syI, const SylinderNearEP syJ, Constraint &con) {
         ForceNear forceI;
         if (isSphere(syI)) { // sphereI collisions
             if (isSphere(syJ)) {
-                sp_sp(syI, syJ, forceI, conBlock, true);
+                sp_sp(syI, syJ, forceI, con, true);
             } else {
-                sp_sy(syI, syJ, forceI, conBlock, true);
+                sp_sy(syI, syJ, forceI, con, true);
             }
         } else { // sylinderI collisions
             if (isSphere(syJ)) {
-                sp_sy(syJ, syI, forceI, conBlock, true, true); 
+                sp_sy(syJ, syI, forceI, con, true, true);
             } else {
-                sy_sy(syI, syJ, forceI, conBlock, true);
+                sy_sy(syI, syJ, forceI, con, true);
             }
         }
     }
@@ -283,13 +279,15 @@ class CalcSylinderNearForce {
      * @param spI
      * @param spJ
      * @param forceI
-     * @param conBlock
+     * @param con
      * @return true
      * @return false
      */
-    bool sp_sp(const SylinderNearEP &spI, const SylinderNearEP &spJ, ForceNear &forceI,
-               ConstraintBlock &conBlock, bool update=false) const {
+    bool sp_sp(const SylinderNearEP &spI, const SylinderNearEP &spJ, ForceNear &forceI, Constraint &con,
+               bool update = false) const {
         // sphere collide with sphere
+        const int pi = 3.141592653589793238;
+
         // apply PBC on centerJ
         const Evec3 centerI = ECmap3(spI.pos);
         Evec3 centerJ = ECmap3(spJ.pos);
@@ -306,7 +304,7 @@ class CalcSylinderNearForce {
                 std::exit(1);
             }
         }
-       
+
         // effective radius of sphere = sp.lengthCollision*0.5 + sp.radiusCollision
         const double radI = spI.lengthCollision * 0.5 + spI.radiusCollision;
         const double radJ = spJ.lengthCollision * 0.5 + spJ.radiusCollision;
@@ -315,61 +313,62 @@ class CalcSylinderNearForce {
         const double rnorm = rIJ.norm();
 
         bool collision = false;
-
         const double sep = rnorm - (radI + radJ); // goal of collision constraint is sep >=0
 
-        if (update) { // create a constraint no matter the sep
+        if ((sep < (radI * spI.colBuf + radJ * spJ.colBuf)) || (update)) {
+            collision = true;
             const Evec3 &Ploc = centerI;
             const Evec3 &Qloc = centerJ;
-            collision = true;
-            // TODO MODULARIZE! 
-            const double Pi = 3.14159265358979323846;
-            // const double gammaGuess = sep < 0 ? -0.5 * sep / dt * 6 * Pi * viscosity : 0;
-            const double gammaGuess = sep < 0 ? -sep : 0;
             const Evec3 normI = (Ploc - Qloc).normalized();
             const Evec3 normJ = -normI;
             const Evec3 posI = Ploc - centerI;
             const Evec3 posJ = Qloc - centerJ;
-            const double nan = std::numeric_limits<double>::quiet_NaN();
-            conBlock = ConstraintBlock(sep, gammaGuess, nan,       // value of the constraint, initial guess of gamma, spring constant
-                                    spI.gid, spJ.gid,           //
-                                    spI.globalIndex,            //
-                                    spJ.globalIndex,            //
-                                    normI.data(), normJ.data(), // direction of collision force
-                                    posI.data(), posJ.data(),   // location of collision relative to particle center
-                                    Ploc.data(), Qloc.data(),   // location of collision in lab frame
-                                    false, false);
-            Emat3 stressIJ = Emat3::Zero();
-            collideStress(Evec3(0, 0, 1), Evec3(0, 0, 1), centerI, centerJ, 0, 0, // length = 0, degenerates to sphere
-                        radI, radJ, 1.0, Ploc, Qloc, stressIJ);
-            conBlock.setStress(stressIJ);
-        } else { // check if the two particles are within sep cutoff before creating constraint
-            if (sep < (radI * spI.colBuf + radJ * spJ.colBuf)) {
-                const Evec3 &Ploc = centerI;
-                const Evec3 &Qloc = centerJ;
-                collision = true;
-                // TODO MODULARIZE! 
-                const double Pi = 3.14159265358979323846;
-                // const double gammaGuess = sep < 0 ? -0.5 * sep / dt * 6 * Pi * viscosity : 0;
-                const double gammaGuess = sep < 0 ? -sep : 0;
-                const Evec3 normI = (Ploc - Qloc).normalized();
-                const Evec3 normJ = -normI;
-                const Evec3 posI = Ploc - centerI;
-                const Evec3 posJ = Qloc - centerJ;
-                const double nan = std::numeric_limits<double>::quiet_NaN();
-                conBlock = ConstraintBlock(sep, gammaGuess, nan,       // value of the constraint, initial guess of gamma, spring constant
-                                        spI.gid, spJ.gid,           //
-                                        spI.globalIndex,            //
-                                        spJ.globalIndex,            //
-                                        normI.data(), normJ.data(), // direction of collision force
-                                        posI.data(), posJ.data(),   // location of collision relative to particle center
-                                        Ploc.data(), Qloc.data(),   // location of collision in lab frame
-                                        false, false);
-                Emat3 stressIJ = Emat3::Zero();
-                collideStress(Evec3(0, 0, 1), Evec3(0, 0, 1), centerI, centerJ, 0, 0, // length = 0, degenerates to sphere
-                            radI, radJ, 1.0, Ploc, Qloc, stressIJ);
-                conBlock.setStress(stressIJ);
+
+            // Collisions generate three DOF, one for no-penetration and two for tangency
+            // TODO: Make the following tangent computation a component of the Sylinder class! Here, we should
+            // simply call a compute function step 1: compute the tangent vectors to spI at posI step 1.1: convert
+            // posI into spherical polar coordinates
+            //           default to using coordinates centered around the z-axis (chart A)
+            //           if chart A is degenerage (has a tangent vector of near-zero length),
+            //           then use coordinates centered around the x-axis (chart B)
+            // compute the tangent vectors in a non-degenerate chart
+            Evec3 tangent1;
+            Evec3 tangent2; 
+
+            // chart A
+            double theta = std::atan2(std::sqrt(std::pow(normI[0], 2) + std::pow(normI[1], 2)), normI[2]);
+            double phi = std::atan2(normI[1], normI[0]);
+
+            if ((theta < 0.8 * pi / 4.0 ) || (theta > 0.8 * pi)) {
+                // chart A is potentially degenerate, use chart B
+                theta = std::atan2(std::sqrt(std::pow(normI[1], 2) + std::pow(normI[2], 2)), normI[0]);
+                phi = std::atan2(normI[1], normI[2]);
+
+                // compute the tangent (in the current config!)
+                tangent1 = Evec3(-std::sin(theta), std::cos(theta) * std::sin(phi), std::cos(theta) * std::cos(phi)).normalized(); 
+                tangent2 = Evec3(0.0, std::sin(theta) * std::cos(phi), -std::sin(theta) * std::sin(phi)).normalized(); 
+            } else {
+                // use chart A
+                // compute the tangent (in the current config!)
+                tangent1 = Evec3(std::cos(theta) * std::cos(phi), std::cos(theta) * std::sin(phi), -std::sin(theta)).normalized(); 
+                tangent2 = Evec3(-std::sin(theta) * std::sin(phi), std::sin(theta) * std::cos(phi), 0.0).normalized(); 
             }
+
+            con = collisionConstraint(sep,                      // amount of overlap,
+                                        spI.gid, spJ.gid,         //
+                                        spI.globalIndex,          //
+                                        spJ.globalIndex,          //
+                                        posI.data(), posJ.data(), // location of collision relative to particle center
+                                        Ploc.data(), Qloc.data(), // location of collision in lab frame
+                                        normI.data(),             // direction of collision force
+                                        tangent1.data(), tangent2.data(), // tangent vectors at the point of contact
+                                        false);
+            Emat3 stressIJ = Emat3::Zero();
+            collideStress(Evec3(0, 0, 1), Evec3(0, 0, 1), centerI, centerJ, 0,
+                            0, // length = 0, degenerates to sphere
+                            radI, radJ, 1.0, Ploc, Qloc, stressIJ);
+            con.setStress(0, stressIJ); // TODO: this stress computation is incorrect because it assumes the
+                                        // direction of the constraint force
         }
         return collision;
     }
@@ -380,14 +379,15 @@ class CalcSylinderNearForce {
      * @param sp the sylinder treated as a sphere
      * @param sy the sylinder
      * @param forceI
-     * @param conBlock
+     * @param con
      * @param reverseIJ default = false. if true, reverse I and J when adding the constraint block
      * @return true
      * @return false
      */
-    bool sp_sy(const SylinderNearEP &spI, const SylinderNearEP &syJ, ForceNear &forceI, ConstraintBlock &conBlock,
-               bool update=false, const bool reverseIJ = false) const {
+    bool sp_sy(const SylinderNearEP &spI, const SylinderNearEP &syJ, ForceNear &forceI, Constraint &con,
+               bool update = false, const bool reverseIJ = false) const {
         // sphere collide with sylinder
+        const int pi = 3.141592653589793238;
 
         // apply PBC on centerJ
         const Evec3 centerI = ECmap3(spI.pos);
@@ -417,63 +417,62 @@ class CalcSylinderNearForce {
         double distMin = DistPointSeg<Evec3>(centerI, Qm, Qp, Qloc);
 
         bool collision = false;
-
         const double sep = distMin - (radI + syJ.radiusCollision); // goal of constraint is sep >=0
 
-        if (update) { // create a constraint no matter the sep
+        if ((sep < (radI * spI.colBuf + syJ.radiusCollision * syJ.colBuf)) || (update)) {
             collision = true;
-            // TODO MODULARIZE! 
-            const double Pi = 3.14159265358979323846;
-            // const double gammaGuess = sep < 0 ? -0.5 * sep / dt * 6 * Pi * radI * viscosity : 0;
-            const double gammaGuess = sep < 0 ? -sep : 0;
             const Evec3 normI = (Ploc - Qloc).normalized();
             const Evec3 normJ = -normI;
             const Evec3 posI = Ploc - centerI;
             const Evec3 posJ = Qloc - centerJ;
-            Emat3 stressIJ;
-            const double nan = std::numeric_limits<double>::quiet_NaN();
-            conBlock = ConstraintBlock(sep, gammaGuess, nan,    // value of the constraint, initial guess of gamma, spring constant
-                                    spI.gid, syJ.gid,           //
-                                    spI.globalIndex,            //
-                                    syJ.globalIndex,            //
-                                    normI.data(), normJ.data(), // direction of collision force
-                                    posI.data(), posJ.data(),   // location of collision relative to particle center
-                                    Ploc.data(), Qloc.data(),   // location of collision in lab frame
-                                    false, false);
+
+            // Collisions generate three constraints, one for no-penetration and two for tangency
+            // TODO: Make this computation a component of the Sylinder class! Here, we should simply call a compute
+            // function step 1: compute the tangent vectors to spI at posI step 1.1: convert posI into spherical
+            // polar coordinates
+            //           default to using coordinates centered around the z-axis (chart A)
+            //           if chart A is degenerage (has a tangent vector of near-zero length),
+            //           then use coordinates centered around the x-axis (chart B)
+            // compute the tangent vectors in a non-degenerate chart
+            Evec3 tangent1;
+            Evec3 tangent2; 
+
+            // chart A
+            double theta = std::atan2(std::sqrt(std::pow(normI[0], 2) + std::pow(normI[1], 2)), normI[2]);
+            double phi = std::atan2(normI[1], normI[0]);
+
+            if ((theta < 0.8 * pi / 4.0 ) || (theta > 0.8 * pi)) {
+                // chart A is potentially degenerate, use chart B
+                theta = std::atan2(std::sqrt(std::pow(normI[1], 2) + std::pow(normI[2], 2)), normI[0]);
+                phi = std::atan2(normI[1], normI[2]);
+
+                // compute the tangent (in the current config!)
+                tangent1 = Evec3(-std::sin(theta), std::cos(theta) * std::sin(phi), std::cos(theta) * std::cos(phi)).normalized(); 
+                tangent2 = Evec3(0.0, std::sin(theta) * std::cos(phi), -std::sin(theta) * std::sin(phi)).normalized(); 
+            } else {
+                // use chart A
+                // compute the tangent (in the current config!)
+                tangent1 = Evec3(std::cos(theta) * std::cos(phi), std::cos(theta) * std::sin(phi), -std::sin(theta)).normalized(); 
+                tangent2 = Evec3(-std::sin(theta) * std::sin(phi), std::sin(theta) * std::cos(phi), 0.0).normalized(); 
+            }
+
+            con = collisionConstraint(sep,                      // amount of overlap,
+                                        spI.gid, syJ.gid,         //
+                                        spI.globalIndex,          //
+                                        syJ.globalIndex,          //
+                                        posI.data(), posJ.data(), // location of collision relative to particle center
+                                        Ploc.data(), Qloc.data(), // location of collision in lab frame
+                                        normI.data(),             // direction of collision force
+                                        tangent1.data(), tangent2.data(), // tangent vectors at the point of contact
+                                        false);
             if (reverseIJ) {
-                conBlock.reverseIJ();
+                con.reverseIJ();
             }
+            Emat3 stressIJ = Emat3::Zero();
             collideStress(Evec3(0, 0, 1), directionJ, centerI, centerJ, 0, syJ.lengthCollision, radI,
-                        syJ.radiusCollision, 1.0, Ploc, Qloc, stressIJ);
-            conBlock.setStress(stressIJ);
-        } else {
-            if (sep < (radI * spI.colBuf + syJ.radiusCollision * syJ.colBuf)) {
-                collision = true;
-                // TODO MODULARIZE! 
-                const double Pi = 3.14159265358979323846;
-                // const double gammaGuess = sep < 0 ? -0.5 * sep / dt * 6 * Pi * viscosity : 0;
-                const double gammaGuess = sep < 0 ? -sep : 0;
-                const Evec3 normI = (Ploc - Qloc).normalized();
-                const Evec3 normJ = -normI;
-                const Evec3 posI = Ploc - centerI;
-                const Evec3 posJ = Qloc - centerJ;
-                Emat3 stressIJ;
-                const double nan = std::numeric_limits<double>::quiet_NaN();
-                conBlock = ConstraintBlock(sep, gammaGuess, nan,    // value of the constraint, initial guess of gamma, spring constant
-                                        spI.gid, syJ.gid,           //
-                                        spI.globalIndex,            //
-                                        syJ.globalIndex,            //
-                                        normI.data(), normJ.data(), // direction of collision force
-                                        posI.data(), posJ.data(),   // location of collision relative to particle center
-                                        Ploc.data(), Qloc.data(),   // location of collision in lab frame
-                                        false, false);
-                if (reverseIJ) {
-                    conBlock.reverseIJ();
-                }
-                collideStress(Evec3(0, 0, 1), directionJ, centerI, centerJ, 0, syJ.lengthCollision, radI,
                             syJ.radiusCollision, 1.0, Ploc, Qloc, stressIJ);
-                conBlock.setStress(stressIJ);
-            }
+            con.setStress(0, stressIJ); // TODO: this stress computation is incorrect because it assumes the
+                                        // direction of the constraint force
         }
         return collision;
     }
@@ -484,13 +483,15 @@ class CalcSylinderNearForce {
      * @param syI
      * @param syJ
      * @param forceI
-     * @param conBlock
+     * @param con
      * @return true
      * @return false
      */
-    bool sy_sy(const SylinderNearEP &syI, const SylinderNearEP &syJ, ForceNear &forceI,
-               ConstraintBlock &conBlock, bool update=false) const {
+    bool sy_sy(const SylinderNearEP &syI, const SylinderNearEP &syJ, ForceNear &forceI, Constraint &con,
+               bool update = false) const {
         // sylinder collide with sylinder
+        const int pi = 3.141592653589793238;
+
         DCPQuery<3, double, Evec3> DistSegSeg3;
 
         // apply PBC on centerJ
@@ -525,57 +526,63 @@ class CalcSylinderNearForce {
         double distMin = DistSegSeg3(Pm, Pp, Qm, Qp, Ploc, Qloc, s, t);
 
         bool collision = false;
-
         const double sep = distMin - (syI.radiusCollision + syJ.radiusCollision); // goal of constraint is sep >=0
 
-        if (update) { // create a constraint no matter the sep
+        if ((sep < (syI.radiusCollision * syI.colBuf + syJ.radiusCollision * syJ.colBuf)) || (update)) {
             collision = true;
-            // TODO MODULARIZE! 
-            const double Pi = 3.14159265358979323846;
-            // const double gammaGuess = sep < 0 ? -0.5 * sep / dt * 6 * Pi * viscosity : 0;
-            const double gammaGuess = sep < 0 ? -sep : 0;
             const Evec3 normI = (Ploc - Qloc).normalized();
             const Evec3 normJ = -normI;
             const Evec3 posI = Ploc - centerI;
             const Evec3 posJ = Qloc - centerJ;
-            const double nan = std::numeric_limits<double>::quiet_NaN();
-            conBlock = ConstraintBlock(sep, gammaGuess, nan,    // seperation, initial guess of gamma, spring constant
-                                    syI.gid, syJ.gid,           //
-                                    syI.globalIndex,            //
-                                    syJ.globalIndex,            //
-                                    normI.data(), normJ.data(), // direction of collision force
-                                    posI.data(), posJ.data(),   // location of collision relative to particle center
-                                    Ploc.data(), Qloc.data(),   // location of collision in lab frame
-                                    false, false);
-            Emat3 stressIJ;
-            collideStress(directionI, directionJ, centerI, centerJ, syI.lengthCollision, syJ.lengthCollision,
-                        syI.radiusCollision, syJ.radiusCollision, 1.0, Ploc, Qloc, stressIJ);
-            conBlock.setStress(stressIJ);
-        } else { 
-            if (sep < (syI.radiusCollision * syI.colBuf + syJ.radiusCollision * syJ.colBuf)) {
-                collision = true;
-                // TODO MODULARIZE! 
-                const double Pi = 3.14159265358979323846;
-                // const double gammaGuess = sep < 0 ? -0.5 * sep / dt * 6 * Pi * viscosity : 0;
-                const double gammaGuess = sep < 0 ? -sep : 0;
-                const Evec3 normI = (Ploc - Qloc).normalized();
-                const Evec3 normJ = -normI;
-                const Evec3 posI = Ploc - centerI;
-                const Evec3 posJ = Qloc - centerJ;
-                const double nan = std::numeric_limits<double>::quiet_NaN();
-                conBlock = ConstraintBlock(sep, gammaGuess, nan,       // seperation, initial guess of gamma, spring constant
-                                        syI.gid, syJ.gid,           //
-                                        syI.globalIndex,            //
-                                        syJ.globalIndex,            //
-                                        normI.data(), normJ.data(), // direction of collision force
-                                        posI.data(), posJ.data(),   // location of collision relative to particle center
-                                        Ploc.data(), Qloc.data(),   // location of collision in lab frame
-                                        false, false);
-                Emat3 stressIJ;
-                collideStress(directionI, directionJ, centerI, centerJ, syI.lengthCollision, syJ.lengthCollision,
-                            syI.radiusCollision, syJ.radiusCollision, 1.0, Ploc, Qloc, stressIJ);
-                conBlock.setStress(stressIJ);
+
+            // Collisions generate three constraints, one for no-penetration and two for tangency
+            // TODO: Make this computation a component of the Sylinder class! Here, we should simply call a compute
+            // function step 1: compute the tangent vectors to spI at posI step 1.1: convert posI into spherical
+            // polar coordinates
+            //           default to using coordinates centered around the z-axis (chart A)
+            //           if chart A is degenerage (has a tangent vector of near-zero length),
+            //           then use coordinates centered around the x-axis (chart B)
+            Equatn quatI = Equatn::FromTwoVectors(Evec3(0, 0, 1), directionI);
+            const Evec3 normIRefConfig = quatI.inverse() * normI;
+
+            // compute the tangent vectors in a non-degenerate chart
+            Evec3 tangent1;
+            Evec3 tangent2; 
+
+            // chart A
+            double theta = std::atan2(std::sqrt(std::pow(normI[0], 2) + std::pow(normI[1], 2)), normI[2]);
+            double phi = std::atan2(normI[1], normI[0]);
+
+            if ((theta < 0.8 * pi / 4.0 ) || (theta > 0.8 * pi)) {
+                // chart A is potentially degenerate, use chart B
+                theta = std::atan2(std::sqrt(std::pow(normI[1], 2) + std::pow(normI[2], 2)), normI[0]);
+                phi = std::atan2(normI[1], normI[2]);
+
+                // compute the tangent (in the current config!)
+                tangent1 = Evec3(-std::sin(theta), std::cos(theta) * std::sin(phi), std::cos(theta) * std::cos(phi)).normalized(); 
+                tangent2 = Evec3(0.0, std::sin(theta) * std::cos(phi), -std::sin(theta) * std::sin(phi)).normalized(); 
+            } else {
+                // use chart A
+                // compute the tangent (in the current config!)
+                tangent1 = Evec3(std::cos(theta) * std::cos(phi), std::cos(theta) * std::sin(phi), -std::sin(theta)).normalized(); 
+                tangent2 = Evec3(-std::sin(theta) * std::sin(phi), std::sin(theta) * std::cos(phi), 0.0).normalized(); 
             }
+
+            // fill the constraints
+            con = collisionConstraint(sep,                      // amount of overlap,
+                                        syI.gid, syJ.gid,         //
+                                        syI.globalIndex,          //
+                                        syJ.globalIndex,          //
+                                        posI.data(), posJ.data(), // location of collision relative to particle center
+                                        Ploc.data(), Qloc.data(), // location of collision in lab frame
+                                        normI.data(),             // direction of collision force
+                                        tangent1.data(), tangent2.data(), // tangent vectors at the point of contact
+                                        false);
+            Emat3 stressIJ = Emat3::Zero();
+            collideStress(directionI, directionJ, centerI, centerJ, syI.lengthCollision, syJ.lengthCollision,
+                            syI.radiusCollision, syJ.radiusCollision, 1.0, Ploc, Qloc, stressIJ);
+            con.setStress(0, stressIJ); // TODO: this stress computation is incorrect because it assumes the
+                                        // direction of the constraint force
         }
         return collision;
     }
