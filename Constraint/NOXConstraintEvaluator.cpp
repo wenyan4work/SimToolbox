@@ -31,6 +31,7 @@ EvaluatorTpetraConstraint::EvaluatorTpetraConstraint(const Teuchos::RCP<const TC
 
     xMapRcp_ = getTMAPFromLocalSize(numLocalConstraints, commRcp_);
     sepRcp_ = Teuchos::rcp(new TV(xMapRcp_, true));
+    sep0Rcp_ = Teuchos::rcp(new TV(xMapRcp_, true));
     xGuessRcp_ = Teuchos::rcp(new TV(xMapRcp_, true));
     forceMagRcp_ = Teuchos::rcp(new TV(xMapRcp_, true));
     statusRcp_ = Teuchos::rcp(new TV(xMapRcp_, true));
@@ -53,13 +54,11 @@ EvaluatorTpetraConstraint::EvaluatorTpetraConstraint(const Teuchos::RCP<const TC
     // build the diagonal of dt (D^p)^T M^k D^p :(
     partialSepPartialGammaDiagRcp_->putScalar(1.0);
 
-    // recursively fill the initial guess
-    conCollectorPtr_->fillConstraintGuess(xGuessRcp_);
-    // for (int r = 0; r < 1; r++) {
-    //     recursionStep(xGuessRcp_);
-    //     conCollectorPtr_->fillConstraintGuess(xGuessRcp_);
-    // }
-    dumpTV(xGuessRcp_, "xGuessRcp_");
+    // setup PartialSepPartialGamma
+    partialSepPartialGammaOpRcp_->initialize(mobOpRcp_, AMatTransRcp_, forceRcp_, velRcp_, dt_);
+
+    // fill the initial gamma guess, the initial unconstrained separation, and the diagonal of K^{-1}(q^{k+1}, gamma^k)
+    conCollectorPtr_->fillFixedConstraintInfo(xGuessRcp_, sep0Rcp_, constraintDiagonalRcp_);
 
     // setup in/out args
     typedef Thyra::ModelEvaluatorBase MEB;
@@ -170,8 +169,6 @@ void EvaluatorTpetraConstraint::evalModelImpl(const Thyra::ModelEvaluatorBase::I
         //////////////////////////////////////////////
         // Zero out the objects that will be filled //
         //////////////////////////////////////////////
-        partialSepPartialGammaOpRcp_->unitialize();
-
         if (fill_f) {
             fRcp->putScalar(Teuchos::ScalarTraits<Scalar>::zero());
         }
@@ -180,43 +177,11 @@ void EvaluatorTpetraConstraint::evalModelImpl(const Thyra::ModelEvaluatorBase::I
             JRcp->unitialize();
         }
 
-        /////////////////////////////////////////////////////////////////
-        // Recursively update the configuration and build the D matrix //
-        /////////////////////////////////////////////////////////////////
-        {
-            Teuchos::TimeMonitor mon(*debugTimer1);
-            // Beware, the systems will update conCollector each time evalModelImpl is called
-            // we must reset the conCollector to q^k before proceeding,
-
-            if (nonnull(xRcp)) {
-                dumpTV(xRcp, "Gamma");
-            }
-
-            // TODO: the following bit is useless if there are no recursions
-            // reset recursion to 0
-            conCollectorPtr_->resetConstraintRecursions();  
-            conCollectorPtr_->updateConstraintMatrixVector(AMatTransRcp_);
-
-            // the recursion loop
-            for (int r = 0; r < 1; r++) {
-                recursionStep(xRcp);
-            }
-            dumpTCMAT(AMatTransRcp_, "AmatT");
-            dumpTOP(mobOpRcp_, "Mobility");
-
-            // setup PartialSepPartialGamma
-            partialSepPartialGammaOpRcp_->initialize(mobOpRcp_, AMatTransRcp_, forceRcp_, velRcp_, dt_);
-
-            // evaluate the unconstrained separation
-            // sep = sep0 + dt D^T M D Xactive
-            // TODO: we are currently taking two steps. One solves S0 and then when checking the solution, we step based on the new S0
-            // S0 should only be updated at the beginning of each Newton step
-            // 
-            conCollectorPtr_->evalSepInitialValues(sepRcp_);
-            dumpTV(sepRcp_, "Sep0");
-            partialSepPartialGammaOpRcp_->apply(*xRcp, *sepRcp_, Teuchos::NO_TRANS, 1.0, 1.0);
-            dumpTV(sepRcp_, "Sep");
-        }
+        ////////////////////////////////////
+        // evaluate the unconstrained sep //
+        ////////////////////////////////////
+        sepRcp_->scale(1.0, *sep0Rcp_); // store initial separation in sep
+        partialSepPartialGammaOpRcp_->apply(*xRcp, *sepRcp_, Teuchos::NO_TRANS, 1.0, 1.0);
 
         //////////////////////
         // Fill the objects //
@@ -238,16 +203,13 @@ void EvaluatorTpetraConstraint::evalModelImpl(const Thyra::ModelEvaluatorBase::I
         if (fill_W) {
             Teuchos::TimeMonitor mon(*debugTimer3);
 
-            // eval the diagonal of K^{-1}(q^{k+1}, gamma^k)
-            conCollectorPtr_->evalConstraintDiagonal(xRcp, constraintDiagonalRcp_);
-
             // setup J
             conCollectorPtr_->evalConstraintValues(xRcp, partialSepPartialGammaDiagRcp_, sepRcp_, forceMagRcp_,
                                                    statusRcp_);
             JRcp->initialize(partialSepPartialGammaOpRcp_, partialSepPartialGammaDiagRcp_, constraintDiagonalRcp_,
                              statusRcp_, dt_);
 
-            // // for debug, dump to file
+            // for debug, dump to file
             dumpToFile(JRcp, forceMagRcp_, statusRcp_, partialSepPartialGammaDiagRcp_, xRcp, mobOpRcp_, AMatTransRcp_,
                        constraintDiagonalRcp_);
 
@@ -287,6 +249,13 @@ void EvaluatorTpetraConstraint::recursionStep(const Teuchos::RCP<const TV> &gamm
 
     // add this recursion to D^T
     conCollectorPtr_->updateConstraintMatrixVector(AMatTransRcp_);
+
+    // update PartialSepPartialGamma
+    partialSepPartialGammaOpRcp_->unitialize();
+    partialSepPartialGammaOpRcp_->initialize(mobOpRcp_, AMatTransRcp_, forceRcp_, velRcp_, dt_);
+
+    // fill the initial gamma guess, the initial unconstrained separation, and the diagonal of K^{-1}(q^{k+1}, gamma^k)
+    conCollectorPtr_->fillFixedConstraintInfo(xGuessRcp_, sep0Rcp_, constraintDiagonalRcp_);
 }
 
 void EvaluatorTpetraConstraint::dumpToFile(const Teuchos::RCP<const TOP> &JRcp, const Teuchos::RCP<const TV> &fRcp,

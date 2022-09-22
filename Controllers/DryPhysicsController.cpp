@@ -213,7 +213,7 @@ void DryPhysicsController::run() {
             Teuchos::TimeMonitor mon(*solveTimer);
             conSolverPtr->solveConstraints(); 
         }
-            conSolverPtr->writebackGamma();
+        conSolverPtr->writebackGamma();
         conSolverPtr->writebackForceVelocity();
 
         // merge the constraint and nonconstraint vel and force

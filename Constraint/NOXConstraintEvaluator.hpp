@@ -59,6 +59,8 @@ class EvaluatorTpetraConstraint : public Thyra::StateFuncModelEvaluatorBase<Scal
     Thyra::ModelEvaluatorBase::InArgs<Scalar> createInArgs() const;
     //@}
 
+    void recursionStep(const Teuchos::RCP<const TV> &gammaRcp) const;
+
   private:
     /** \name Private functions overridden from ModelEvaulatorDefaultBase. */
     //@{
@@ -71,7 +73,6 @@ class EvaluatorTpetraConstraint : public Thyra::StateFuncModelEvaluatorBase<Scal
 
     //@}
 
-    void recursionStep(const Teuchos::RCP<const TV> &gammaRcp) const;
 
 
     // debug functions
@@ -107,6 +108,7 @@ class EvaluatorTpetraConstraint : public Thyra::StateFuncModelEvaluatorBase<Scal
     Teuchos::RCP<TV> constraintFlagRcp_;     ///< bilateral flag vector
     Teuchos::RCP<TV> constraintDiagonalRcp_; ///< Diagonal of the matrix to add to the jacobian
     Teuchos::RCP<TV> xGuessRcp_;             ///< initial guess
+    Teuchos::RCP<TV> sep0Rcp_;               ///< initial unconstrained constraint violation
     Teuchos::RCP<TV> sepRcp_;                ///< dt D^T M D gamma
 
     Teuchos::RCP<const thyra_vec_space> xSpaceRcp_;

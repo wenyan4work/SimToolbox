@@ -501,75 +501,9 @@ void ConstraintCollector::updateConstraintMatrixVector(const Teuchos::RCP<TCMAT>
     AMatTransRcp->fillComplete(domainMapRcp, rangeMapRcp);
 }
 
-int ConstraintCollector::fillConstraintGuess(const Teuchos::RCP<TV> &gammaGuessRcp) const {
+int ConstraintCollector::fillFixedConstraintInfo(const Teuchos::RCP<TV> &gammaGuessRcp, const Teuchos::RCP<TV> &initialSepRcp, const Teuchos::RCP<TV> &constraintDiagonalRcp) const {
     TEUCHOS_ASSERT(nonnull(gammaGuessRcp));
-
-    const auto &conPool = *constraintPoolPtr; // the constraint pool
-    const int conQueNum = conPool.size();
-
-    // prepare 1, build the index for block queue
-    std::vector<int> conQueSize;
-    std::vector<int> conQueIndex;
-    buildConIndex(conQueSize, conQueIndex);
-
-    //  fill constraintDiagonal
-    auto gammaGuessPtr = gammaGuessRcp->getLocalView<Kokkos::HostSpace>();
-    gammaGuessRcp->modify<Kokkos::HostSpace>();
-
-#pragma omp parallel for num_threads(conQueNum)
-    for (int threadId = 0; threadId < conQueNum; threadId++) {
-        const auto &conQue = conPool[threadId];
-        const int queSize = conQue.size();
-        int conIndex = conQueIndex[threadId];
-        for (int j = 0; j < queSize; j++) {
-            const auto &con = conQue[j];
-            const int numRecursions = con.numRecursions;
-            for (int r = 0; r < numRecursions; r++) {
-                gammaGuessPtr(conIndex, 0) = con.getGamma(r);
-                conIndex += 1;
-            }
-        }
-    }
-
-    return 0;
-}
-
-int ConstraintCollector::evalSepInitialValues(const Teuchos::RCP<TV> &initialSepRcp) const {
     TEUCHOS_ASSERT(nonnull(initialSepRcp));
-
-    const auto &conPool = *constraintPoolPtr; // the constraint pool
-    const int conQueNum = conPool.size();
-
-    // prepare 1, build the index for block queue
-    std::vector<int> conQueSize;
-    std::vector<int> conQueIndex;
-    buildConIndex(conQueSize, conQueIndex);
-
-    //  fill constraintDiagonal
-    auto initialSepPtr = initialSepRcp->getLocalView<Kokkos::HostSpace>();
-    initialSepRcp->modify<Kokkos::HostSpace>();
-
-#pragma omp parallel for num_threads(conQueNum)
-    for (int threadId = 0; threadId < conQueNum; threadId++) {
-        const auto &conQue = conPool[threadId];
-        const int queSize = conQue.size();
-        int conIndex = conQueIndex[threadId];
-        for (int j = 0; j < queSize; j++) {
-            const auto &con = conQue[j];
-            const int numRecursions = con.numRecursions;
-            for (int r = 0; r < numRecursions; r++) {
-                initialSepPtr(conIndex, 0) = con.getInitialSep(r);
-                conIndex += 1;
-            }
-        }
-    }
-
-    return 0;
-}
-
-int ConstraintCollector::evalConstraintDiagonal(const Teuchos::RCP<const TV> &gammaRcp,
-                                                const Teuchos::RCP<TV> &constraintDiagonalRcp) const {
-    TEUCHOS_ASSERT(nonnull(gammaRcp));
     TEUCHOS_ASSERT(nonnull(constraintDiagonalRcp));
 
     const auto &conPool = *constraintPoolPtr; // the constraint pool
@@ -581,8 +515,11 @@ int ConstraintCollector::evalConstraintDiagonal(const Teuchos::RCP<const TV> &ga
     buildConIndex(conQueSize, conQueIndex);
 
     //  fill constraintDiagonal
-    auto gammaPtr = gammaRcp->getLocalView<Kokkos::HostSpace>();
+    auto gammaGuessPtr = gammaGuessRcp->getLocalView<Kokkos::HostSpace>();
+    auto initialSepPtr = initialSepRcp->getLocalView<Kokkos::HostSpace>();
     auto constraintDiagonalPtr = constraintDiagonalRcp->getLocalView<Kokkos::HostSpace>();
+    gammaGuessRcp->modify<Kokkos::HostSpace>();
+    initialSepRcp->modify<Kokkos::HostSpace>();
     constraintDiagonalRcp->modify<Kokkos::HostSpace>();
 
 #pragma omp parallel for num_threads(conQueNum)
@@ -594,6 +531,8 @@ int ConstraintCollector::evalConstraintDiagonal(const Teuchos::RCP<const TV> &ga
             const auto &con = conQue[j];
             const int numRecursions = con.numRecursions;
             for (int r = 0; r < numRecursions; r++) {
+                gammaGuessPtr(conIndex, 0) = con.getGamma(r);
+                initialSepPtr(conIndex, 0) = con.getInitialSep(r);
                 constraintDiagonalPtr(conIndex, 0) = con.diagonal;
                 conIndex += 1;
             }
