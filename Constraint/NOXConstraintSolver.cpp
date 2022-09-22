@@ -5,7 +5,7 @@
 #include <NOX_StatusTest_NormF.H>
 #include <mpi.h>
 
-ConstraintSolver::ConstraintSolver(const Teuchos::RCP<const Teuchos::Comm<int> >& commRcp,
+ConstraintSolver::ConstraintSolver(const Teuchos::RCP<const Teuchos::Comm<int>> &commRcp,
                                    std::shared_ptr<ConstraintCollector> conCollectorPtr,
                                    std::shared_ptr<SylinderSystem> ptcSystemPtr)
     : commRcp_(commRcp), conCollectorPtr_(std::move(conCollectorPtr)), ptcSystemPtr_(std::move(ptcSystemPtr)) {
@@ -21,12 +21,14 @@ ConstraintSolver::ConstraintSolver(const Teuchos::RCP<const Teuchos::Comm<int> >
     belosList.sublist("Solver Types").sublist("Pseudo Block GMRES").set("Maximum Iterations", 1000);
     belosList.sublist("Solver Types").sublist("Pseudo Block GMRES").set("Convergence Tolerance", 1e-8);
     belosList.sublist("Solver Types").sublist("Pseudo Block GMRES").set("Timer Label", "NOX_Linear_Belos");
-    belosList.sublist("Solver Types").sublist("Pseudo Block GMRES").set("Verbosity", Belos::Errors + Belos::Warnings + Belos::TimingDetails + Belos::FinalSummary);
+    belosList.sublist("Solver Types")
+        .sublist("Pseudo Block GMRES")
+        .set("Verbosity", Belos::Errors + Belos::Warnings + Belos::TimingDetails + Belos::FinalSummary);
     // belosList.sublist("Solver Types").sublist("Pseudo Block GMRES").set("Verbosity", Belos::Errors);
     belosList.sublist("Solver Types").sublist("Pseudo Block GMRES").set("Show Maximum Residual Norm Only", false);
     belosList.sublist("Solver Types").sublist("Pseudo Block GMRES").set("Output Frequency", 100);
-    // belosList.sublist("Solver Types").sublist("Pseudo Block GMRES").set("Implicit Residual Scaling", "Norm of RHS");
-    // belosList.sublist("Solver Types").sublist("Pseudo Block GMRES").set("Explicit Residual Scaling", "Norm of RHS");
+    belosList.sublist("Solver Types").sublist("Pseudo Block GMRES").set("Implicit Residual Scaling", "Norm of RHS");
+    belosList.sublist("Solver Types").sublist("Pseudo Block GMRES").set("Explicit Residual Scaling", "Norm of RHS");
     belosList.sublist("VerboseObject").set("Verbosity Level", "medium");
     params->set("Preconditioner Type", "None");
 
@@ -43,11 +45,11 @@ ConstraintSolver::ConstraintSolver(const Teuchos::RCP<const Teuchos::Comm<int> >
     // TODO: play around with these params
     NOX::Abstract::Vector::NormType normType = NOX::Abstract::Vector::NormType::MaxNorm; // OneNorm, TwoNorm, MaxNorm
     NOX::StatusTest::NormF::ScaleType scaleType = NOX::StatusTest::NormF::Unscaled;
-    Teuchos::RCP<NOX::StatusTest::NormF> absresid = 
+    Teuchos::RCP<NOX::StatusTest::NormF> absresid =
         Teuchos::rcp(new NOX::StatusTest::NormF(1.0e-3, normType, scaleType));
     Teuchos::RCP<NOX::StatusTest::MaxIters> maxiters = Teuchos::rcp(new NOX::StatusTest::MaxIters(1000));
     Teuchos::RCP<NOX::StatusTest::FiniteValue> fv = Teuchos::rcp(new NOX::StatusTest::FiniteValue);
-    
+
     statusTests_ = Teuchos::rcp(new NOX::StatusTest::Combo(NOX::StatusTest::Combo::OR));
     statusTests_->addStatusTest(fv);
     statusTests_->addStatusTest(absresid);
@@ -57,12 +59,12 @@ ConstraintSolver::ConstraintSolver(const Teuchos::RCP<const Teuchos::Comm<int> >
     // Create nox parameter list //
     ///////////////////////////////
     nonlinearParams_ = Teuchos::parameterList();
-    
+
     // set solver params
     nonlinearParams_->set("Nonlinear Solver", "Line Search Based"); // Line Search Based or Trust Region Based
     nonlinearParams_->sublist("Direction").set("Method", "Newton"); // Newton or NonlinearCG
     nonlinearParams_->sublist("Direction").sublist("Newton").sublist("Linear Solver").set("Tolerance", 1.0e-4);
-    nonlinearParams_->sublist("Line Search").set("Method", "Polynomial"); // Full Step or Backtrack 
+    nonlinearParams_->sublist("Line Search").set("Method", "Full Step"); // Full Step or Backtrack
 
     // Set output params
     nonlinearParams_->sublist("Printing").sublist("Output Information").set("Debug", true);
@@ -102,7 +104,7 @@ void ConstraintSolver::solveConstraints() {
     int numGlobalConstraints;
     MPI_Allreduce(&numLocalConstraints, &numGlobalConstraints, 1, MPI_INT, MPI_SUM, MPI_COMM_WORLD);
 
-    if (numGlobalConstraints == 0) { 
+    if (numGlobalConstraints == 0) {
         std::cout << "No constraints to solve" << std::endl;
         return;
     } else {
@@ -112,8 +114,8 @@ void ConstraintSolver::solveConstraints() {
     ///////////////////////////////////////
     // Create the model evaluator object //
     ///////////////////////////////////////
-    Teuchos::RCP<EvaluatorTpetraConstraint> model = Teuchos::rcp(new EvaluatorTpetraConstraint(commRcp_, mobMatRcp_,
-        conCollectorPtr_, ptcSystemPtr_, forceConRcp_, velConRcp_, dt_));
+    Teuchos::RCP<EvaluatorTpetraConstraint> model = Teuchos::rcp(new EvaluatorTpetraConstraint(
+        commRcp_, mobMatRcp_, conCollectorPtr_, ptcSystemPtr_, forceConRcp_, velConRcp_, dt_));
     model->set_W_factory(lowsFactory_);
 
     //////////////////////////////
@@ -140,14 +142,9 @@ void ConstraintSolver::solveConstraints() {
     //////////////////////////
     // Create the NOX Group //
     //////////////////////////
-    Teuchos::RCP<NOX::Thyra::Group> noxGroup = Teuchos::rcp(new NOX::Thyra::Group(
-        *initial_guess, 
-        model,
-        model->create_W_op(), 
-        model->get_W_factory(), 
-        Teuchos::null, 
-        Teuchos::null,
-        Teuchos::null));
+    Teuchos::RCP<NOX::Thyra::Group> noxGroup =
+        Teuchos::rcp(new NOX::Thyra::Group(*initial_guess, model, model->create_W_op(), model->get_W_factory(),
+                                           Teuchos::null, Teuchos::null, Teuchos::null));
 
     // model, model->create_W_op(),
     // thyraModel, jfnkOp,
@@ -169,21 +166,20 @@ void ConstraintSolver::solveConstraints() {
 
     ////////////////////////
     // Fetch the solution //
-    ////////////////////////  
-    const auto& final_x_nox = solver->getSolutionGroup().getX();
-    const auto& final_x_thyra = dynamic_cast<const NOX::Thyra::Vector&>(final_x_nox).getThyraVector();
-    gammaRcp_ = dynamic_cast<const ::Thyra::TpetraVector<Scalar, LO, GO, Node>&>(final_x_thyra).getConstTpetraVector();
+    ////////////////////////
+    const auto &final_x_nox = solver->getSolutionGroup().getX();
+    const auto &final_x_thyra = dynamic_cast<const NOX::Thyra::Vector &>(final_x_nox).getThyraVector();
+    gammaRcp_ = dynamic_cast<const ::Thyra::TpetraVector<Scalar, LO, GO, Node> &>(final_x_thyra).getConstTpetraVector();
 
-    // TODO: Is force/vel in this class the same as the one generated by gammaRcp_? 
+    // TODO: Is force/vel in this class the same as the one generated by gammaRcp_?
     // TODO: is gammaRcp_ the same as the one in evalModelImpl?
     // dumpTV(gammaRcp_, "gammaRcp_");
 }
 
 void ConstraintSolver::writebackGamma() { conCollectorPtr_->writeBackGamma(gammaRcp_.getConst()); }
 
-
-void ConstraintSolver::writebackForceVelocity() { 
-    // forceRcp_, velRcp_ are filled during the constraint resolution process   
+void ConstraintSolver::writebackForceVelocity() {
+    // forceRcp_, velRcp_ are filled during the constraint resolution process
     // send the constraint vel and force to the particles
     ptcSystemPtr_->saveForceVelocityConstraints(forceConRcp_, velConRcp_);
 }

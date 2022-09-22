@@ -6,7 +6,6 @@ PartialSepPartialGammaOp::PartialSepPartialGammaOp(const Teuchos::RCP<const TMAP
 
 void PartialSepPartialGammaOp::initialize(const Teuchos::RCP<const TOP> &mobOpRcp, 
            const Teuchos::RCP<const TCMAT> &AMatTransRcp,
-           const Teuchos::RCP<const TCMAT> &AMatRcp,
            const Teuchos::RCP<TV> &forceRcp,
            const Teuchos::RCP<TV> &velRcp,
            const double dt)
@@ -16,14 +15,12 @@ void PartialSepPartialGammaOp::initialize(const Teuchos::RCP<const TOP> &mobOpRc
   dt_ = dt;
   mobOpRcp_ = mobOpRcp;
   AMatTransRcp_ = AMatTransRcp;
-  AMatRcp_ = AMatRcp;
   velRcp_ = velRcp;
   forceRcp_ = forceRcp;
 
   // check the input
   TEUCHOS_ASSERT(nonnull(mobOpRcp_));
   TEUCHOS_ASSERT(nonnull(AMatTransRcp_));
-  TEUCHOS_ASSERT(nonnull(AMatRcp_));
   TEUCHOS_ASSERT(nonnull(velRcp_));
   TEUCHOS_ASSERT(nonnull(forceRcp_));
 
@@ -38,7 +35,6 @@ void PartialSepPartialGammaOp::unitialize()
 {
   dt_ = 0.0;
   mobOpRcp_.reset(); 
-  AMatRcp_.reset(); 
   AMatTransRcp_.reset(); 
   forceRcp_.reset(); 
   velRcp_.reset(); 
@@ -71,7 +67,6 @@ apply(const TMV& X, TMV& Y, Teuchos::ETransp mode,
   TEUCHOS_ASSERT(nonnull(forceRcp_));
   TEUCHOS_ASSERT(nonnull(forceMagRcp_));
   TEUCHOS_ASSERT(nonnull(velRcp_));
-  TEUCHOS_ASSERT(nonnull(AMatRcp_));
   TEUCHOS_ASSERT(nonnull(AMatTransRcp_));
 
   const int numVecs = X.getNumVectors();
@@ -82,7 +77,7 @@ apply(const TMV& X, TMV& Y, Teuchos::ETransp mode,
 
     // step 1. A times force magnatude to get force/torque vector (F = A x)
     {
-      AMatRcp_->apply(*XcolRcp, *forceRcp_);
+      AMatTransRcp_->apply(*XcolRcp, *forceRcp_, Teuchos::TRANS);
     }
 
     // step 2. Mobility times force/torque vector to get velocity (U = M F)

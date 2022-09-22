@@ -885,28 +885,34 @@ void SylinderSystem::collectBoundaryCollision() {
 
                     if ((Query - ECmap3(Proj)).dot(ECmap3(delta)) < 0) { // outside boundary
                         const double sep = -deltanorm - radius;
-                        Constraint con = noPenetrationConstraint(
-                            sep,                        // amount of overlap,
-                            sy.gid, sy.gid,           //
-                            sy.globalIndex,            //
-                            sy.globalIndex,            //
-                            posI.data(), posI.data(),   // location of collision relative to particle center
-                            Query.data(), Proj,   // location of collision in lab frame
-                            norm.data(), // direction of collision force
-                            false);
+                        Emat3 stressIJ = Emat3::Zero();
+                        Constraint con;
+                        noPenetrationConstraint(con, 1,         // constraint object, number of recursions,
+                                                sep,            // amount of overlap,
+                                                sy.gid, sy.gid, //
+                                                sy.globalIndex, //
+                                                sy.globalIndex, //
+                                                posI.data(),
+                                                posI.data(),        // location of collision relative to particle center
+                                                Query.data(), Proj, // location of collision in lab frame
+                                                norm.data(),        // direction of collision force
+                                                stressIJ.data(), false, false);
                         conQue.push_back(con);
                     } else if (deltanorm <
                                (1 + runConfig.sylinderColBuf * 2) * sy.radiusCollision) { // inside boundary but close
                         const double sep = deltanorm - radius;
-                        Constraint con = noPenetrationConstraint(
-                            sep,                        // amount of overlap,
-                            sy.gid, sy.gid,           //
-                            sy.globalIndex,            //
-                            sy.globalIndex,            //
-                            posI.data(), posI.data(),   // location of collision relative to particle center
-                            Query.data(), Proj,   // location of collision in lab frame
-                            norm.data(), // direction of collision force
-                            false);
+                        Emat3 stressIJ = Emat3::Zero();
+                        Constraint con;
+                        noPenetrationConstraint(con, 1,         // constraint object, number of recursions,
+                                                sep,            // amount of overlap,
+                                                sy.gid, sy.gid, //
+                                                sy.globalIndex, //
+                                                sy.globalIndex, //
+                                                posI.data(),
+                                                posI.data(),        // location of collision relative to particle center
+                                                Query.data(), Proj, // location of collision in lab frame
+                                                norm.data(),        // direction of collision force
+                                                stressIJ.data(), false, false);
                         conQue.push_back(con);
                     }
                 };
@@ -1249,19 +1255,22 @@ void SylinderSystem::collectLinkBilateral() {
                 const Evec3 posJ = Qloc - centerJ;
                 const double restLength = syI.radius + syJ.radius + runConfig.linkGap;
 
-                Constraint con = springConstraint(rnorm, restLength, // length of spring, rest length of spring
-                                       runConfig.linkKappa,          // spring constant
-                                       syI.gid, syJ.gid,             //
-                                       syI.globalIndex,              //
-                                       syJ.globalIndex,              //
-                                       posI.data(), posJ.data(),     // location of collision relative to particle center
-                                       Ploc.data(), Qloc.data(),     // location of collision in lab frame
-                                       normI.data(),                 // direction of collision force
-                                       false);
                 Emat3 stressIJ = Emat3::Zero();
-                CalcSylinderNearForce::collideStress(directionI, directionJ, centerI, centerJ, syI.length,
-                                                        syJ.length, syI.radius, syJ.radius, 1.0, Ploc, Qloc, stressIJ);
-                con.setStress(0, stressIJ); //TODO: this stress computation is incorrect because it assumes the direction of the constraint force
+                CalcSylinderNearForce::collideStress(directionI, directionJ, centerI, centerJ, syI.length, syJ.length,
+                                                     syI.radius, syJ.radius, 1.0, Ploc, Qloc, stressIJ);
+
+                Constraint con;
+                springConstraint(con, 3,                   // constraint object, number of recursions
+                                 rnorm, restLength,        // length of spring, rest length of spring
+                                 runConfig.linkKappa,      // spring constant
+                                 syI.gid, syJ.gid,         //
+                                 syI.globalIndex,          //
+                                 syJ.globalIndex,          //
+                                 posI.data(), posJ.data(), // location of collision relative to particle center
+                                 Ploc.data(), Qloc.data(), // location of collision in lab frame
+                                 normI.data(),             // direction of collision force
+                                 stressIJ.data(),
+                                 false, false);
                 conQue.push_back(con);
             }
         }
@@ -1270,6 +1279,10 @@ void SylinderSystem::collectLinkBilateral() {
 
 // TODO: Move this into particle-particle interaction class
 void SylinderSystem::updatePairCollision() {
+    // TODO: extend this to include updating other types of constraints. Feting via GID should happen regardless.
+    //       The only difference is the update step
+    std::cout << "updatePairCollision doesn't account for systems with multiple types of constraints" << std::endl;
+
     // update the collision constraints stored in the constraintPool
     // uses special treatment for periodic boundary conditions
 
@@ -1316,8 +1329,8 @@ void SylinderSystem::updatePairCollision() {
     sylinderNearDataDirectoryPtr->find();
 
     // Step 2. Update each constraint
-    CalcSylinderNearForce calcColFtr(conCollectorPtr->constraintPoolPtr,
-                                     runConfig.simBoxPBC, runConfig.simBoxLow, runConfig.simBoxHigh);
+    CalcSylinderNearForce calcColFtr(conCollectorPtr->constraintPoolPtr, runConfig.simBoxPBC, runConfig.simBoxLow,
+                                     runConfig.simBoxHigh);
 
     // multi-thread filling. nThreads = poolSize, each thread process a queue
 #pragma omp parallel for num_threads(nThreads)
@@ -1329,6 +1342,8 @@ void SylinderSystem::updatePairCollision() {
             const int idx = conIndexBase + 2 * j;
             const auto &syI = sylinderNearDataDirectoryPtr->dataToFind[idx + 0]; // sylinderNearI
             const auto &syJ = sylinderNearDataDirectoryPtr->dataToFind[idx + 1]; // sylinderNearJ
+            std::cout << "syI.pos " << syI.pos[0] << " " << syI.pos[1] << " " << syI.pos[2] << std::endl;
+            std::cout << "syJ.pos " << syJ.pos[0] << " " << syJ.pos[1] << " " << syJ.pos[2] << std::endl;
             calcColFtr.updateCollisionBlock(syI, syJ, conQue[j]);
         }
     }

@@ -324,51 +324,21 @@ class CalcSylinderNearForce {
             const Evec3 posI = Ploc - centerI;
             const Evec3 posJ = Qloc - centerJ;
 
-            // Collisions generate three DOF, one for no-penetration and two for tangency
-            // TODO: Make the following tangent computation a component of the Sylinder class! Here, we should
-            // simply call a compute function step 1: compute the tangent vectors to spI at posI step 1.1: convert
-            // posI into spherical polar coordinates
-            //           default to using coordinates centered around the z-axis (chart A)
-            //           if chart A is degenerage (has a tangent vector of near-zero length),
-            //           then use coordinates centered around the x-axis (chart B)
-            // compute the tangent vectors in a non-degenerate chart
-            Evec3 tangent1;
-            Evec3 tangent2; 
-
-            // chart A
-            double theta = std::atan2(std::sqrt(std::pow(normI[0], 2) + std::pow(normI[1], 2)), normI[2]);
-            double phi = std::atan2(normI[1], normI[0]);
-
-            if ((theta < 0.8 * pi / 4.0 ) || (theta > 0.8 * pi)) {
-                // chart A is potentially degenerate, use chart B
-                theta = std::atan2(std::sqrt(std::pow(normI[1], 2) + std::pow(normI[2], 2)), normI[0]);
-                phi = std::atan2(normI[1], normI[2]);
-
-                // compute the tangent (in the current config!)
-                tangent1 = Evec3(-std::sin(theta), std::cos(theta) * std::sin(phi), std::cos(theta) * std::cos(phi)).normalized(); 
-                tangent2 = Evec3(0.0, std::sin(theta) * std::cos(phi), -std::sin(theta) * std::sin(phi)).normalized(); 
-            } else {
-                // use chart A
-                // compute the tangent (in the current config!)
-                tangent1 = Evec3(std::cos(theta) * std::cos(phi), std::cos(theta) * std::sin(phi), -std::sin(theta)).normalized(); 
-                tangent2 = Evec3(-std::sin(theta) * std::sin(phi), std::sin(theta) * std::cos(phi), 0.0).normalized(); 
-            }
-
-            con = collisionConstraint(sep,                      // amount of overlap,
-                                        spI.gid, spJ.gid,         //
-                                        spI.globalIndex,          //
-                                        spJ.globalIndex,          //
-                                        posI.data(), posJ.data(), // location of collision relative to particle center
-                                        Ploc.data(), Qloc.data(), // location of collision in lab frame
-                                        normI.data(),             // direction of collision force
-                                        tangent1.data(), tangent2.data(), // tangent vectors at the point of contact
-                                        false);
             Emat3 stressIJ = Emat3::Zero();
             collideStress(Evec3(0, 0, 1), Evec3(0, 0, 1), centerI, centerJ, 0,
-                            0, // length = 0, degenerates to sphere
-                            radI, radJ, 1.0, Ploc, Qloc, stressIJ);
-            con.setStress(0, stressIJ); // TODO: this stress computation is incorrect because it assumes the
-                                        // direction of the constraint force
+                          0, // length = 0, degenerates to sphere
+                          radI, radJ, 1.0, Ploc, Qloc, stressIJ);
+
+            // fill the constraint
+            noPenetrationConstraint(con, 2,                   // constraint object, number of recursions
+                                    sep,                      // amount of overlap,
+                                    spI.gid, spJ.gid,         //
+                                    spI.globalIndex,          //
+                                    spJ.globalIndex,          //
+                                    posI.data(), posJ.data(), // location of collision relative to particle center
+                                    Ploc.data(), Qloc.data(), // location of collision in lab frame
+                                    normI.data(),             // direction of collision force
+                                    stressIJ.data(), false, update);
         }
         return collision;
     }
@@ -426,53 +396,23 @@ class CalcSylinderNearForce {
             const Evec3 posI = Ploc - centerI;
             const Evec3 posJ = Qloc - centerJ;
 
-            // Collisions generate three constraints, one for no-penetration and two for tangency
-            // TODO: Make this computation a component of the Sylinder class! Here, we should simply call a compute
-            // function step 1: compute the tangent vectors to spI at posI step 1.1: convert posI into spherical
-            // polar coordinates
-            //           default to using coordinates centered around the z-axis (chart A)
-            //           if chart A is degenerage (has a tangent vector of near-zero length),
-            //           then use coordinates centered around the x-axis (chart B)
-            // compute the tangent vectors in a non-degenerate chart
-            Evec3 tangent1;
-            Evec3 tangent2; 
+            Emat3 stressIJ = Emat3::Zero();
+            collideStress(Evec3(0, 0, 1), directionJ, centerI, centerJ, 0, syJ.lengthCollision, radI,
+                          syJ.radiusCollision, 1.0, Ploc, Qloc, stressIJ);
 
-            // chart A
-            double theta = std::atan2(std::sqrt(std::pow(normI[0], 2) + std::pow(normI[1], 2)), normI[2]);
-            double phi = std::atan2(normI[1], normI[0]);
-
-            if ((theta < 0.8 * pi / 4.0 ) || (theta > 0.8 * pi)) {
-                // chart A is potentially degenerate, use chart B
-                theta = std::atan2(std::sqrt(std::pow(normI[1], 2) + std::pow(normI[2], 2)), normI[0]);
-                phi = std::atan2(normI[1], normI[2]);
-
-                // compute the tangent (in the current config!)
-                tangent1 = Evec3(-std::sin(theta), std::cos(theta) * std::sin(phi), std::cos(theta) * std::cos(phi)).normalized(); 
-                tangent2 = Evec3(0.0, std::sin(theta) * std::cos(phi), -std::sin(theta) * std::sin(phi)).normalized(); 
-            } else {
-                // use chart A
-                // compute the tangent (in the current config!)
-                tangent1 = Evec3(std::cos(theta) * std::cos(phi), std::cos(theta) * std::sin(phi), -std::sin(theta)).normalized(); 
-                tangent2 = Evec3(-std::sin(theta) * std::sin(phi), std::sin(theta) * std::cos(phi), 0.0).normalized(); 
-            }
-
-            con = collisionConstraint(sep,                      // amount of overlap,
-                                        spI.gid, syJ.gid,         //
-                                        spI.globalIndex,          //
-                                        syJ.globalIndex,          //
-                                        posI.data(), posJ.data(), // location of collision relative to particle center
-                                        Ploc.data(), Qloc.data(), // location of collision in lab frame
-                                        normI.data(),             // direction of collision force
-                                        tangent1.data(), tangent2.data(), // tangent vectors at the point of contact
-                                        false);
+            // fill the constraint
+            noPenetrationConstraint(con, 2,                   // constraint object, number of recursions
+                                    sep,                      // amount of overlap,
+                                    spI.gid, syJ.gid,         //
+                                    spI.globalIndex,          //
+                                    syJ.globalIndex,          //
+                                    posI.data(), posJ.data(), // location of collision relative to particle center
+                                    Ploc.data(), Qloc.data(), // location of collision in lab frame
+                                    normI.data(),             // direction of collision force
+                                    stressIJ.data(), false, update);
             if (reverseIJ) {
                 con.reverseIJ();
             }
-            Emat3 stressIJ = Emat3::Zero();
-            collideStress(Evec3(0, 0, 1), directionJ, centerI, centerJ, 0, syJ.lengthCollision, radI,
-                            syJ.radiusCollision, 1.0, Ploc, Qloc, stressIJ);
-            con.setStress(0, stressIJ); // TODO: this stress computation is incorrect because it assumes the
-                                        // direction of the constraint force
         }
         return collision;
     }
@@ -535,54 +475,20 @@ class CalcSylinderNearForce {
             const Evec3 posI = Ploc - centerI;
             const Evec3 posJ = Qloc - centerJ;
 
-            // Collisions generate three constraints, one for no-penetration and two for tangency
-            // TODO: Make this computation a component of the Sylinder class! Here, we should simply call a compute
-            // function step 1: compute the tangent vectors to spI at posI step 1.1: convert posI into spherical
-            // polar coordinates
-            //           default to using coordinates centered around the z-axis (chart A)
-            //           if chart A is degenerage (has a tangent vector of near-zero length),
-            //           then use coordinates centered around the x-axis (chart B)
-            Equatn quatI = Equatn::FromTwoVectors(Evec3(0, 0, 1), directionI);
-            const Evec3 normIRefConfig = quatI.inverse() * normI;
-
-            // compute the tangent vectors in a non-degenerate chart
-            Evec3 tangent1;
-            Evec3 tangent2; 
-
-            // chart A
-            double theta = std::atan2(std::sqrt(std::pow(normI[0], 2) + std::pow(normI[1], 2)), normI[2]);
-            double phi = std::atan2(normI[1], normI[0]);
-
-            if ((theta < 0.8 * pi / 4.0 ) || (theta > 0.8 * pi)) {
-                // chart A is potentially degenerate, use chart B
-                theta = std::atan2(std::sqrt(std::pow(normI[1], 2) + std::pow(normI[2], 2)), normI[0]);
-                phi = std::atan2(normI[1], normI[2]);
-
-                // compute the tangent (in the current config!)
-                tangent1 = Evec3(-std::sin(theta), std::cos(theta) * std::sin(phi), std::cos(theta) * std::cos(phi)).normalized(); 
-                tangent2 = Evec3(0.0, std::sin(theta) * std::cos(phi), -std::sin(theta) * std::sin(phi)).normalized(); 
-            } else {
-                // use chart A
-                // compute the tangent (in the current config!)
-                tangent1 = Evec3(std::cos(theta) * std::cos(phi), std::cos(theta) * std::sin(phi), -std::sin(theta)).normalized(); 
-                tangent2 = Evec3(-std::sin(theta) * std::sin(phi), std::sin(theta) * std::cos(phi), 0.0).normalized(); 
-            }
-
-            // fill the constraints
-            con = collisionConstraint(sep,                      // amount of overlap,
-                                        syI.gid, syJ.gid,         //
-                                        syI.globalIndex,          //
-                                        syJ.globalIndex,          //
-                                        posI.data(), posJ.data(), // location of collision relative to particle center
-                                        Ploc.data(), Qloc.data(), // location of collision in lab frame
-                                        normI.data(),             // direction of collision force
-                                        tangent1.data(), tangent2.data(), // tangent vectors at the point of contact
-                                        false);
             Emat3 stressIJ = Emat3::Zero();
             collideStress(directionI, directionJ, centerI, centerJ, syI.lengthCollision, syJ.lengthCollision,
-                            syI.radiusCollision, syJ.radiusCollision, 1.0, Ploc, Qloc, stressIJ);
-            con.setStress(0, stressIJ); // TODO: this stress computation is incorrect because it assumes the
-                                        // direction of the constraint force
+                          syI.radiusCollision, syJ.radiusCollision, 1.0, Ploc, Qloc, stressIJ);
+
+            // fill the constraint
+            noPenetrationConstraint(con, 2,                   // constraint object, number of recursions
+                                    sep,                      // amount of overlap,
+                                    syI.gid, syJ.gid,         //
+                                    syI.globalIndex,          //
+                                    syJ.globalIndex,          //
+                                    posI.data(), posJ.data(), // location of collision relative to particle center
+                                    Ploc.data(), Qloc.data(), // location of collision in lab frame
+                                    normI.data(),             // direction of collision force
+                                    stressIJ.data(), false, update);
         }
         return collision;
     }

@@ -57,13 +57,13 @@ void ConstraintCollector::sumLocalConstraintStress(Emat3 &conStress, bool withOn
         Emat3 conStressSumQue = Emat3::Zero();
         const auto &conQue = conPool[que];
         for (const auto &con : conQue) {
-            for (int d = 0; d < con.numDOF; d++) {
+            for (int r = 0; r < con.numRecursions; r++) {
                 if (con.oneSide && !withOneSide) {
                     // skip counting oneside collision blocks
                     continue;
                 } else {
                     Emat3 stressDOF;
-                    con.getStress(d, stressDOF);
+                    con.getStress(r, stressDOF);
                     conStressSumQue = conStressSumQue + stressDOF;
                 }
             }
@@ -87,7 +87,7 @@ void ConstraintCollector::writePVTP(const std::string &folder, const std::string
     std::vector<IOHelper::FieldVTU> cellDataFields;
     cellDataFields.emplace_back(1, IOHelper::IOTYPE::Int32, "id");
     cellDataFields.emplace_back(1, IOHelper::IOTYPE::Int32, "oneSide");
-    cellDataFields.emplace_back(1, IOHelper::IOTYPE::Float32, "value");
+    cellDataFields.emplace_back(1, IOHelper::IOTYPE::Float32, "sep0");
     cellDataFields.emplace_back(1, IOHelper::IOTYPE::Float32, "gamma");
     cellDataFields.emplace_back(9, IOHelper::IOTYPE::Float32, "Stress");
 
@@ -126,7 +126,7 @@ void ConstraintCollector::writeVTP(const std::string &folder, const std::string 
     // cell data for ColBlock
     std::vector<int32_t> id(conBlockNum);
     std::vector<int32_t> oneSide(conBlockNum);
-    std::vector<float> constraintValue(conBlockNum);
+    std::vector<float> initialSep(conBlockNum);
     std::vector<float> gamma(conBlockNum);
     std::vector<float> Stress(9 * conBlockNum);
 
@@ -146,26 +146,31 @@ void ConstraintCollector::writeVTP(const std::string &folder, const std::string 
         int conIndex = conQueIndex[q];
         for (int c = 0; c < queSize; c++) {
             const auto &con = conQue[c];
-            const int numDOF = con.numDOF;
-            for (int d = 0; d < numDOF; d++) {
+            const int numRecursions = con.numRecursions;
+            for (int r = 0; r < numRecursions; r++) {
                 // point position
-                pos[6 * conIndex + 0] = con.labI[0];
-                pos[6 * conIndex + 1] = con.labI[1];
-                pos[6 * conIndex + 2] = con.labI[2];
-                pos[6 * conIndex + 3] = con.labJ[0];
-                pos[6 * conIndex + 4] = con.labJ[1];
-                pos[6 * conIndex + 5] = con.labJ[2];
+                double labI[3];
+                double labJ[3];
+                con.getLabI(r, labI);
+                con.getLabJ(r, labJ);
+
+                pos[6 * conIndex + 0] = labI[0];
+                pos[6 * conIndex + 1] = labI[1];
+                pos[6 * conIndex + 2] = labI[2];
+                pos[6 * conIndex + 3] = labJ[0];
+                pos[6 * conIndex + 4] = labJ[1];
+                pos[6 * conIndex + 5] = labJ[2];
 
                 // point data
                 double unscaledForceComI[3];
                 double unscaledForceComJ[3];
                 double unscaledTorqueComI[3];
                 double unscaledTorqueComJ[3];
-                const double g = con.getGamma(d);
-                con.getUnscaledForceComI(d, unscaledForceComI);
-                con.getUnscaledForceComJ(d, unscaledForceComJ);
-                con.getUnscaledTorqueComI(d, unscaledTorqueComI);
-                con.getUnscaledTorqueComJ(d, unscaledTorqueComJ);
+                const double g = con.getGamma(r);
+                con.getUnscaledForceComI(r, unscaledForceComI);
+                con.getUnscaledForceComJ(r, unscaledForceComJ);
+                con.getUnscaledTorqueComI(r, unscaledTorqueComI);
+                con.getUnscaledTorqueComJ(r, unscaledTorqueComJ);
 
                 gid[2 * conIndex + 0] = con.gidI;
                 gid[2 * conIndex + 1] = con.gidJ;
@@ -186,10 +191,10 @@ void ConstraintCollector::writeVTP(const std::string &folder, const std::string 
 
                 // cell data
                 double stress[9];
-                con.getStress(d, stress);
+                con.getStress(r, stress);
                 id[conIndex] = con.id;
                 oneSide[conIndex] = con.oneSide ? 1 : 0;
-                constraintValue[conIndex] = con.getSep(d);
+                initialSep[conIndex] = con.getInitialSep(r);
                 gamma[conIndex] = g;
                 for (int kk = 0; kk < 9; kk++) {
                     Stress[9 * conIndex + kk] = stress[kk] * g;
@@ -227,7 +232,7 @@ void ConstraintCollector::writeVTP(const std::string &folder, const std::string 
     file << "<CellData Scalars=\"scalars\">\n";
     IOHelper::writeDataArrayBase64(id, "id", 1, file);
     IOHelper::writeDataArrayBase64(oneSide, "oneSide", 1, file);
-    IOHelper::writeDataArrayBase64(constraintValue, "value", 1, file);
+    IOHelper::writeDataArrayBase64(initialSep, "sep0", 1, file);
     IOHelper::writeDataArrayBase64(gamma, "gamma", 1, file);
     IOHelper::writeDataArrayBase64(Stress, "Stress", 9, file);
     file << "</CellData>\n";
@@ -244,7 +249,7 @@ void ConstraintCollector::dumpConstraints() const {
     for (const auto &conQue : (*constraintPoolPtr)) {
         std::cout << conQue.size() << " constraints in this queue" << std::endl;
         for (const auto &con : conQue) {
-            std::cout << "ID: " << con.id << " | NumDOF: " << con.numDOF << std::endl;
+            std::cout << "ID: " << con.id << " | numRecursions: " << con.numRecursions << std::endl;
         }
     }
 }
@@ -285,8 +290,8 @@ ConstraintCollector::buildConstraintMatrixVector(const Teuchos::RCP<const TMAP> 
         const int conNum = conQue.size();
         for (int j = 0; j < conNum; j++) {
             const auto &con = conQue[j];
-            const int numDOF = con.numDOF;
-            for (int d = 0; d < numDOF; d++) {
+            const int numRecursions = con.numRecursions;
+            for (int r = 0; r < numRecursions; r++) {
                 rowPointerIndex++;
                 const int cBlockNNZ = (con.oneSide ? 6 : 12);
                 rowPointers[rowPointerIndex] = rowPointers[rowPointerIndex - 1] + cBlockNNZ;
@@ -314,13 +319,13 @@ ConstraintCollector::buildConstraintMatrixVector(const Teuchos::RCP<const TMAP> 
 
         for (int j = 0; j < conNum; j++) {
             const auto &con = conQue[j];
-            const int numDOF = con.numDOF;
-            for (int d = 0; d < numDOF; d++) {
+            const int numRecursions = con.numRecursions;
+            for (int r = 0; r < numRecursions; r++) {
                 // 6 nnz for I
                 double unscaledForceComI[3];
                 double unscaledTorqueComI[3];
-                con.getUnscaledForceComI(d, unscaledForceComI);
-                con.getUnscaledTorqueComI(d, unscaledTorqueComI);
+                con.getUnscaledForceComI(r, unscaledForceComI);
+                con.getUnscaledTorqueComI(r, unscaledTorqueComI);
 
                 columnIndices[kk + 0] = 6 * con.globalIndexI;
                 columnIndices[kk + 1] = 6 * con.globalIndexI + 1;
@@ -340,8 +345,8 @@ ConstraintCollector::buildConstraintMatrixVector(const Teuchos::RCP<const TMAP> 
                     // 6 nnz for J
                     double unscaledForceComJ[3];
                     double unscaledTorqueComJ[3];
-                    con.getUnscaledForceComJ(d, unscaledForceComJ);
-                    con.getUnscaledTorqueComJ(d, unscaledTorqueComJ);
+                    con.getUnscaledForceComJ(r, unscaledForceComJ);
+                    con.getUnscaledTorqueComJ(r, unscaledTorqueComJ);
 
                     columnIndices[kk + 0] = 6 * con.globalIndexJ;
                     columnIndices[kk + 1] = 6 * con.globalIndexJ + 1;
@@ -439,13 +444,13 @@ void ConstraintCollector::updateConstraintMatrixVector(const Teuchos::RCP<TCMAT>
 
         for (int j = 0; j < conNum; j++) {
             const auto &con = conQue[j];
-            const int numDOF = con.numDOF;
-            for (int d = 0; d < numDOF; d++) {
+            const int numRecursions = con.numRecursions;
+            for (int r = 0; r < numRecursions; r++) {
                 // 6 nnz for I
                 double unscaledForceComI[3];
                 double unscaledTorqueComI[3];
-                con.getUnscaledForceComI(d, unscaledForceComI);
-                con.getUnscaledTorqueComI(d, unscaledTorqueComI);
+                con.getUnscaledForceComI(r, unscaledForceComI);
+                con.getUnscaledTorqueComI(r, unscaledTorqueComI);
 
                 const auto nnz = con.oneSide ? 6 : 12;
                 GO columnIndices[nnz];
@@ -467,8 +472,8 @@ void ConstraintCollector::updateConstraintMatrixVector(const Teuchos::RCP<TCMAT>
                     // 6 nnz for J
                     double unscaledForceComJ[3];
                     double unscaledTorqueComJ[3];
-                    con.getUnscaledForceComJ(d, unscaledForceComJ);
-                    con.getUnscaledTorqueComJ(d, unscaledTorqueComJ);
+                    con.getUnscaledForceComJ(r, unscaledForceComJ);
+                    con.getUnscaledTorqueComJ(r, unscaledTorqueComJ);
 
                     columnIndices[6] = 6 * con.globalIndexJ;
                     columnIndices[7] = 6 * con.globalIndexJ + 1;
@@ -476,12 +481,12 @@ void ConstraintCollector::updateConstraintMatrixVector(const Teuchos::RCP<TCMAT>
                     columnIndices[9] = 6 * con.globalIndexJ + 3;
                     columnIndices[10] = 6 * con.globalIndexJ + 4;
                     columnIndices[11] = 6 * con.globalIndexJ + 5;
-                    values[6] = unscaledForceComI[0];
-                    values[7] = unscaledForceComI[1];
-                    values[8] = unscaledForceComI[2];
-                    values[9] = unscaledTorqueComI[0];
-                    values[10] = unscaledTorqueComI[1];
-                    values[11] = unscaledTorqueComI[2];
+                    values[6] = unscaledForceComJ[0];
+                    values[7] = unscaledForceComJ[1];
+                    values[8] = unscaledForceComJ[2];
+                    values[9] = unscaledTorqueComJ[0];
+                    values[10] = unscaledTorqueComJ[1];
+                    values[11] = unscaledTorqueComJ[2];
                 }
 
                 // update the values using global indices
@@ -518,9 +523,42 @@ int ConstraintCollector::fillConstraintGuess(const Teuchos::RCP<TV> &gammaGuessR
         int conIndex = conQueIndex[threadId];
         for (int j = 0; j < queSize; j++) {
             const auto &con = conQue[j];
-            const int numDOF = con.numDOF;
-            for (int d = 0; d < numDOF; d++) {
-                gammaGuessPtr(conIndex, 0) = con.getGamma(d);
+            const int numRecursions = con.numRecursions;
+            for (int r = 0; r < numRecursions; r++) {
+                gammaGuessPtr(conIndex, 0) = con.getGamma(r);
+                conIndex += 1;
+            }
+        }
+    }
+
+    return 0;
+}
+
+int ConstraintCollector::evalSepInitialValues(const Teuchos::RCP<TV> &initialSepRcp) const {
+    TEUCHOS_ASSERT(nonnull(initialSepRcp));
+
+    const auto &conPool = *constraintPoolPtr; // the constraint pool
+    const int conQueNum = conPool.size();
+
+    // prepare 1, build the index for block queue
+    std::vector<int> conQueSize;
+    std::vector<int> conQueIndex;
+    buildConIndex(conQueSize, conQueIndex);
+
+    //  fill constraintDiagonal
+    auto initialSepPtr = initialSepRcp->getLocalView<Kokkos::HostSpace>();
+    initialSepRcp->modify<Kokkos::HostSpace>();
+
+#pragma omp parallel for num_threads(conQueNum)
+    for (int threadId = 0; threadId < conQueNum; threadId++) {
+        const auto &conQue = conPool[threadId];
+        const int queSize = conQue.size();
+        int conIndex = conQueIndex[threadId];
+        for (int j = 0; j < queSize; j++) {
+            const auto &con = conQue[j];
+            const int numRecursions = con.numRecursions;
+            for (int r = 0; r < numRecursions; r++) {
+                initialSepPtr(conIndex, 0) = con.getInitialSep(r);
                 conIndex += 1;
             }
         }
@@ -554,8 +592,8 @@ int ConstraintCollector::evalConstraintDiagonal(const Teuchos::RCP<const TV> &ga
         int conIndex = conQueIndex[threadId];
         for (int j = 0; j < queSize; j++) {
             const auto &con = conQue[j];
-            const int numDOF = con.numDOF;
-            for (int d = 0; d < numDOF; d++) {
+            const int numRecursions = con.numRecursions;
+            for (int r = 0; r < numRecursions; r++) {
                 constraintDiagonalPtr(conIndex, 0) = con.diagonal;
                 conIndex += 1;
             }
@@ -566,9 +604,13 @@ int ConstraintCollector::evalConstraintDiagonal(const Teuchos::RCP<const TV> &ga
 }
 
 int ConstraintCollector::evalConstraintValues(const Teuchos::RCP<const TV> &gammaRcp,
+                                              const Teuchos::RCP<const TV> &scaleRcp,
+                                              const Teuchos::RCP<const TV> &constraintSepRcp,
                                               const Teuchos::RCP<TV> &constraintValueRcp,
-                                              const Teuchos::RCP<TV> &constraintStatusRcp) {
+                                              const Teuchos::RCP<TV> &constraintStatusRcp) const {
     TEUCHOS_ASSERT(nonnull(gammaRcp));
+    TEUCHOS_ASSERT(nonnull(scaleRcp));
+    TEUCHOS_ASSERT(nonnull(constraintSepRcp));
     TEUCHOS_ASSERT(nonnull(constraintValueRcp));
     TEUCHOS_ASSERT(nonnull(constraintStatusRcp));
 
@@ -580,8 +622,10 @@ int ConstraintCollector::evalConstraintValues(const Teuchos::RCP<const TV> &gamm
     std::vector<int> conQueIndex;
     buildConIndex(conQueSize, conQueIndex);
 
-    //  fill constraintValue
+    //  fill all
     auto gammaPtr = gammaRcp->getLocalView<Kokkos::HostSpace>();
+    auto scalePtr = scaleRcp->getLocalView<Kokkos::HostSpace>();
+    auto constraintSepPtr = constraintSepRcp->getLocalView<Kokkos::HostSpace>();
     auto constraintValuePtr = constraintValueRcp->getLocalView<Kokkos::HostSpace>();
     auto constraintStatusPtr = constraintStatusRcp->getLocalView<Kokkos::HostSpace>();
     constraintValueRcp->modify<Kokkos::HostSpace>();
@@ -594,21 +638,38 @@ int ConstraintCollector::evalConstraintValues(const Teuchos::RCP<const TV> &gamm
         int conIndex = conQueIndex[threadId];
         for (int j = 0; j < queSize; j++) {
             auto &con = conQue[j];
-            const int numDOF = con.numDOF;
-            for (int d = 0; d < numDOF; d++) {
-                // update gamma before getting the constraint value and status
-                con.setGamma(d, gammaPtr(conIndex, 0));
+            const int numRecursions = con.numRecursions;
+            for (int r = 0; r < numRecursions; r++) {
+                // get the value and status
+                constraintValuePtr(conIndex, 0) = con.getValue(constraintSepPtr(conIndex, 0), gammaPtr(conIndex, 0));
+                constraintStatusPtr(conIndex, 0) =
+                    con.isConstrained(constraintSepPtr(conIndex, 0), gammaPtr(conIndex, 0));
 
-                // get the value
-                constraintValuePtr(conIndex, 0) = con.getValue(d);
+                // scaling is applied to inactive constraints
+                if (constraintStatusPtr(conIndex, 0) < 0.5) {
+                    constraintValuePtr(conIndex, 0) = constraintValuePtr(conIndex, 0) * scalePtr(conIndex, 0);
+                }
 
-                // no projection is applied to inactive constraints
-                constraintStatusPtr(conIndex, 0) = con.getState(d);
                 conIndex += 1;
             }
         }
     }
 
+    return 0;
+}
+
+int ConstraintCollector::resetConstraintRecursions() {
+    auto &conPool = *constraintPoolPtr;
+    const int conQueNum = conPool.size();
+#pragma omp parallel for num_threads(conQueNum)
+    for (int threadId = 0; threadId < conQueNum; threadId++) {
+        auto &conQue = conPool[threadId];
+        const int queSize = conQue.size();
+        for (int j = 0; j < queSize; j++) {
+            auto &con = conQue[j];
+            con.resetRecursions();
+        }
+    }
     return 0;
 }
 
@@ -625,7 +686,7 @@ int ConstraintCollector::buildConIndex(std::vector<int> &conQueSize, std::vector
         const auto &conQue = conPool[threadId];
         const int conNum = conQue.size();
         for (int j = 0; j < conNum; j++) {
-            conQueSize[threadId] += conQue[j].numDOF;
+            conQueSize[threadId] += conQue[j].numRecursions;
         }
     }
 
@@ -657,9 +718,9 @@ int ConstraintCollector::writeBackGamma(const Teuchos::RCP<const TV> &gammaRcp) 
 
         for (int j = 0; j < conNum; j++) {
             auto &con = conQue[j];
-            const int numDOF = con.numDOF;
-            for (int d = 0; d < numDOF; d++) {
-                con.setGamma(d, gammaPtr(conIndex, 0));
+            const int numRecursions = con.numRecursions;
+            for (int r = 0; r < numRecursions; r++) {
+                con.setGamma(r, gammaPtr(conIndex, 0));
                 conIndex += 1;
             }
         }

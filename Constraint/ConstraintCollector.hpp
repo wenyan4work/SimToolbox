@@ -31,7 +31,7 @@ class ConstraintCollector {
   public:
     ///< FDPS requires that ConstraintCollector have low copy overhead
     std::shared_ptr<ConstraintPool> constraintPoolPtr;
-    
+
     ConstraintCollector();
 
     /**
@@ -137,12 +137,16 @@ class ConstraintCollector {
 
     int fillConstraintGuess(const Teuchos::RCP<TV> &gammaGuessRcp) const;
 
-    int evalConstraintDiagonal(const Teuchos::RCP<const TV> &gammaRcp, 
+    int evalSepInitialValues(const Teuchos::RCP<TV> &initialSepRcp) const;
+
+    int evalConstraintDiagonal(const Teuchos::RCP<const TV> &gammaRcp,
                                const Teuchos::RCP<TV> &constraintDiagonalRcp) const;
 
-    int evalConstraintValues(const Teuchos::RCP<const TV> &gammaRcp,
-                             const Teuchos::RCP<TV> &constraintValueRcp, 
-                             const Teuchos::RCP<TV> &constraintStatusRcp);
+    int evalConstraintValues(const Teuchos::RCP<const TV> &gammaRcp, const Teuchos::RCP<const TV> &scaleRcp,
+                             const Teuchos::RCP<const TV> &constraintSepRcp, const Teuchos::RCP<TV> &constraintValueRcp,
+                             const Teuchos::RCP<TV> &constraintStatusRcp) const;
+
+    int resetConstraintRecursions();
 
     /**
      * @brief build the index of constraints in the ConstraintPool

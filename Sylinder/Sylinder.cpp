@@ -115,9 +115,9 @@ void Sylinder::stepEuler(const double dt, const int stepType) {
 
     // take the Euler step
     for (int i = 0; i < 3; i++) {
-        pos[i] += veltmp[i] * dt;
+        pos[i] = posCurrent[i] + veltmp[i] * dt;
     }
-    Equatn currOrient = Emapq(orientation);
+    Equatn currOrient = Emapq(orientationCurrent);
     EquatnHelper::rotateEquatn(currOrient, Emap3(omegatmp), dt);
     Emapq(orientation).x() = currOrient.x();
     Emapq(orientation).y() = currOrient.y();

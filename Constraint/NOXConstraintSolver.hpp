@@ -18,8 +18,8 @@
 #include "Util/EigenDef.hpp"
 
 // Trilinos stuff
-#include <Thyra_Ifpack2PreconditionerFactory.hpp>
 #include <Teuchos_AbstractFactoryStd.hpp>
+#include <Thyra_Ifpack2PreconditionerFactory.hpp>
 
 // regular C++
 #include <algorithm>
@@ -45,8 +45,8 @@ class ConstraintSolver {
      * @param argc command line argument
      * @param argv command line argument
      */
-    ConstraintSolver(const Teuchos::RCP<const Teuchos::Comm<int> >& commRcp,
-                     std::shared_ptr<ConstraintCollector> conCollectorPtr, 
+    ConstraintSolver(const Teuchos::RCP<const Teuchos::Comm<int>> &commRcp,
+                     std::shared_ptr<ConstraintCollector> conCollectorPtr,
                      std::shared_ptr<SylinderSystem> ptcSystemPtr);
 
     // destructor
@@ -96,20 +96,19 @@ class ConstraintSolver {
      */
     void writebackForceVelocity();
 
-
   private:
-    double dt_; ///< timestep size
+    double dt_;                               ///< timestep size
     const Teuchos::RCP<const TCOMM> commRcp_; ///< TCOMM, set as a Teuchos::MpiComm object in constructor
-    Teuchos::RCP<const TCMAT> mobMatRcp_;       ///< mobility matrix, 6 dof per obj to 6 dof per obj
+    Teuchos::RCP<const TCMAT> mobMatRcp_;     ///< mobility matrix, 6 dof per obj to 6 dof per obj
     Teuchos::RCP<const TMAP> mobMapRcp_;      ///< map for mobility matrix. 6 DOF per obj
 
     std::shared_ptr<ConstraintCollector> conCollectorPtr_; ///< pointer to ConstraintCollector
     std::shared_ptr<SylinderSystem> ptcSystemPtr_;         ///< pointer to SylinderSystem
-    Teuchos::RCP<const TV> gammaRcp_;   ///< constraint Lagrange multiplier
-    Teuchos::RCP<TV> velExternalRcp_;   ///< external, nonconstraint velocity
-    Teuchos::RCP<TV> forceExternalRcp_; ///< external, nonconstraint force
-    Teuchos::RCP<TV> velConRcp_; ///< constraint velocity
-    Teuchos::RCP<TV> forceConRcp_; ///< constraint force
+    Teuchos::RCP<const TV> gammaRcp_;                      ///< constraint Lagrange multiplier
+    Teuchos::RCP<TV> velExternalRcp_;                      ///< external, nonconstraint velocity
+    Teuchos::RCP<TV> forceExternalRcp_;                    ///< external, nonconstraint force
+    Teuchos::RCP<TV> velConRcp_;                           ///< constraint velocity
+    Teuchos::RCP<TV> forceConRcp_;                         ///< constraint force
 
     // NOX stuff
     Teuchos::RCP<Thyra::LinearOpWithSolveFactoryBase<Scalar>> lowsFactory_; ///< linear operator params/factory

@@ -27,19 +27,22 @@
  * Each constraint has some number of unknown DOF, each of which can be coupled together
  *
  * Constraints can (currently) have the following types:
- *   id=0: collision              | 3 constrained DOF | prevents penetration and enforces tangency of colliding surfaces
- *   id=1: no penetration         | 1 constrained DOF | prevents penetration
- *   id=2: hookean spring         | 3 constrained DOF | resists relative translational motion between two points
- *   id=3: angular hookean spring | 3 constrained DOF | resists relative rotational motion between two vectors
- *   id=4: ball and socket        | 3 constrained DOF | prevents the separation of two points
+ *   id=0: no penetration         | prevents penetration
+ *   id=1: hookean spring         | resists relative translational motion between two points
+ *   id=2: angular hookean spring | resists relative rotational motion between two vectors
+ *   id=3: ball and socket        | prevents the separation of two points
  *
  */
 struct Constraint {
   private:
     // private members to be accessed with getters and set with setters
     // currently, all constraints use at most 3 dof, so arrays will be sized to fix this maxima
-    double seps_[3] = {0};               ///< constrainted quantity
+    // TODO: template this class using maxNumRecursions
+    int recursionCounter_ = 0;           ///< count which recursion we are in
+    double seps0_[3] = {0};              ///< initial constrainted quantity
     double gammas_[3] = {0};             ///< unknown dof for this constraint
+    double labI_[9] = {0};               ///< the labframe location of constraint on particle I
+    double labJ_[9] = {0};               ///< the labframe location of constraint on particle J
     double unscaledForceComI_[9] = {0};  ///< com force induced by this constraint on particle I for unit constraint
                                          ///< Lagrange multiplier gamma
     double unscaledForceComJ_[9] = {0};  ///< com force induced by this constraint on particle J for unit constraint
@@ -50,94 +53,122 @@ struct Constraint {
                                          ///< Lagrange multiplier gamma
     double stress_[27] = {0};            ///< virial stress induced by these constraints
   public:
-    int id = -1;          ///< identifier specifying the type of constraint this is
-    int numDOF = -1;      ///< number of constrained degrees of freedom
-    bool oneSide = false; ///< flag for one side constraint. when true, body J does not appear in mobility matrix
+    int numRecursions = -1; ///< number of constrained recursions
+    int id = -1;            ///< identifier specifying the type of constraint this is
+    bool oneSide = false;   ///< flag for one side constraint. when true, body J does not appear in mobility matrix
     int gidI = GEO_INVALID_INDEX;         ///< unique global ID of particle I
     int gidJ = GEO_INVALID_INDEX;         ///< unique global ID of particle J
     int globalIndexI = GEO_INVALID_INDEX; ///< global index of particle I
     int globalIndexJ = GEO_INVALID_INDEX; ///< global index of particle J
-    double labI[3] = {0};                 ///< the labframe location of constraint on particle I
-    double labJ[3] = {0};                 ///< the labframe location of constraint on particle J
-    double diagonal = 0; 
+    double diagonal = 0;
 
-    std::function<std::vector<bool>(const double *seps, const double *gammas)> isConstrained;
-    std::function<std::vector<double>(const double *seps, const double *gammas)> getValues;
+    std::function<bool(const double sep, const double gamma)> isConstrained;
+    std::function<double(const double sep, const double gamma)> getValue;
 
-    double getSep(const int idxDOF) const { return seps_[idxDOF]; };
-    double getGamma(const int idxDOF) const { return gammas_[idxDOF]; };
-    double getValue(const int idxDOF) const {
-      return getValues(seps_, gammas_)[idxDOF];
-    }
-    double getState(const int idxDOF) const {
-      return isConstrained(seps_, gammas_)[idxDOF];
-    }
-
-    void getUnscaledForceComI(const int idxDOF, double *unscaledForceComI) const {
+    double getInitialSep(const int idxRecursion) const { return seps0_[idxRecursion]; }
+    double getGamma(const int idxRecursion) const { return gammas_[idxRecursion]; }
+    void getLabI(const int idxRecursion, double labI[3]) const {
         for (int i = 0; i < 3; i++) {
-            unscaledForceComI[i] = unscaledForceComI_[3 * idxDOF + i];
+            labI[i] = labI_[3 * idxRecursion + i];
         }
     }
-    void getUnscaledForceComJ(const int idxDOF, double *unscaledForceComJ) const {
+    void getLabJ(const int idxRecursion, double labJ[3]) const {
         for (int i = 0; i < 3; i++) {
-            unscaledForceComJ[i] = unscaledForceComJ_[3 * idxDOF + i];
+            labJ[i] = labJ_[3 * idxRecursion + i];
         }
     }
-    void getUnscaledTorqueComI(const int idxDOF, double *unscaledTorqueComI) const {
+    void getUnscaledForceComI(const int idxRecursion, double unscaledForceComI[3]) const {
         for (int i = 0; i < 3; i++) {
-            unscaledTorqueComI[i] = unscaledTorqueComI_[3 * idxDOF + i];
+            unscaledForceComI[i] = unscaledForceComI_[3 * idxRecursion + i];
         }
     }
-    void getUnscaledTorqueComJ(const int idxDOF, double *unscaledTorqueComJ) const {
+    void getUnscaledForceComJ(const int idxRecursion, double unscaledForceComJ[3]) const {
         for (int i = 0; i < 3; i++) {
-            unscaledTorqueComJ[i] = unscaledTorqueComJ_[3 * idxDOF + i];
+            unscaledForceComJ[i] = unscaledForceComJ_[3 * idxRecursion + i];
         }
     }
-    void getStress(const int idxDOF, double *stress) const {
+    void getUnscaledTorqueComI(const int idxRecursion, double unscaledTorqueComI[3]) const {
+        for (int i = 0; i < 3; i++) {
+            unscaledTorqueComI[i] = unscaledTorqueComI_[3 * idxRecursion + i];
+        }
+    }
+    void getUnscaledTorqueComJ(const int idxRecursion, double unscaledTorqueComJ[3]) const {
+        for (int i = 0; i < 3; i++) {
+            unscaledTorqueComJ[i] = unscaledTorqueComJ_[3 * idxRecursion + i];
+        }
+    }
+    void getStress(const int idxRecursion, double stress[9]) const {
         for (int i = 0; i < 9; i++) {
-            stress[i] = stress_[9 * idxDOF + i];
+            stress[i] = stress_[9 * idxRecursion + i];
         }
     }
-    void getStress(const int idxDOF, Emat3 &stress) const {
+    void getStress(const int idxRecursion, Emat3 &stress) const {
         for (int i = 0; i < 3; i++) {
             for (int j = 0; j < 3; j++) {
-                stress(i, j) = stress_[idxDOF * 9 + i * 3 + j];
+                stress(i, j) = stress_[idxRecursion * 9 + i * 3 + j];
             }
         }
     }
-    
 
-    void setGamma(const int idxDOF, const double gamma) { gammas_[idxDOF] = gamma; }
-    void setSep(const int idxDOF, const double sep) { seps_[idxDOF] = sep; }
-    void setUnscaledForceComI(const int idxDOF, const double *unscaledForceComI) {
-        for (int i = 0; i < 3; i++) {
-            unscaledForceComI_[3 * idxDOF + i] = unscaledForceComI[i];
-        }
+    void setGamma(const int idxRecursion, const double gamma) { 
+        gammas_[idxRecursion] = gamma; 
     }
-    void setUnscaledForceComJ(const int idxDOF, const double *unscaledForceComJ) {
+
+    void initialize(const double gammaGuess, const double initialSep, const double labI[3], const double labJ[3],
+                const double unscaledForceComI[3], const double unscaledForceComJ[3], const double unscaledTorqueComI[3],
+                const double unscaledTorqueComJ[3], const double stress[9]) {
+        recursionCounter_ = 0;
+        gammas_[recursionCounter_] = gammaGuess;
+        seps0_[recursionCounter_] = initialSep;
         for (int i = 0; i < 3; i++) {
-            unscaledForceComJ_[3 * idxDOF + i] = unscaledForceComJ[i];
+            labI_[3 * recursionCounter_ + i] = labI[i];
+            labJ_[3 * recursionCounter_ + i] = labJ[i];
+            unscaledForceComI_[3 * recursionCounter_ + i] = unscaledForceComI[i];
+            unscaledForceComJ_[3 * recursionCounter_ + i] = unscaledForceComJ[i];
+            unscaledTorqueComI_[3 * recursionCounter_ + i] = unscaledTorqueComI[i];
+            unscaledTorqueComJ_[3 * recursionCounter_ + i] = unscaledTorqueComJ[i];
         }
-    }
-    void setUnscaledTorqueComI(const int idxDOF, const double *unscaledTorqueComI) {
-        for (int i = 0; i < 3; i++) {
-            unscaledTorqueComI_[3 * idxDOF + i] = unscaledTorqueComI[i];
-        }
-    }
-    void setUnscaledTorqueComJ(const int idxDOF, const double *unscaledTorqueComJ) {
-        for (int i = 0; i < 3; i++) {
-            unscaledTorqueComJ_[3 * idxDOF + i] = unscaledTorqueComJ[i];
-        }
-    }
-    void setStress(const int idxDOF, const double *stress) {
         for (int i = 0; i < 9; i++) {
-            stress_[i] = stress[9 * idxDOF + i];
+            stress_[9 * recursionCounter_ + i] = stress[i];
         }
     }
-    void setStress(const int idxDOF, const Emat3 &stress) {
+
+    void addRecursion(const double gammaGuess, const double initialSep, const double labI[3], const double labJ[3],
+                const double unscaledForceComI[3], const double unscaledForceComJ[3], const double unscaledTorqueComI[3],
+                const double unscaledTorqueComJ[3], const double stress[9]) {
+        recursionCounter_++;
+        assert(recursionCounter_ < numRecursions);
+
+        gammas_[recursionCounter_] = gammaGuess;
+        seps0_[recursionCounter_] = initialSep;
         for (int i = 0; i < 3; i++) {
-            for (int j = 0; j < 3; j++) {
-                stress_[idxDOF * 9 + i * 3 + j] = stress(i, j);
+            labI_[3 * recursionCounter_ + i] = labI[i];
+            labJ_[3 * recursionCounter_ + i] = labJ[i];
+            unscaledForceComI_[3 * recursionCounter_ + i] = unscaledForceComI[i];
+            unscaledForceComJ_[3 * recursionCounter_ + i] = unscaledForceComJ[i];
+            unscaledTorqueComI_[3 * recursionCounter_ + i] = unscaledTorqueComI[i];
+            unscaledTorqueComJ_[3 * recursionCounter_ + i] = unscaledTorqueComJ[i];
+        }
+        for (int i = 0; i < 9; i++) {
+            stress_[9 * recursionCounter_ + i] = stress[i];
+        }
+    }
+
+    void resetRecursions() {
+        recursionCounter_ = 0;
+        for (int idx = 1; idx < numRecursions; idx++) {
+            gammas_[idx] = 0.0;
+            seps0_[idx] = 0.0;
+            for (int i = 0; i < 3; i++) {
+                labI_[3 * idx + i] = 0.0;
+                labJ_[3 * idx + i] = 0.0;
+                unscaledForceComI_[3 * idx + i] = 0.0;
+                unscaledForceComJ_[3 * idx + i] = 0.0;
+                unscaledTorqueComI_[3 * idx + i] = 0.0;
+                unscaledTorqueComJ_[3 * idx + i] = 0.0;
+            }
+            for (int i = 0; i < 9; i++) {
+                stress_[9 * idx + i] = 0.0;
             }
         }
     }
@@ -145,35 +176,34 @@ struct Constraint {
     void reverseIJ() {
         std::swap(gidI, gidJ);
         std::swap(globalIndexI, globalIndexJ);
-        for (int i = 0; i < 3; i++) {
+        for (int i = 0; i < 9; i++) {
             std::swap(unscaledForceComI_[i], unscaledForceComJ_[i]);
             std::swap(unscaledTorqueComI_[i], unscaledTorqueComJ_[i]);
-            std::swap(labI[i], labJ[i]);
+            std::swap(labI_[i], labJ_[i]);
         }
     }
 };
 
 // public constructors for different types of constraints
-Constraint collisionConstraint(double sepDistance, int gidI, int gidJ, int globalIndexI, int globalIndexJ,
-                               const double posI[3], const double posJ[3], const double labI[3], const double labJ[3],
-                               const double normI[3], const double tangent1I[3], const double tangent2I[3],
-                               bool oneSide);
+void noPenetrationConstraint(Constraint &con, const int numRecursions, const double sepDistance, const int gidI,
+                             const int gidJ, const int globalIndexI, const int globalIndexJ, const double posI[3],
+                             const double posJ[3], const double labI[3], const double labJ[3], const double normI[3],
+                             const double stressIJ[9], const bool oneSide, const bool recursionFlag);
 
-Constraint noPenetrationConstraint(double sepDistance, int gidI, int gidJ, int globalIndexI, int globalIndexJ,
-                                   const double posI[3], const double posJ[3], const double labI[3],
-                                   const double labJ[3], const double normI[3], bool oneSide);
+void springConstraint(Constraint &con, const int numRecursions, const double sepDistance, const double restLength,
+                      const double springConstant, const int gidI, const int gidJ, const int globalIndexI,
+                      const int globalIndexJ, const double posI[3], const double posJ[3], const double labI[3],
+                      const double labJ[3], const double normI[3], const double stressIJ[9], const bool oneSide, const bool recursionFlag);
 
-Constraint springConstraint(double sepDistance, double restLength, double springConstant, int gidI, int gidJ, int globalIndexI,
-                            int globalIndexJ, const double posI[3], const double posJ[3], const double labI[3],
-                            const double labJ[3], const double normI[3], bool oneSide);
+void angularSpringConstraint(Constraint &con, const int numRecursions, const double sepDistance, const double restAngle,
+                             const double springConstant, const int gidI, const int gidJ, const int globalIndexI,
+                             const int globalIndexJ, const double posI[3], const double posJ[3], const double labI[3],
+                             const double labJ[3], const double normI[3], const double stressIJ[9], const bool oneSide, const bool recursionFlag);
 
-Constraint angularSpringConstraint(double sepDistance, double restAngle, double springConstant, int gidI, int gidJ, int globalIndexI,
-                                   int globalIndexJ, const double posI[3], const double posJ[3], const double labI[3],
-                                   const double labJ[3], const double normI[3], bool oneSide);
-
-Constraint pivotConstraint(double sepDistance, int gidI, int gidJ, int globalIndexI, int globalIndexJ,
-                           const double posI[3], const double posJ[3], const double labI[3], const double labJ[3],
-                           const double normI[3], bool oneSide);
+void pivotConstraint(Constraint &con, const int numRecursions, const double sepDistance, const int gidI, const int gidJ,
+                     const int globalIndexI, const int globalIndexJ, const double posI[3], const double posJ[3],
+                     const double labI[3], const double labJ[3], const double normI[3], const double stressIJ[9],
+                     const bool oneSide, const bool recursionFlag);
 
 // static_assert(std::is_trivially_copyable<Constraint>::value, ""); // TODO: must it be?
 static_assert(std::is_default_constructible<Constraint>::value, "");

@@ -166,9 +166,13 @@ void testParallel() {
     printf("stress:\n");
     printMat3(stress);
     printf("labI:\n");
-    printVec3(con.labI);
+    double labI[3];
+    con.getLabI(0, labI);
+    printVec3(labI);
     printf("labJ:\n");
-    printVec3(con.labJ);
+    double labJ[3];
+    con.getLabJ(0, labJ);
+    printVec3(labJ);
 }
 
 void testSphere() {
@@ -226,9 +230,13 @@ void testSphere() {
     printf("stress:\n");
     printMat3(stress);
     printf("labI:\n");
-    printVec3(con.labI);
+    double labI[3];
+    con.getLabI(0, labI);
+    printVec3(labI);
     printf("labJ:\n");
-    printVec3(con.labJ);
+    double labJ[3];
+    con.getLabJ(0, labJ);
+    printVec3(labJ);
 
     // check correctness, stress = xf for spheres
     Emat3 stress1 = Emat3::Zero();
@@ -301,9 +309,13 @@ void testSylinderSphere() {
     printf("stress:\n");
     printMat3(stress);
     printf("labI:\n");
-    printVec3(con.labI);
+    double labI[3];
+    con.getLabI(0, labI);
+    printVec3(labI);
     printf("labJ:\n");
-    printVec3(con.labJ);
+    double labJ[3];
+    con.getLabJ(0, labJ);
+    printVec3(labJ);
 }
 
 int main() {
