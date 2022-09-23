@@ -59,7 +59,7 @@ class EvaluatorTpetraConstraint : public Thyra::StateFuncModelEvaluatorBase<Scal
     Thyra::ModelEvaluatorBase::InArgs<Scalar> createInArgs() const;
     //@}
 
-    void recursionStep(const Teuchos::RCP<const TV> &gammaRcp) const;
+    void recursionStep(const Teuchos::RCP<const TV> &gammaRcp);
 
   private:
     /** \name Private functions overridden from ModelEvaulatorDefaultBase. */

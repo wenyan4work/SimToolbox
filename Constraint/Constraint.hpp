@@ -113,6 +113,9 @@ struct Constraint {
     void setGamma(const int idxRecursion, const double gamma) { 
         gammas_[idxRecursion] = gamma; 
     }
+    void setInitialSep(const int idxRecursion, const double sep0)  { 
+        seps0_[idxRecursion] = sep0; 
+    }
 
     void initialize(const double gammaGuess, const double initialSep, const double labI[3], const double labJ[3],
                 const double unscaledForceComI[3], const double unscaledForceComJ[3], const double unscaledTorqueComI[3],

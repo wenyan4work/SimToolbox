@@ -193,10 +193,6 @@ void EvaluatorTpetraConstraint::evalModelImpl(const Thyra::ModelEvaluatorBase::I
 
             // evaluate C(q^{k+1}(gamma^k), scale * gamma^k)
             conCollectorPtr_->evalConstraintValues(xRcp, partialSepPartialGammaDiagRcp_, sepRcp_, fRcp, statusRcp_);
-
-            dumpTV(xRcp, "X");
-            dumpTV(sepRcp_, "Sep");
-            dumpTV(fRcp, "F");
         }
 
         // fill the Jacobian
@@ -209,26 +205,29 @@ void EvaluatorTpetraConstraint::evalModelImpl(const Thyra::ModelEvaluatorBase::I
             JRcp->initialize(partialSepPartialGammaOpRcp_, partialSepPartialGammaDiagRcp_, constraintDiagonalRcp_,
                              statusRcp_, dt_);
 
-            // for debug, dump to file
-            dumpToFile(JRcp, forceMagRcp_, statusRcp_, partialSepPartialGammaDiagRcp_, xRcp, mobOpRcp_, AMatTransRcp_,
-                       constraintDiagonalRcp_);
+            // // for debug, dump to file
+            // dumpToFile(JRcp, forceMagRcp_, statusRcp_, partialSepPartialGammaDiagRcp_, xRcp, mobOpRcp_, AMatTransRcp_,
+            //            constraintDiagonalRcp_);
 
-            std::cout << "" << std::endl;
+            // std::cout << "" << std::endl;
         }
 
         ///////////
         // Debug //
         ///////////
 
-        // for debug, advance the particles and write their positions to a vtk file
-        // conCollectorPtr_->writeBackGamma(xRcp.getConst());
-        const std::string postfix = std::to_string(stepCount_);
-        ptcSystemPtr_->writeResult(stepCount_, "./result/", postfix);
-        stepCount_++;
+        // // for debug, advance the particles and write their positions to a vtk file
+        // // conCollectorPtr_->writeBackGamma(xRcp.getConst());
+        // const std::string postfix = std::to_string(stepCount_);
+        // ptcSystemPtr_->writeResult(stepCount_, "./result/", postfix);
+        // stepCount_++;
     }
 }
 
-void EvaluatorTpetraConstraint::recursionStep(const Teuchos::RCP<const TV> &gammaRcp) const {
+void EvaluatorTpetraConstraint::recursionStep(const Teuchos::RCP<const TV> &gammaRcp) {
+    // to avoid double counting forces, reset the constraint gamma and constraint sep
+    conCollectorPtr_->resetConstraintVariables();
+
     // solve for the induced force and velocity
     AMatTransRcp_->apply(*gammaRcp, *forceRcp_,
                             Teuchos::TRANS);   // F_{r}^k = sum_{n=0}^{r} D_{n-1}^{k+1} gamma_{r}^k
@@ -238,7 +237,7 @@ void EvaluatorTpetraConstraint::recursionStep(const Teuchos::RCP<const TV> &gamm
     ptcSystemPtr_->saveForceVelocityConstraints(forceRcp_, velRcp_);
 
     // move the configuration from q^k to q_{r}^{k+1}
-    ptcSystemPtr_->stepEuler(0); // q_{r}^{k+1} = q^k + dt G^k U_r^k
+    ptcSystemPtr_->stepEuler(); // q_{r}^{k+1} = q^k + dt G^k U_r^k
     ptcSystemPtr_->applyBoxBC(); // TODO: this might not work. We'll see
 
     // update all constraints
@@ -256,6 +255,10 @@ void EvaluatorTpetraConstraint::recursionStep(const Teuchos::RCP<const TV> &gamm
 
     // fill the initial gamma guess, the initial unconstrained separation, and the diagonal of K^{-1}(q^{k+1}, gamma^k)
     conCollectorPtr_->fillFixedConstraintInfo(xGuessRcp_, sep0Rcp_, constraintDiagonalRcp_);
+
+    // set the new initial condition
+    x0Rcp_ = Thyra::createVector(xGuessRcp_, xSpaceRcp_);
+    nominalValues_.set_x(x0Rcp_);
 }
 
 void EvaluatorTpetraConstraint::dumpToFile(const Teuchos::RCP<const TOP> &JRcp, const Teuchos::RCP<const TV> &fRcp,
@@ -350,17 +353,13 @@ void JacobianOperator::apply(const TMV &X, TMV &Y, Teuchos::ETransp mode, Scalar
         auto YcolRcp = Y.getVectorNonConst(i);
 
         // step 1. determine the active set of constraints
-        dumpTV(XcolRcp, "XcolRcp");
         activeXcolRcp_->elementWiseMultiply(1.0, *XcolRcp, *statusRcp_, 0.0);
-        dumpTV(statusRcp_, "statusRcp_");
 
         // step 2. change_in_sep = dt D^T M D Xactive
         partialSepPartialGammaOpRcp_->apply(*activeXcolRcp_, *changeInSepRcp_);
-        dumpTV(changeInSepRcp_, "changeInSepRcp_");
 
         // step 3. solve dt D^T M D X + Diag X and store in changeInSepRcp_
         changeInSepRcp_->elementWiseMultiply(1.0, *constraintDiagonalRcp_, *activeXcolRcp_, 1.0);
-        dumpTV(changeInSepRcp_, "changeInSepRcp2_");
 
         // step 4. apply the projection (with scaling of projected values)
         // also, account for Y = alpha Op X + beta Y
@@ -393,7 +392,6 @@ void JacobianOperator::apply(const TMV &X, TMV &Y, Teuchos::ETransp mode, Scalar
                     }
                 }
             }
-            dumpTV(YcolRcp, "YcolRcp");
         }
     }
 }

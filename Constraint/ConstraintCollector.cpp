@@ -597,7 +597,7 @@ int ConstraintCollector::evalConstraintValues(const Teuchos::RCP<const TV> &gamm
     return 0;
 }
 
-int ConstraintCollector::resetConstraintRecursions() {
+int ConstraintCollector::resetConstraintVariables() {
     auto &conPool = *constraintPoolPtr;
     const int conQueNum = conPool.size();
 #pragma omp parallel for num_threads(conQueNum)
@@ -606,7 +606,12 @@ int ConstraintCollector::resetConstraintRecursions() {
         const int queSize = conQue.size();
         for (int j = 0; j < queSize; j++) {
             auto &con = conQue[j];
-            con.resetRecursions();
+            const int numRecursions = con.numRecursions;
+            for (int r = 0; r < numRecursions; r++) {
+                // reset gamma and sep 
+                con.setGamma(r, 0.0);
+                con.setInitialSep(r, 0.0);
+            }
         }
     }
     return 0;

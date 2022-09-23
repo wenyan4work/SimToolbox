@@ -141,7 +141,7 @@ class ConstraintCollector {
                              const Teuchos::RCP<const TV> &constraintSepRcp, const Teuchos::RCP<TV> &constraintValueRcp,
                              const Teuchos::RCP<TV> &constraintStatusRcp) const;
 
-    int resetConstraintRecursions();
+    int resetConstraintVariables();
 
     /**
      * @brief build the index of constraints in the ConstraintPool

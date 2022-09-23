@@ -110,7 +110,7 @@ void DryPhysicsController::initialize(const SylinderConfig &runConfig_, const st
     ptcSystemPtr->writeResult(stepCount, baseFolder, postfix); //TODO: split this function into two: one for ptcSystem and one for ConCollector
 
     // update the configuration
-    // ptcSystemPtr->stepEuler(); // TODO: make sure this should be here since the collision may need to run this type of update
+    ptcSystemPtr->stepEuler(); // TODO: make sure this should be here since the collision may need to run this type of update
     ptcSystemPtr->advanceParticles();
 
     spdlog::warn("Initial Collision Resolution End");
@@ -199,11 +199,6 @@ void DryPhysicsController::run() {
         //////////////////////
         // constraint stuff //
         //////////////////////
-        // constraints are reactinary, so we take a nonconstraint Euler step before collecting constraints
-        // this accounts for any external or velocities defined within the pre-constraint step
-        // the Euler step will move particles outside the periodic box, so we must apply pbc
-        ptcSystemPtr->stepEuler(1); 
-        // ptcSystemPtr->applyBoxBC(); // TODO: this might not work. We'll see
         ptcSystemPtr->collectConstraints();
 
         // constraint solve
@@ -229,7 +224,7 @@ void DryPhysicsController::run() {
         }
 
         // post-step stuff
-        // ptcSystemPtr->stepEuler(); // TODO: make sure this should be here since the collision may need to run this type of update
+        ptcSystemPtr->stepEuler(); // TODO: make sure this should be here since the collision may need to run this type of update
         ptcSystemPtr->advanceParticles(); 
         ptcSystemPtr->calcOrderParameter();
         ptcSystemPtr->calcConStress();

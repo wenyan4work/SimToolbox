@@ -104,7 +104,7 @@ class ConstraintSolver {
 
     std::shared_ptr<ConstraintCollector> conCollectorPtr_; ///< pointer to ConstraintCollector
     std::shared_ptr<SylinderSystem> ptcSystemPtr_;         ///< pointer to SylinderSystem
-    Teuchos::RCP<const TV> gammaRcp_;                      ///< constraint Lagrange multiplier
+    Teuchos::RCP<TV> gammaRcp_;                            ///< constraint Lagrange multiplier
     Teuchos::RCP<TV> velExternalRcp_;                      ///< external, nonconstraint velocity
     Teuchos::RCP<TV> forceExternalRcp_;                    ///< external, nonconstraint force
     Teuchos::RCP<TV> velConRcp_;                           ///< constraint velocity
