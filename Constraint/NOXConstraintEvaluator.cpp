@@ -14,15 +14,15 @@
 
 // Constructor
 EvaluatorTpetraConstraint::EvaluatorTpetraConstraint(const Teuchos::RCP<const TCOMM> &commRcp,
-                                                     const Teuchos::RCP<const TOP> &mobOpRcp,
+                                                     const Teuchos::RCP<const TCMAT> &mobMatRcp,
                                                      std::shared_ptr<ConstraintCollector> conCollectorPtr,
                                                      std::shared_ptr<SylinderSystem> ptcSystemPtr,
                                                      const Teuchos::RCP<TV> &forceRcp, const Teuchos::RCP<TV> &velRcp,
                                                      const double dt)
-    : commRcp_(commRcp), mobOpRcp_(mobOpRcp), conCollectorPtr_(std::move(conCollectorPtr)),
+    : commRcp_(commRcp), mobMatRcp_(mobMatRcp), conCollectorPtr_(std::move(conCollectorPtr)),
       ptcSystemPtr_(std::move(ptcSystemPtr)), dt_(dt), forceRcp_(forceRcp), velRcp_(velRcp), showGetInvalidArg_(false) {
     TEUCHOS_ASSERT(nonnull(commRcp_));
-    TEUCHOS_ASSERT(nonnull(mobOpRcp_));
+    TEUCHOS_ASSERT(nonnull(mobMatRcp_));
     TEUCHOS_ASSERT(nonnull(forceRcp_));
     TEUCHOS_ASSERT(nonnull(velRcp_));
 
@@ -37,7 +37,6 @@ EvaluatorTpetraConstraint::EvaluatorTpetraConstraint(const Teuchos::RCP<const TC
     statusRcp_ = Teuchos::rcp(new TV(xMapRcp_, true));
     constraintDiagonalRcp_ = Teuchos::rcp(new TV(xMapRcp_, true));
     partialSepPartialGammaDiagRcp_ = Teuchos::rcp(new TV(xMapRcp_, true));
-    partialSepPartialGammaOpRcp_ = Teuchos::rcp(new PartialSepPartialGammaOp(xMapRcp_));
 
     // solution space
     xSpaceRcp_ = Thyra::createVectorSpace<Scalar, LO, GO, Node>(xMapRcp_);
@@ -46,16 +45,24 @@ EvaluatorTpetraConstraint::EvaluatorTpetraConstraint(const Teuchos::RCP<const TC
     fMapRcp_ = xMapRcp_;
     fSpaceRcp_ = xSpaceRcp_;
 
-    // build D^k, which maps from force magnatude to com force vector
-    mobMapRcp_ = mobOpRcp_->getDomainMap();
+    // build D(q^p), which maps from force magnatude to force vector
+    mobMapRcp_ = mobMatRcp_->getDomainMap();
     AMatTransRcp_ = conCollectorPtr_->buildConstraintMatrixVector(mobMapRcp_, xMapRcp_);
+    Tpetra::RowMatrixTransposer<double, int, int> transposerDu(AMatTransRcp_);
+    AMatRcp_ = transposerDu.createTranspose();
     TEUCHOS_ASSERT(nonnull(AMatTransRcp_));
+    TEUCHOS_ASSERT(nonnull(AMatRcp_));
 
-    // build the diagonal of dt (D^p)^T M^k D^p :(
-    partialSepPartialGammaDiagRcp_->putScalar(1.0);
+    // build dt (D^p)^T M^k D^p
+    // this is what we will use to approximate the diagonal of dt D^{k+1} M^k D^p
+    partialSepPartialGammaMatRcp_ = Teuchos::rcp(new TCMAT(xMapRcp_, 0));
+    Tpetra::TripleMatrixMultiply::MultiplyRAP(*AMatRcp_, true, *mobMatRcp_, false, *AMatRcp_, false, *partialSepPartialGammaMatRcp_);
+    partialSepPartialGammaMatRcp_->resumeFill();
+    partialSepPartialGammaMatRcp_->scale(dt_);
+    partialSepPartialGammaMatRcp_->fillComplete();
 
-    // setup PartialSepPartialGamma
-    partialSepPartialGammaOpRcp_->initialize(mobOpRcp_, AMatTransRcp_, forceRcp_, velRcp_, dt_);
+    // build the diagonal of dt (D^p)^T M^k D^p
+    partialSepPartialGammaMatRcp_->getLocalDiagCopy(*partialSepPartialGammaDiagRcp_); 
 
     // fill the initial gamma guess, the initial unconstrained separation, and the diagonal of K^{-1}(q^{k+1}, gamma^k)
     conCollectorPtr_->fillFixedConstraintInfo(xGuessRcp_, sep0Rcp_, constraintDiagonalRcp_);
@@ -181,7 +188,7 @@ void EvaluatorTpetraConstraint::evalModelImpl(const Thyra::ModelEvaluatorBase::I
         // evaluate the unconstrained sep //
         ////////////////////////////////////
         sepRcp_->scale(1.0, *sep0Rcp_); // store initial separation in sep
-        partialSepPartialGammaOpRcp_->apply(*xRcp, *sepRcp_, Teuchos::NO_TRANS, 1.0, 1.0);
+        partialSepPartialGammaMatRcp_->apply(*xRcp, *sepRcp_, Teuchos::NO_TRANS, 1.0, 1.0);
 
         //////////////////////
         // Fill the objects //
@@ -202,11 +209,11 @@ void EvaluatorTpetraConstraint::evalModelImpl(const Thyra::ModelEvaluatorBase::I
             // setup J
             conCollectorPtr_->evalConstraintValues(xRcp, partialSepPartialGammaDiagRcp_, sepRcp_, forceMagRcp_,
                                                    statusRcp_);
-            JRcp->initialize(partialSepPartialGammaOpRcp_, partialSepPartialGammaDiagRcp_, constraintDiagonalRcp_,
+            JRcp->initialize(partialSepPartialGammaMatRcp_, partialSepPartialGammaDiagRcp_, constraintDiagonalRcp_,
                              statusRcp_, dt_);
 
             // // for debug, dump to file
-            // dumpToFile(JRcp, forceMagRcp_, statusRcp_, partialSepPartialGammaDiagRcp_, xRcp, mobOpRcp_, AMatTransRcp_,
+            // dumpToFile(JRcp, forceMagRcp_, statusRcp_, partialSepPartialGammaDiagRcp_, xRcp, mobMatRcp_, AMatTransRcp_,
             //            constraintDiagonalRcp_);
 
             // std::cout << "" << std::endl;
@@ -229,9 +236,8 @@ void EvaluatorTpetraConstraint::recursionStep(const Teuchos::RCP<const TV> &gamm
     conCollectorPtr_->resetConstraintVariables();
 
     // solve for the induced force and velocity
-    AMatTransRcp_->apply(*gammaRcp, *forceRcp_,
-                            Teuchos::TRANS);   // F_{r}^k = sum_{n=0}^{r} D_{n-1}^{k+1} gamma_{r}^k
-    mobOpRcp_->apply(*forceRcp_, *velRcp_); // U_r^k = M^k F_r^k
+    AMatRcp_->apply(*gammaRcp, *forceRcp_);   // F_{r}^k = sum_{n=0}^{r} D_{n-1}^{k+1} gamma_{r}^k
+    mobMatRcp_->apply(*forceRcp_, *velRcp_); // U_r^k = M^k F_r^k
 
     // send the constraint vel and force to the particles
     ptcSystemPtr_->saveForceVelocityConstraints(forceRcp_, velRcp_);
@@ -246,12 +252,22 @@ void EvaluatorTpetraConstraint::recursionStep(const Teuchos::RCP<const TV> &gamm
     ptcSystemPtr_->updatePairCollision(); // TODO: this only supports systems with pure, particle-particle
                                             // collisions atm
 
-    // add this recursion to D^T
+    // add this recursion to D^T and D
     conCollectorPtr_->updateConstraintMatrixVector(AMatTransRcp_);
+    Tpetra::RowMatrixTransposer<double, int, int> transposerDu(AMatTransRcp_);
+    AMatRcp_ = transposerDu.createTranspose();
+    TEUCHOS_ASSERT(nonnull(AMatTransRcp_));
+    TEUCHOS_ASSERT(nonnull(AMatRcp_));
 
     // update PartialSepPartialGamma
-    partialSepPartialGammaOpRcp_->unitialize();
-    partialSepPartialGammaOpRcp_->initialize(mobOpRcp_, AMatTransRcp_, forceRcp_, velRcp_, dt_);
+    partialSepPartialGammaMatRcp_ = Teuchos::rcp(new TCMAT(xMapRcp_, 0)); // Doesn't play well with filling the old matrix :(
+    Tpetra::TripleMatrixMultiply::MultiplyRAP(*AMatRcp_, true, *mobMatRcp_, false, *AMatRcp_, false, *partialSepPartialGammaMatRcp_);
+    partialSepPartialGammaMatRcp_->resumeFill();
+    partialSepPartialGammaMatRcp_->scale(dt_);
+    partialSepPartialGammaMatRcp_->fillComplete();
+
+    // get the diagonal of dt (D^p)^T M^k D^p
+    partialSepPartialGammaMatRcp_->getLocalDiagCopy(*partialSepPartialGammaDiagRcp_); 
 
     // fill the initial gamma guess, the initial unconstrained separation, and the diagonal of K^{-1}(q^{k+1}, gamma^k)
     conCollectorPtr_->fillFixedConstraintInfo(xGuessRcp_, sep0Rcp_, constraintDiagonalRcp_);
@@ -264,7 +280,7 @@ void EvaluatorTpetraConstraint::recursionStep(const Teuchos::RCP<const TV> &gamm
 void EvaluatorTpetraConstraint::dumpToFile(const Teuchos::RCP<const TOP> &JRcp, const Teuchos::RCP<const TV> &fRcp,
                                            const Teuchos::RCP<const TV> &statusRcp,
                                            const Teuchos::RCP<const TV> &partialSepPartialGammaDiagRcp,
-                                           const Teuchos::RCP<const TV> &xRcp, const Teuchos::RCP<const TOP> &mobOpRcp,
+                                           const Teuchos::RCP<const TV> &xRcp, const Teuchos::RCP<const TCMAT> &mobMatRcp,
                                            const Teuchos::RCP<const TCMAT> &AMatTransRcp,
                                            const Teuchos::RCP<const TV> &constraintDiagonalRcp) const {
     // only dump nonnull objects
@@ -283,8 +299,8 @@ void EvaluatorTpetraConstraint::dumpToFile(const Teuchos::RCP<const TOP> &JRcp, 
     if (nonnull(xRcp)) {
         dumpTV(xRcp, "Gamma");
     }
-    if (nonnull(mobOpRcp)) {
-        dumpTOP(mobOpRcp, "Mobility");
+    if (nonnull(mobMatRcp)) {
+        dumpTCMAT(mobMatRcp, "Mobility");
     }
     if (nonnull(AMatTransRcp)) {
         dumpTCMAT(AMatTransRcp, "AmatT");
@@ -300,7 +316,7 @@ void EvaluatorTpetraConstraint::dumpToFile(const Teuchos::RCP<const TOP> &JRcp, 
 
 JacobianOperator::JacobianOperator(const Teuchos::RCP<const TMAP> &xMapRcp) : xMapRcp_(xMapRcp) {}
 
-void JacobianOperator::initialize(const Teuchos::RCP<const PartialSepPartialGammaOp> &PartialSepPartialGammaOpRcp,
+void JacobianOperator::initialize(const Teuchos::RCP<const TCMAT> &partialSepPartialGammaMatRcp,
                                   const Teuchos::RCP<const TV> &partialSepPartialGammaDiagRcp,
                                   const Teuchos::RCP<const TV> &constraintDiagonalRcp,
                                   const Teuchos::RCP<const TV> &statusRcp, const double dt) {
@@ -308,14 +324,14 @@ void JacobianOperator::initialize(const Teuchos::RCP<const PartialSepPartialGamm
     dt_ = dt;
     statusRcp_ = statusRcp;
     constraintDiagonalRcp_ = constraintDiagonalRcp;
-    partialSepPartialGammaOpRcp_ = PartialSepPartialGammaOpRcp;
+    partialSepPartialGammaMatRcp_ = partialSepPartialGammaMatRcp;
     partialSepPartialGammaDiagRcp_ = partialSepPartialGammaDiagRcp;
 
     // check the input
     TEUCHOS_ASSERT(xMapRcp_->isSameAs(*constraintDiagonalRcp_->getMap()));
     TEUCHOS_ASSERT(xMapRcp_->isSameAs(*partialSepPartialGammaDiagRcp_->getMap()));
-    TEUCHOS_ASSERT(xMapRcp_->isSameAs(*partialSepPartialGammaOpRcp_->getRangeMap()));
-    TEUCHOS_ASSERT(xMapRcp_->isSameAs(*partialSepPartialGammaOpRcp_->getDomainMap()));
+    TEUCHOS_ASSERT(xMapRcp_->isSameAs(*partialSepPartialGammaMatRcp_->getRangeMap()));
+    TEUCHOS_ASSERT(xMapRcp_->isSameAs(*partialSepPartialGammaMatRcp_->getDomainMap()));
 
     // create the internal data structures
     changeInSepRcp_ = Teuchos::rcp(new TV(xMapRcp_, true));
@@ -328,7 +344,7 @@ void JacobianOperator::unitialize() {
     activeXcolRcp_.reset();
     changeInSepRcp_.reset();
     constraintDiagonalRcp_.reset();
-    partialSepPartialGammaOpRcp_.reset();
+    partialSepPartialGammaMatRcp_.reset();
     partialSepPartialGammaDiagRcp_.reset();
 }
 
@@ -356,7 +372,7 @@ void JacobianOperator::apply(const TMV &X, TMV &Y, Teuchos::ETransp mode, Scalar
         activeXcolRcp_->elementWiseMultiply(1.0, *XcolRcp, *statusRcp_, 0.0);
 
         // step 2. change_in_sep = dt D^T M D Xactive
-        partialSepPartialGammaOpRcp_->apply(*activeXcolRcp_, *changeInSepRcp_);
+        partialSepPartialGammaMatRcp_->apply(*activeXcolRcp_, *changeInSepRcp_);
 
         // step 3. solve dt D^T M D X + Diag X and store in changeInSepRcp_
         changeInSepRcp_->elementWiseMultiply(1.0, *constraintDiagonalRcp_, *activeXcolRcp_, 1.0);

@@ -64,7 +64,7 @@ ConstraintSolver::ConstraintSolver(const Teuchos::RCP<const Teuchos::Comm<int>> 
     nonlinearParams_->set("Nonlinear Solver", "Line Search Based"); // Line Search Based or Trust Region Based
     nonlinearParams_->sublist("Direction").set("Method", "Newton"); // Newton or NonlinearCG
     nonlinearParams_->sublist("Direction").sublist("Newton").sublist("Linear Solver").set("Tolerance", 1.0e-4);
-    nonlinearParams_->sublist("Line Search").set("Method", "Full Step"); // Full Step or Backtrack
+    nonlinearParams_->sublist("Line Search").set("Method", "Backtrack"); // Full Step or Backtrack
 
     // Set output params
     nonlinearParams_->sublist("Printing").sublist("Output Information").set("Debug", true);

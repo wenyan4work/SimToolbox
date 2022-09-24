@@ -25,7 +25,7 @@
 class EvaluatorTpetraConstraint : public Thyra::StateFuncModelEvaluatorBase<Scalar> {
   public:
     // Constructor
-    EvaluatorTpetraConstraint(const Teuchos::RCP<const TCOMM> &commRcp, const Teuchos::RCP<const TOP> &mobOpRcp,
+    EvaluatorTpetraConstraint(const Teuchos::RCP<const TCOMM> &commRcp, const Teuchos::RCP<const TCMAT> &mobMatRcp,
                               std::shared_ptr<ConstraintCollector> conCollectorPtr,
                               std::shared_ptr<SylinderSystem> ptcSystemPtr, const Teuchos::RCP<TV> &forceRcp,
                               const Teuchos::RCP<TV> &velRcp, const double dt);
@@ -73,13 +73,11 @@ class EvaluatorTpetraConstraint : public Thyra::StateFuncModelEvaluatorBase<Scal
 
     //@}
 
-
-
     // debug functions
     void dumpToFile(const Teuchos::RCP<const TOP> &JRcp, const Teuchos::RCP<const TV> &fRcp,
                     const Teuchos::RCP<const TV> &projMaskRcp,
                     const Teuchos::RCP<const TV> &partialSepPartialGammaDiagRcp, const Teuchos::RCP<const TV> &xRcp,
-                    const Teuchos::RCP<const TOP> &mobOpRcp, const Teuchos::RCP<const TCMAT> &AMatTransRcp,
+                    const Teuchos::RCP<const TCMAT> &mobMatRcp, const Teuchos::RCP<const TCMAT> &AMatTransRcp,
                     const Teuchos::RCP<const TV> &constraintDiagonalRcp) const;
 
   private: // data members
@@ -90,15 +88,14 @@ class EvaluatorTpetraConstraint : public Thyra::StateFuncModelEvaluatorBase<Scal
     std::shared_ptr<ConstraintCollector> conCollectorPtr_;
     std::shared_ptr<SylinderSystem> ptcSystemPtr_;
     const Teuchos::RCP<const TCOMM> commRcp_;
-    const Teuchos::RCP<const TOP> mobOpRcp_;
+    const Teuchos::RCP<const TCMAT> mobMatRcp_;
     const Teuchos::RCP<const TOP> mobInvOpRcp_;
     Teuchos::RCP<const TMAP> mobMapRcp_; ///< map for mobility matrix. 6 DOF per obj
 
+    Teuchos::RCP<TCMAT> AMatTransRcp_; ///< A^T matrix
+    Teuchos::RCP<TCMAT> AMatRcp_; ///< A^T matrix
     Teuchos::RCP<TCMAT>
-        AMatTransRcp_; ///< A^Trans matrix TODO: are these allowed to be mutable? No. The RCP object CANNOT change
-                       ///< during computation. The contents can be changed without using mutablle
-    Teuchos::RCP<PartialSepPartialGammaOp>
-        partialSepPartialGammaOpRcp_; ///< dt S^T A^T M A S which takes gamma to change in sep w.r.t gamma
+        partialSepPartialGammaMatRcp_; ///< dt S^T A^T M A S which takes gamma to change in sep w.r.t gamma
     Teuchos::RCP<TV> partialSepPartialGammaDiagRcp_; ///< the diagonal of dt S^T A^T M A S
 
     Teuchos::RCP<TV> statusRcp_;             ///< status mask: if 1 for active, otherwise 0.
@@ -134,7 +131,7 @@ class JacobianOperator : public TOP {
     // Constructor
     JacobianOperator(const Teuchos::RCP<const TMAP> &xMapRcp);
 
-    void initialize(const Teuchos::RCP<const PartialSepPartialGammaOp> &PartialSepPartialGammaOpRcp,
+    void initialize(const Teuchos::RCP<const TCMAT> &partialSepPartialGammaMatRcp,
                     const Teuchos::RCP<const TV> &partialSepPartialGammaDiagRcp,
                     const Teuchos::RCP<const TV> &constraintDiagonalRcp, const Teuchos::RCP<const TV> &projMaskRcp,
                     const double dt);
@@ -160,8 +157,8 @@ class JacobianOperator : public TOP {
     Teuchos::RCP<const TV> statusRcp_;                     ///< projection mask: if 1 for apply projection, otherwise 0.
     Teuchos::RCP<const TV> constraintDiagonalRcp_;         ///< K^{-1} diagonal matrix
     Teuchos::RCP<const TV> partialSepPartialGammaDiagRcp_; ///< diagonal of dt A^T M A
-    Teuchos::RCP<const PartialSepPartialGammaOp>
-        partialSepPartialGammaOpRcp_; ///< dt S^T A^T M A S, which maps gamma to change in sep w.r.t gamma
+    Teuchos::RCP<const TCMAT>
+        partialSepPartialGammaMatRcp_; ///< dt S^T A^T M A S, which maps gamma to change in sep w.r.t gamma
 
     Teuchos::RCP<TV> activeXcolRcp_;  ///< active input
     Teuchos::RCP<TV> changeInSepRcp_; ///< force_mag = S gamma

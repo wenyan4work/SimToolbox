@@ -1342,8 +1342,6 @@ void SylinderSystem::updatePairCollision() {
             const int idx = conIndexBase + 2 * j;
             const auto &syI = sylinderNearDataDirectoryPtr->dataToFind[idx + 0]; // sylinderNearI
             const auto &syJ = sylinderNearDataDirectoryPtr->dataToFind[idx + 1]; // sylinderNearJ
-            std::cout << "syI.pos " << syI.pos[0] << " " << syI.pos[1] << " " << syI.pos[2] << std::endl;
-            std::cout << "syJ.pos " << syJ.pos[0] << " " << syJ.pos[1] << " " << syJ.pos[2] << std::endl;
             calcColFtr.updateCollisionBlock(syI, syJ, conQue[j]);
         }
     }

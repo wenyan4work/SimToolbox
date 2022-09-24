@@ -45,8 +45,12 @@ void noPenetrationConstraint(Constraint &con, const int numRecursions, const dou
                                    -normI[1] * posJ[0] + normI[0] * posJ[1]);
     const double gammaGuess = sepDistance < 0 ? -sepDistance : 0;
     if (recursionFlag) {
-        con.addRecursion(gammaGuess, sepDistance, labI, labJ, unscaledForceComI.data(), unscaledForceComJ.data(),
-                         unscaledTorqueComI.data(), unscaledTorqueComJ.data(), stressIJ);
+        // check if storing a recursion is necessary. If the constraint is already satisfied, then there's no point
+        // TODO: ideally, this comparison would be against the desired tol
+        if (sepDistance < -std::numeric_limits<double>::epsilon() * 100) {
+            con.addRecursion(gammaGuess, sepDistance, labI, labJ, unscaledForceComI.data(), unscaledForceComJ.data(),
+                            unscaledTorqueComI.data(), unscaledTorqueComJ.data(), stressIJ);
+        }
     } else {
         con.initialize(gammaGuess, sepDistance, labI, labJ, unscaledForceComI.data(), unscaledForceComJ.data(),
                        unscaledTorqueComI.data(), unscaledTorqueComJ.data(), stressIJ);
@@ -87,8 +91,12 @@ void springConstraint(Constraint &con, const int numRecursions, const double sep
                                    -normI[1] * posJ[0] + normI[0] * posJ[1]);
     const double gammaGuess = sepDistance - restLength;
     if (recursionFlag) {
-        con.addRecursion(gammaGuess, gammaGuess, labI, labJ, unscaledForceComI.data(), unscaledForceComJ.data(),
-               unscaledTorqueComI.data(), unscaledTorqueComJ.data(), stressIJ);
+        // check if storing a recursion is necessary. If the constraint is already satisfied, then there's no point
+        // TODO: ideally, this comparison would be against the desired tol
+        if (std::abs(gammaGuess) < std::numeric_limits<double>::epsilon() * 100) {
+            con.addRecursion(gammaGuess, gammaGuess, labI, labJ, unscaledForceComI.data(), unscaledForceComJ.data(),
+                unscaledTorqueComI.data(), unscaledTorqueComJ.data(), stressIJ);
+        }
     } else {
         con.initialize(gammaGuess, gammaGuess, labI, labJ, unscaledForceComI.data(), unscaledForceComJ.data(),
                unscaledTorqueComI.data(), unscaledTorqueComJ.data(), stressIJ);
@@ -130,8 +138,12 @@ void angularSpringConstraint(Constraint &con, const int numRecursions, const dou
                                    -normI[1] * posJ[0] + normI[0] * posJ[1]);
     const double gammaGuess = sepAngle - restAngle;
     if (recursionFlag) {
-        con.addRecursion(gammaGuess, gammaGuess, labI, labJ, unscaledForceComI.data(), unscaledForceComJ.data(),
-               unscaledTorqueComI.data(), unscaledTorqueComJ.data(), stressIJ);
+        // check if storing a recursion is necessary. If the constraint is already satisfied, then there's no point
+        // TODO: ideally, this comparison would be against the desired tol
+        if (std::abs(gammaGuess) < std::numeric_limits<double>::epsilon() * 100) {
+            con.addRecursion(gammaGuess, gammaGuess, labI, labJ, unscaledForceComI.data(), unscaledForceComJ.data(),
+                unscaledTorqueComI.data(), unscaledTorqueComJ.data(), stressIJ);
+        }
     } else {
         con.initialize(gammaGuess, gammaGuess, labI, labJ, unscaledForceComI.data(), unscaledForceComJ.data(),
                unscaledTorqueComI.data(), unscaledTorqueComJ.data(), stressIJ);
@@ -171,8 +183,12 @@ void pivotConstraint(Constraint &con, const int numRecursions, const double sepD
                                    -normI[1] * posJ[0] + normI[0] * posJ[1]);
     const double gammaGuess = sepDistance;
     if (recursionFlag) {
-        con.addRecursion(gammaGuess, sepDistance, labI, labJ, unscaledForceComI.data(), unscaledForceComJ.data(),
-               unscaledTorqueComI.data(), unscaledTorqueComJ.data(), stressIJ);
+        // check if storing a recursion is necessary. If the constraint is already satisfied, then there's no point
+        // TODO: ideally, this comparison would be against the desired tol
+        if (sepDistance < std::numeric_limits<double>::epsilon() * 100) {
+            con.addRecursion(gammaGuess, sepDistance, labI, labJ, unscaledForceComI.data(), unscaledForceComJ.data(),
+                unscaledTorqueComI.data(), unscaledTorqueComJ.data(), stressIJ);
+        }
     } else {
         con.initialize(gammaGuess, sepDistance, labI, labJ, unscaledForceComI.data(), unscaledForceComJ.data(),
                unscaledTorqueComI.data(), unscaledTorqueComJ.data(), stressIJ);
