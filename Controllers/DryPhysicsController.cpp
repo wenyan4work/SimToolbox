@@ -71,7 +71,7 @@ void DryPhysicsController::initialize(const SylinderConfig &runConfig_, const st
     rngPoolPtr = std::make_shared<TRngPool>(runConfig.rngSeed);
     conCollectorPtr = std::make_shared<ConstraintCollector>();
     ptcSystemPtr = std::make_shared<SylinderSystem>(runConfig, commRcp, rngPoolPtr, conCollectorPtr);
-    conSolverPtr = std::make_shared<ConstraintSolver>(commRcp, conCollectorPtr, ptcSystemPtr); 
+    conSolverPtr = std::make_shared<PGDConstraintSolver>(commRcp, conCollectorPtr, ptcSystemPtr); 
     ptcSystemPtr->initialize(posFile);
     
     // prepare the output directory
@@ -97,8 +97,6 @@ void DryPhysicsController::initialize(const SylinderConfig &runConfig_, const st
         Teuchos::TimeMonitor mon(*solveTimer);
         conSolverPtr->solveConstraints(); 
     }
-    conSolverPtr->writebackGamma();
-    conSolverPtr->writebackForceVelocity();
 
     // merge the constraint and nonconstraint vel and force
     ptcSystemPtr->sumForceVelocity();
@@ -110,7 +108,7 @@ void DryPhysicsController::initialize(const SylinderConfig &runConfig_, const st
     ptcSystemPtr->writeResult(stepCount, baseFolder, postfix); //TODO: split this function into two: one for ptcSystem and one for ConCollector
 
     // update the configuration
-    ptcSystemPtr->stepEuler(); // TODO: make sure this should be here since the collision may need to run this type of update
+    // ptcSystemPtr->stepEuler(); // TODO: make sure this should be here since the collision may need to run this type of update
     ptcSystemPtr->advanceParticles();
 
     spdlog::warn("Initial Collision Resolution End");
@@ -155,7 +153,7 @@ void DryPhysicsController::reinitialize(const SylinderConfig &runConfig_, const 
     rngPoolPtr = std::make_shared<TRngPool>(restartRngSeed);
     conCollectorPtr = std::make_shared<ConstraintCollector>();
     ptcSystemPtr = std::make_shared<SylinderSystem>(runConfig, commRcp, rngPoolPtr, conCollectorPtr);
-    conSolverPtr = std::make_shared<ConstraintSolver>(commRcp, conCollectorPtr, ptcSystemPtr); 
+    conSolverPtr = std::make_shared<PGDConstraintSolver>(commRcp, conCollectorPtr, ptcSystemPtr); 
     std::string baseFolder = getCurrentResultFolder();
     pvtpFileName = baseFolder + pvtpFileName;
     ptcSystemPtr->reinitialize(pvtpFileName);
@@ -208,10 +206,9 @@ void DryPhysicsController::run() {
             Teuchos::TimeMonitor mon(*solveTimer);
             conSolverPtr->solveConstraints(); 
         }
-        conSolverPtr->writebackGamma();
-        conSolverPtr->writebackForceVelocity();
 
         // merge the constraint and nonconstraint vel and force
+        // TODO: having a total force and velocity is unnecessary. Delete it from sylinder object but still write it out to vtk.
         ptcSystemPtr->sumForceVelocity();
 
         // data output stuff
@@ -224,7 +221,7 @@ void DryPhysicsController::run() {
         }
 
         // post-step stuff
-        ptcSystemPtr->stepEuler(); // TODO: make sure this should be here since the collision may need to run this type of update
+        // ptcSystemPtr->stepEuler(); // TODO: make sure this should be here since the collision may need to run this type of update
         ptcSystemPtr->advanceParticles(); 
         ptcSystemPtr->calcOrderParameter();
         ptcSystemPtr->calcConStress();

@@ -501,8 +501,10 @@ void ConstraintCollector::updateConstraintMatrixVector(const Teuchos::RCP<TCMAT>
     AMatTransRcp->fillComplete(domainMapRcp, rangeMapRcp);
 }
 
-int ConstraintCollector::fillFixedConstraintInfo(const Teuchos::RCP<TV> &gammaGuessRcp, const Teuchos::RCP<TV> &initialSepRcp, const Teuchos::RCP<TV> &constraintDiagonalRcp) const {
+int ConstraintCollector::fillFixedConstraintInfo(const Teuchos::RCP<TV> &gammaGuessRcp, const Teuchos::RCP<TV> &biFlagRcp, 
+                                                 const Teuchos::RCP<TV> &initialSepRcp, const Teuchos::RCP<TV> &constraintDiagonalRcp) const {
     TEUCHOS_ASSERT(nonnull(gammaGuessRcp));
+    TEUCHOS_ASSERT(nonnull(biFlagRcp));
     TEUCHOS_ASSERT(nonnull(initialSepRcp));
     TEUCHOS_ASSERT(nonnull(constraintDiagonalRcp));
 
@@ -516,9 +518,11 @@ int ConstraintCollector::fillFixedConstraintInfo(const Teuchos::RCP<TV> &gammaGu
 
     //  fill constraintDiagonal
     auto gammaGuessPtr = gammaGuessRcp->getLocalView<Kokkos::HostSpace>();
+    auto biFlagPtr = biFlagRcp->getLocalView<Kokkos::HostSpace>();
     auto initialSepPtr = initialSepRcp->getLocalView<Kokkos::HostSpace>();
     auto constraintDiagonalPtr = constraintDiagonalRcp->getLocalView<Kokkos::HostSpace>();
     gammaGuessRcp->modify<Kokkos::HostSpace>();
+    biFlagRcp->modify<Kokkos::HostSpace>();
     initialSepRcp->modify<Kokkos::HostSpace>();
     constraintDiagonalRcp->modify<Kokkos::HostSpace>();
 
@@ -532,13 +536,13 @@ int ConstraintCollector::fillFixedConstraintInfo(const Teuchos::RCP<TV> &gammaGu
             const int numRecursions = con.numRecursions;
             for (int r = 0; r < numRecursions; r++) {
                 gammaGuessPtr(conIndex, 0) = con.getGamma(r);
+                biFlagPtr(conIndex, 0) = con.bilaterial;
                 initialSepPtr(conIndex, 0) = con.getInitialSep(r);
                 constraintDiagonalPtr(conIndex, 0) = con.diagonal;
                 conIndex += 1;
             }
         }
     }
-
     return 0;
 }
 

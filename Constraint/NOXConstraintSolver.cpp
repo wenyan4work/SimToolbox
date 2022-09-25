@@ -5,7 +5,7 @@
 #include <NOX_StatusTest_NormF.H>
 #include <mpi.h>
 
-ConstraintSolver::ConstraintSolver(const Teuchos::RCP<const Teuchos::Comm<int>> &commRcp,
+NOXConstraintSolver::NOXConstraintSolver(const Teuchos::RCP<const Teuchos::Comm<int>> &commRcp,
                                    std::shared_ptr<ConstraintCollector> conCollectorPtr,
                                    std::shared_ptr<SylinderSystem> ptcSystemPtr)
     : commRcp_(commRcp), conCollectorPtr_(std::move(conCollectorPtr)), ptcSystemPtr_(std::move(ptcSystemPtr)) {
@@ -79,7 +79,7 @@ ConstraintSolver::ConstraintSolver(const Teuchos::RCP<const Teuchos::Comm<int>> 
     nonlinearParams_->sublist("Printing").sublist("Output Information").set("Outer Iteration StatusTest", true);
 }
 
-void ConstraintSolver::setup(const double dt) {
+void NOXConstraintSolver::setup(const double dt) {
     reset();
 
     dt_ = dt;
@@ -89,14 +89,14 @@ void ConstraintSolver::setup(const double dt) {
     forceConRcp_ = Teuchos::rcp(new TV(mobMapRcp_, true));
 }
 
-void ConstraintSolver::reset() {
+void NOXConstraintSolver::reset() {
     mobMatRcp_.reset();
     mobMapRcp_.reset();
     velConRcp_.reset();
     forceConRcp_.reset();
 }
 
-void ConstraintSolver::solveConstraints() {
+void NOXConstraintSolver::solveConstraints() {
     /////////////////////////////////////////////////
     // Check if there are any constraints to solve //
     /////////////////////////////////////////////////
@@ -119,22 +119,6 @@ void ConstraintSolver::solveConstraints() {
     model->set_W_factory(lowsFactory_);
 
     //////////////////////////////
-    // Create the JFNK operator //
-    //////////////////////////////
-    // Teuchos::ParameterList printParams;
-    // Teuchos::RCP<Teuchos::ParameterList> jfnkParams = Teuchos::parameterList();
-    // jfnkParams->set("Difference Type", "Forward");
-    // jfnkParams->set("Perturbation Algorithm", "KSP NOX 2001");
-    // jfnkParams->set("lambda", 1.0e-4);
-    // Teuchos::RCP<NOX::Thyra::MatrixFreeJacobianOperator<Scalar> > jfnkOp =
-    //     Teuchos::rcp(new NOX::Thyra::MatrixFreeJacobianOperator<Scalar>(printParams));
-    // jfnkOp->setParameterList(jfnkParams);
-
-    // // Wrap the model evaluator in a JFNK Model Evaluator
-    // Teuchos::RCP<Thyra::ModelEvaluator<Scalar> > thyraModel =
-    //     Teuchos::rcp(new NOX::MatrixFreeModelEvaluatorDecorator<Scalar>(model));
-
-    //////////////////////////////
     // Create the initial guess //
     //////////////////////////////
     Teuchos::RCP<Thyra::VectorBase<Scalar>> initial_guess = model->getNominalValues().get_x()->clone_v();
@@ -145,16 +129,6 @@ void ConstraintSolver::solveConstraints() {
     Teuchos::RCP<NOX::Thyra::Group> noxGroup =
         Teuchos::rcp(new NOX::Thyra::Group(*initial_guess, model, model->create_W_op(), model->get_W_factory(),
                                            Teuchos::null, Teuchos::null, Teuchos::null));
-
-    // model, model->create_W_op(),
-    // thyraModel, jfnkOp,
-
-    // noxGroup->computeF(); //TODO: is this necessary? No, I don't think so
-    // noxGroup->computeJacobian(); //TODO: is this necessary? No, I know think so
-
-    // // VERY IMPORTANT!!!  jfnk object needs base evaluation objects.
-    // // This creates a circular dependency, so use a weak pointer.
-    // jfnkOp->setBaseEvaluationToNOXGroup(noxGroup.create_weak());
 
     ///////////////////////
     // Create the solver //
@@ -181,7 +155,7 @@ void ConstraintSolver::solveConstraints() {
             gammaRcp_->update(1.0, *final_x_tpetra, 1.0);
         }
 
-        // apply the recursion TODO: only move the particles when we reach out final recursion
+        // apply the recursion
         model->recursionStep(gammaRcp_);
         initial_guess = model->getNominalValues().get_x()->clone_v();
         solver->reset(NOX::Thyra::Vector(initial_guess)); 
@@ -192,9 +166,9 @@ void ConstraintSolver::solveConstraints() {
     // dumpTV(gammaRcp_, "gammaRcp_");
 }
 
-void ConstraintSolver::writebackGamma() { conCollectorPtr_->writeBackGamma(gammaRcp_.getConst()); }
+void NOXConstraintSolver::writebackGamma() { conCollectorPtr_->writeBackGamma(gammaRcp_.getConst()); }
 
-void ConstraintSolver::writebackForceVelocity() {
+void NOXConstraintSolver::writebackForceVelocity() {
     // forceRcp_, velRcp_ are filled during the constraint resolution process
     // send the constraint vel and force to the particles
     ptcSystemPtr_->saveForceVelocityConstraints(forceConRcp_, velConRcp_);

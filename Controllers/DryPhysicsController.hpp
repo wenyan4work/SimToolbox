@@ -14,6 +14,7 @@
 #include "Sylinder/SylinderSystem.hpp"
 #include "Boundary/Boundary.hpp"
 #include "Constraint/NOXConstraintSolver.hpp"
+#include "Constraint/PGDConstraintSolver.hpp"
 #include "FDPS/particle_simulator.hpp"
 #include "Trilinos/TpetraUtil.hpp"
 #include "Trilinos/ZDD.hpp"
@@ -34,7 +35,7 @@ class DryPhysicsController {
 
     // singletons
     std::shared_ptr<SylinderSystem> ptcSystemPtr;       ///< pointer to SylinderSystem
-    std::shared_ptr<ConstraintSolver> conSolverPtr;       ///< pointer to ConstraintSolver
+    std::shared_ptr<PGDConstraintSolver> conSolverPtr;       ///< pointer to ConstraintSolver
     std::shared_ptr<ConstraintCollector> conCollectorPtr; ///<  pointer to ConstraintCollector
 
     // MPI stuff

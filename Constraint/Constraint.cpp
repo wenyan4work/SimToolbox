@@ -23,6 +23,7 @@ void noPenetrationConstraint(Constraint &con, const int numRecursions, const dou
     // set constraint info
     con.diagonal = 0;
     con.oneSide = oneSide;
+    con.bilaterial = false;
     con.gidI = gidI;
     con.gidJ = gidJ;
     con.globalIndexI = globalIndexI;
@@ -69,6 +70,7 @@ void springConstraint(Constraint &con, const int numRecursions, const double sep
     // set constraint info
     con.diagonal = 1.0 / springConstant;
     con.oneSide = oneSide;
+    con.bilaterial = true;
     con.gidI = gidI;
     con.gidJ = gidJ;
     con.globalIndexI = globalIndexI;
@@ -115,6 +117,7 @@ void angularSpringConstraint(Constraint &con, const int numRecursions, const dou
     // set constraint info
     con.diagonal = 1.0 / springConstant;
     con.oneSide = oneSide;
+    con.bilaterial = true;
     con.gidI = gidI;
     con.gidJ = gidJ;
     con.globalIndexI = globalIndexI;
@@ -161,6 +164,7 @@ void pivotConstraint(Constraint &con, const int numRecursions, const double sepD
     // set constraint info
     con.diagonal = 0;
     con.oneSide = oneSide;
+    con.bilaterial = true;
     con.gidI = gidI;
     con.gidJ = gidJ;
     con.globalIndexI = globalIndexI;

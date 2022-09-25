@@ -53,9 +53,10 @@ struct Constraint {
                                          ///< Lagrange multiplier gamma
     double stress_[27] = {0};            ///< virial stress induced by these constraints
   public:
-    int numRecursions = -1; ///< number of constrained recursions
-    int id = -1;            ///< identifier specifying the type of constraint this is
-    bool oneSide = false;   ///< flag for one side constraint. when true, body J does not appear in mobility matrix
+    int numRecursions = -1;  ///< number of constrained recursions
+    int id = -1;             ///< identifier specifying the type of constraint this is
+    bool oneSide = false;    ///< flag for one side constraint. when true, body J does not appear in mobility matrix
+    bool bilaterial = false; ///< flag for bilaterial constraint. If not bilaterial, then assume unilaterial
     int gidI = GEO_INVALID_INDEX;         ///< unique global ID of particle I
     int gidJ = GEO_INVALID_INDEX;         ///< unique global ID of particle J
     int globalIndexI = GEO_INVALID_INDEX; ///< global index of particle I
@@ -110,16 +111,12 @@ struct Constraint {
         }
     }
 
-    void setGamma(const int idxRecursion, const double gamma) { 
-        gammas_[idxRecursion] = gamma; 
-    }
-    void setInitialSep(const int idxRecursion, const double sep0)  { 
-        seps0_[idxRecursion] = sep0; 
-    }
+    void setGamma(const int idxRecursion, const double gamma) { gammas_[idxRecursion] = gamma; }
+    void setInitialSep(const int idxRecursion, const double sep0) { seps0_[idxRecursion] = sep0; }
 
     void initialize(const double gammaGuess, const double initialSep, const double labI[3], const double labJ[3],
-                const double unscaledForceComI[3], const double unscaledForceComJ[3], const double unscaledTorqueComI[3],
-                const double unscaledTorqueComJ[3], const double stress[9]) {
+                    const double unscaledForceComI[3], const double unscaledForceComJ[3],
+                    const double unscaledTorqueComI[3], const double unscaledTorqueComJ[3], const double stress[9]) {
         recursionCounter_ = 0;
         gammas_[recursionCounter_] = gammaGuess;
         seps0_[recursionCounter_] = initialSep;
@@ -137,8 +134,8 @@ struct Constraint {
     }
 
     void addRecursion(const double gammaGuess, const double initialSep, const double labI[3], const double labJ[3],
-                const double unscaledForceComI[3], const double unscaledForceComJ[3], const double unscaledTorqueComI[3],
-                const double unscaledTorqueComJ[3], const double stress[9]) {
+                      const double unscaledForceComI[3], const double unscaledForceComJ[3],
+                      const double unscaledTorqueComI[3], const double unscaledTorqueComJ[3], const double stress[9]) {
         recursionCounter_++;
         assert(recursionCounter_ < numRecursions);
 
@@ -196,12 +193,14 @@ void noPenetrationConstraint(Constraint &con, const int numRecursions, const dou
 void springConstraint(Constraint &con, const int numRecursions, const double sepDistance, const double restLength,
                       const double springConstant, const int gidI, const int gidJ, const int globalIndexI,
                       const int globalIndexJ, const double posI[3], const double posJ[3], const double labI[3],
-                      const double labJ[3], const double normI[3], const double stressIJ[9], const bool oneSide, const bool recursionFlag);
+                      const double labJ[3], const double normI[3], const double stressIJ[9], const bool oneSide,
+                      const bool recursionFlag);
 
 void angularSpringConstraint(Constraint &con, const int numRecursions, const double sepDistance, const double restAngle,
                              const double springConstant, const int gidI, const int gidJ, const int globalIndexI,
                              const int globalIndexJ, const double posI[3], const double posJ[3], const double labI[3],
-                             const double labJ[3], const double normI[3], const double stressIJ[9], const bool oneSide, const bool recursionFlag);
+                             const double labJ[3], const double normI[3], const double stressIJ[9], const bool oneSide,
+                             const bool recursionFlag);
 
 void pivotConstraint(Constraint &con, const int numRecursions, const double sepDistance, const int gidI, const int gidJ,
                      const int globalIndexI, const int globalIndexJ, const double posI[3], const double posJ[3],

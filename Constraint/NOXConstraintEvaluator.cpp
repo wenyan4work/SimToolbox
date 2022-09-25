@@ -65,7 +65,8 @@ EvaluatorTpetraConstraint::EvaluatorTpetraConstraint(const Teuchos::RCP<const TC
     partialSepPartialGammaMatRcp_->getLocalDiagCopy(*partialSepPartialGammaDiagRcp_); 
 
     // fill the initial gamma guess, the initial unconstrained separation, and the diagonal of K^{-1}(q^{k+1}, gamma^k)
-    conCollectorPtr_->fillFixedConstraintInfo(xGuessRcp_, sep0Rcp_, constraintDiagonalRcp_);
+    // use forceMagRcp_ as fake storage for the unused biFlagRcp
+    conCollectorPtr_->fillFixedConstraintInfo(xGuessRcp_, forceMagRcp_, sep0Rcp_, constraintDiagonalRcp_);
 
     // setup in/out args
     typedef Thyra::ModelEvaluatorBase MEB;
@@ -270,7 +271,8 @@ void EvaluatorTpetraConstraint::recursionStep(const Teuchos::RCP<const TV> &gamm
     partialSepPartialGammaMatRcp_->getLocalDiagCopy(*partialSepPartialGammaDiagRcp_); 
 
     // fill the initial gamma guess, the initial unconstrained separation, and the diagonal of K^{-1}(q^{k+1}, gamma^k)
-    conCollectorPtr_->fillFixedConstraintInfo(xGuessRcp_, sep0Rcp_, constraintDiagonalRcp_);
+    // use forceMagRcp_ as fake storage for the unused biFlagRcp
+    conCollectorPtr_->fillFixedConstraintInfo(xGuessRcp_, forceMagRcp_, sep0Rcp_, constraintDiagonalRcp_);
 
     // set the new initial condition
     x0Rcp_ = Thyra::createVector(xGuessRcp_, xSpaceRcp_);

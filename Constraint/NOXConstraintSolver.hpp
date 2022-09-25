@@ -1,5 +1,5 @@
 /**
- * @file ConstraintSolver.hpp
+ * @file NOXConstraintSolver.hpp
  * @author wenyan4work (wenyan4work@gmail.com)
  * @brief Solve the uni/bi-lateral constraint problem
  * @version 0.1
@@ -33,11 +33,11 @@
  * @brief solver for the constrained dynamics for each timestep
  *
  */
-class ConstraintSolver {
+class NOXConstraintSolver {
 
   public:
     /**
-     * @brief Construct a new ConstraintSolver object with particle system access
+     * @brief Construct a new NOXConstraintSolver object with particle system access
      *
      * This constructor calls setup() internally
      * @param config SylinderConfig object
@@ -45,18 +45,18 @@ class ConstraintSolver {
      * @param argc command line argument
      * @param argv command line argument
      */
-    ConstraintSolver(const Teuchos::RCP<const Teuchos::Comm<int>> &commRcp,
+    NOXConstraintSolver(const Teuchos::RCP<const Teuchos::Comm<int>> &commRcp,
                      std::shared_ptr<ConstraintCollector> conCollectorPtr,
                      std::shared_ptr<SylinderSystem> ptcSystemPtr);
 
     // destructor
-    ~ConstraintSolver() = default;
+    ~NOXConstraintSolver() = default;
 
     // forbid copy
-    ConstraintSolver(const ConstraintSolver &) = delete;
-    ConstraintSolver(ConstraintSolver &&) = delete;
-    const ConstraintSolver &operator=(const ConstraintSolver &) = delete;
-    const ConstraintSolver &operator=(ConstraintSolver &&) = delete;
+    NOXConstraintSolver(const NOXConstraintSolver &) = delete;
+    NOXConstraintSolver(NOXConstraintSolver &&) = delete;
+    const NOXConstraintSolver &operator=(const NOXConstraintSolver &) = delete;
+    const NOXConstraintSolver &operator=(NOXConstraintSolver &&) = delete;
 
     /**
      * @brief reset the parameters and release all allocated spaces
@@ -71,12 +71,6 @@ class ConstraintSolver {
      * @param objMobMapRcp_
      */
     void setup(const double dt);
-
-    // /**
-    //  * @brief dump the jacobian and constraint values to MatrixMarket files
-    //  *
-    //  */
-    // void dumpConstraints();
 
     /**
      * @brief solve the nonlinear complementarity problem
@@ -105,8 +99,6 @@ class ConstraintSolver {
     std::shared_ptr<ConstraintCollector> conCollectorPtr_; ///< pointer to ConstraintCollector
     std::shared_ptr<SylinderSystem> ptcSystemPtr_;         ///< pointer to SylinderSystem
     Teuchos::RCP<TV> gammaRcp_;                            ///< constraint Lagrange multiplier
-    Teuchos::RCP<TV> velExternalRcp_;                      ///< external, nonconstraint velocity
-    Teuchos::RCP<TV> forceExternalRcp_;                    ///< external, nonconstraint force
     Teuchos::RCP<TV> velConRcp_;                           ///< constraint velocity
     Teuchos::RCP<TV> forceConRcp_;                         ///< constraint force
 
