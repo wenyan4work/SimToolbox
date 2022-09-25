@@ -17,6 +17,26 @@
 #include <iostream>
 #include <memory>
 
+struct Growth {
+    double tauD = 0;
+    double Delta = 0;
+    double sigma = 0;
+    double sftAng = 0;
+    Growth() = delete;
+    Growth(double time, double length, double s, double ang) {
+        tauD = time;
+        Delta = length;
+        sigma = s;
+        sftAng = ang;
+    }
+    void echo() const {
+        printf("tauD: %g\n", tauD);
+        printf("Delta: %g\n", Delta);
+        printf("sigma: %g\n", sigma);
+        printf("sftAng: %g\n", sftAng);
+    }
+};
+
 /**
  * @brief read configuration parameters from a yaml file
  *
@@ -67,7 +87,11 @@ class SylinderConfig {
     int conMaxIte;       ///< constraint solver maximum iteration
     int conSolverChoice; ///< choose a iterative solver. 0 for BBPGD, 1 for APGD, etc
 
+    // boundary settings
     std::vector<std::shared_ptr<Boundary>> boundaryPtr;
+
+    // division settings
+    std::unordered_map<int, Growth> ptcGrowth;
 
     SylinderConfig() = default;
     SylinderConfig(std::string filename);

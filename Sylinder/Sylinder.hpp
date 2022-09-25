@@ -45,6 +45,14 @@ class Sylinder {
 
     bool isImmovable = false; ///< flag for if Sylinder can move
 
+    // growth stuff that needs renamed
+    double t;
+    double tg; 
+    double tauD;
+    double sigma;
+    double deltaL;
+    
+    // sylinder stuff
     double radius;          ///< radius
     double radiusCollision; ///< radius for collision resolution
     double length;          ///< length

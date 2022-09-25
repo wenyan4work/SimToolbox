@@ -181,6 +181,11 @@ void DryPhysicsController::run() {
         //////////////////////////
         // pre-constraint stuff //
         //////////////////////////
+        // compute growth and devision (if necessary)
+        if (runConfig.ptcGrowth.size() > 0) {
+            ptcSystemPtr->calcSylinderGrowth();
+            ptcSystemPtr->calcSylinderDivision();
+        }
         // empty the constraint collector
         conCollectorPtr->clear();
         // TODO: completely desolve the prepareStep function into other, clear API calls. 
@@ -197,6 +202,7 @@ void DryPhysicsController::run() {
         //////////////////////
         // constraint stuff //
         //////////////////////
+        ptcSystemPtr->advanceParticles();
         ptcSystemPtr->collectConstraints();
 
         // constraint solve

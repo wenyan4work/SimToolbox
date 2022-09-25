@@ -67,7 +67,7 @@ class PGDConstraintSolver {
      * @param constraint_
      * @param objMobMapRcp_
      */
-    void setup(const double dt, const double res = 1e-5, const int maxIte = 1e6, const int solverChoice = 0);
+    void setup(const double dt, const double res = 1e-5, const int maxIte = 1e4, const int solverChoice = 0);
 
     /**
      * @brief solve the recursively generated BCQP problem

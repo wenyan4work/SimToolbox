@@ -180,6 +180,12 @@ class SylinderSystem {
      */
     void reinitialize(const std::string &pvtpFileName_);
 
+    void initSylinderGrowth();
+    
+    void calcSylinderGrowth();
+
+    void calcSylinderDivision();
+
     /**
      * @brief compute axis-aligned bounding box of sylinders
      *

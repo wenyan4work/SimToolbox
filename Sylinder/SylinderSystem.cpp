@@ -49,6 +49,10 @@ void SylinderSystem::initialize(const std::string &posFile) {
     decomposeDomain();
     exchangeSylinder(); // distribute to ranks, initial domain decomposition
 
+    // initialize sylinder growth 
+    initSylinderGrowth();
+
+    // initialize the GID search tree
     sylinderNearDataDirectoryPtr = std::make_shared<ZDD<SylinderNearEP>>(sylinderContainer.getNumberOfParticleLocal());
 
     treeSylinderNumber = 0;
@@ -91,6 +95,10 @@ void SylinderSystem::reinitialize(const std::string &pvtpFileName_) {
     exchangeSylinder(); // distribute to ranks, initial domain decomposition
     updateSylinderMap();
 
+    // initialize sylinder growth 
+    initSylinderGrowth();
+
+    // initialize the GID search tree
     sylinderNearDataDirectoryPtr = std::make_shared<ZDD<SylinderNearEP>>(sylinderContainer.getNumberOfParticleLocal());
 
     treeSylinderNumber = 0;
@@ -101,6 +109,126 @@ void SylinderSystem::reinitialize(const std::string &pvtpFileName_) {
     advanceParticles();
 
     spdlog::warn("SylinderSystem Initialized. {} local sylinders", sylinderContainer.getNumberOfParticleLocal());
+}
+
+void SylinderSystem::initSylinderGrowth() {
+    // TODO: name these variables so they are directly interprettabole by their names
+    if (runConfig.ptcGrowth.size() == 0) {
+        return;
+    }
+
+    const int nLocal = sylinderContainer.getNumberOfParticleLocal();
+
+    Growth *pgrowth;
+    if (runConfig.ptcGrowth.size() == 1)
+        pgrowth = &(runConfig.ptcGrowth.begin()->second);
+
+#pragma omp parallel for
+    for (int i = 0; i < nLocal; i++) {
+        auto &sy = sylinderContainer[i];
+        sy.t = 0;
+        if (pgrowth) {
+            sy.deltaL = pgrowth->Delta;
+            sy.sigma = pgrowth->sigma;
+            sy.tauD = pgrowth->tauD;
+            sy.tg = pgrowth->tauD * log2(1 + pgrowth->Delta / sy.length) + pgrowth->sigma * rngPoolPtr->getN01();
+        } else {
+            // TODO, multiple species
+        }
+    }
+}
+
+void SylinderSystem::calcSylinderDivision() {
+    const double eps = std::numeric_limits<double>::epsilon() * 100;
+
+    if (runConfig.ptcGrowth.size() == 0) {
+        return;
+    }
+
+    const int nLocal = sylinderContainer.getNumberOfParticleLocal();
+
+    const double facMut[3] = {1., 1., 1.};
+    Growth *pgrowth;
+    if (runConfig.ptcGrowth.size() == 1)
+        pgrowth = &(runConfig.ptcGrowth.begin()->second);
+
+    std::vector<Sylinder> newPtc;
+
+    for (int i = 0; i < nLocal; i++) {
+        auto &sy = sylinderContainer[i];
+        if (sy.t < sy.tg) {
+            continue;
+        }
+        const Evec3 center = Evec3(sy.pos[0], sy.pos[1], sy.pos[2]);
+
+        Evec3 direction = ECmapq(sy.orientation) * Evec3(0, 0, 1);
+        const double currentLength = sy.length;
+        const double newLength = currentLength * 0.5 - sy.radius;
+        if (newLength <= 0) {
+            continue;   
+        }
+
+        // old sylinder, shrink and reset center, no rotation
+        sy.length = newLength;
+        sy.lengthCollision = newLength * runConfig.sylinderLengthColRatio;
+        Emap3(sy.pos) = center - direction * (sy.radius + 0.5 * newLength + eps);
+
+        // new sylinder
+        Evec3 ncPos = center + direction * (sy.radius + 0.5 * newLength + eps);
+        newPtc.emplace_back(-1, sy.radius, sy.radius * runConfig.sylinderDiameterColRatio, newLength,
+                            newLength * runConfig.sylinderLengthColRatio, ncPos.data(), sy.orientation);
+
+        newPtc.back().tauD = sy.tauD;
+        newPtc.back().sigma = sy.sigma;
+        newPtc.back().deltaL = sy.deltaL;
+        if (sy.tauD == pgrowth->tauD && sy.sigma == pgrowth->sigma && sy.deltaL == pgrowth->Delta) {
+            if (rngPoolPtr->getU01() < 0.01) {
+                newPtc.back().tauD *= facMut[0];
+                newPtc.back().sigma *= facMut[1];
+                newPtc.back().deltaL *= facMut[2];
+            }
+        }
+
+        // set new tg
+        const double tg = sy.tauD * log2(1 + sy.deltaL / newLength) + sy.sigma * rngPoolPtr->getN01();
+        sy.t = 0;
+        sy.tg = tg;
+        newPtc.back().t = 0;
+        newPtc.back().tg = tg;
+
+        if (pgrowth->sftAng != 0.) {
+            double alpha = pgrowth->sftAng * 3.141592653589793238 / 180;
+            // rotation of second cell
+            double fac = (rngPoolPtr->getU01() >= 0.5) ? 1. : -1.;
+            double angle1 = atan2(direction[1], direction[0]) + alpha * fac;
+            direction[0] = cos(angle1);
+            direction[1] = sin(angle1);
+            Equatn orientq = Equatn::FromTwoVectors(Evec3(0, 0, 1), direction);
+            Emapq(sy.orientation).coeffs() = orientq.coeffs();
+        }
+    }
+    addNewSylinder(newPtc);
+}
+
+void SylinderSystem::calcSylinderGrowth() {
+    if (runConfig.ptcGrowth.size() == 0) {
+        return;
+    }
+    Growth *pgrowth;
+    if (runConfig.ptcGrowth.size() == 1)
+        pgrowth = &(runConfig.ptcGrowth.begin()->second);
+
+    const double dt = runConfig.dt;
+    const int nLocal = sylinderContainer.getNumberOfParticleLocal();
+
+#pragma omp parallel for
+    for (int i = 0; i < nLocal; i++) {
+        auto &sy = sylinderContainer[i];
+        double dLdt = log(2.0) * sy.length / sy.tauD;
+        sy.t += dt;
+        sy.length += fabs(dLdt * dt); // never shrink
+        sy.lengthCollision = sy.length * runConfig.sylinderLengthColRatio;
+    }
 }
 
 void SylinderSystem::setTreeSylinder() {
@@ -1269,8 +1397,7 @@ void SylinderSystem::collectLinkBilateral() {
                                  posI.data(), posJ.data(), // location of collision relative to particle center
                                  Ploc.data(), Qloc.data(), // location of collision in lab frame
                                  normI.data(),             // direction of collision force
-                                 stressIJ.data(),
-                                 false, false);
+                                 stressIJ.data(), false, false);
                 conQue.push_back(con);
             }
         }

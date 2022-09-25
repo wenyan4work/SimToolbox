@@ -37,21 +37,22 @@ struct Constraint {
   private:
     // private members to be accessed with getters and set with setters
     // currently, all constraints use at most 3 dof, so arrays will be sized to fix this maxima
-    // TODO: template this class using maxNumRecursions
-    int recursionCounter_ = 0;           ///< count which recursion we are in
-    double seps0_[3] = {0};              ///< initial constrainted quantity
-    double gammas_[3] = {0};             ///< unknown dof for this constraint
-    double labI_[9] = {0};               ///< the labframe location of constraint on particle I
-    double labJ_[9] = {0};               ///< the labframe location of constraint on particle J
-    double unscaledForceComI_[9] = {0};  ///< com force induced by this constraint on particle I for unit constraint
-                                         ///< Lagrange multiplier gamma
-    double unscaledForceComJ_[9] = {0};  ///< com force induced by this constraint on particle J for unit constraint
-                                         ///< Lagrange multiplier gamma
-    double unscaledTorqueComI_[9] = {0}; ///< com torque induced by this constraint on particle I for unit constraint
-                                         ///< Lagrange multiplier gamma
-    double unscaledTorqueComJ_[9] = {0}; ///< com torque induced by this constraint on particle J for unit constraint
-                                         ///< Lagrange multiplier gamma
-    double stress_[27] = {0};            ///< virial stress induced by these constraints
+    // TODO: template this class using maxNumRecursions_ (Harder than it sounds)
+    static const int maxNumRecursions_ = 5;
+    int recursionCounter_ = 0;                             ///< count which recursion we are in
+    double seps0_[maxNumRecursions_] = {0};                 ///< initial constrainted quantity
+    double gammas_[maxNumRecursions_] = {0};                ///< unknown dof for this constraint
+    double labI_[maxNumRecursions_ * 3] = {0};              ///< the labframe location of constraint on particle I
+    double labJ_[maxNumRecursions_ * 3] = {0};              ///< the labframe location of constraint on particle J
+    double unscaledForceComI_[maxNumRecursions_ * 3] = {0}; ///< com force induced by this constraint on particle I for
+                                                           ///< unit constraint Lagrange multiplier gamma
+    double unscaledForceComJ_[maxNumRecursions_ * 3] = {0}; ///< com force induced by this constraint on particle J for
+                                                           ///< unit constraint Lagrange multiplier gamma
+    double unscaledTorqueComI_[maxNumRecursions_ * 3] = {0}; ///< com torque induced by this constraint on particle I for
+                                                            ///< unit constraint Lagrange multiplier gamma
+    double unscaledTorqueComJ_[maxNumRecursions_ * 3] = {0}; ///< com torque induced by this constraint on particle J for
+                                                            ///< unit constraint Lagrange multiplier gamma
+    double stress_[maxNumRecursions_ * 9] = {0}; ///< virial stress induced by these constraints
   public:
     int numRecursions = -1;  ///< number of constrained recursions
     int id = -1;             ///< identifier specifying the type of constraint this is

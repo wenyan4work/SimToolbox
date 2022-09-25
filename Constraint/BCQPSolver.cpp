@@ -238,6 +238,11 @@ int BCQPSolver::solveBBPGD(Teuchos::RCP<TV> &xsolRcp, const double tol, const in
         gradkm1Rcp.swap(gradkRcp);
     }
 
+    if (iteCount == iteMax) {
+        spdlog::critical("Constraint solver failed to converge!");
+        throw std::runtime_error("Constraint solver failed to converge");
+    }
+
     xsolRcp = xkRcp; // return solution
     if (stagFlag) {
         return 1;
@@ -380,6 +385,12 @@ int BCQPSolver::solveAPGD(Teuchos::RCP<TV> &xsolRcp, const double tol, const int
         xkRcp.swap(xkp1Rcp); // xk=xkp1, xkp1 to be updated;
         thetak = thetakp1;
     }
+
+    if (iteCount == iteMax) {
+        spdlog::critical("Constraint solver failed to converge!");
+        throw std::runtime_error("Constraint solver failed to converge");
+    }
+    
     xsolRcp = xhatkRcp;
     if (stagFlag) {
         return 1;

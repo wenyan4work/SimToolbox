@@ -1,0 +1,14 @@
+cellSwimVelocity: 0.0 # um/s
+numCollisionSteps: 2
+hydro: false
+wallZ0: false
+fmmMultOrder: 10 # even number in [6,8,10,12,14]
+flowGrid: 0.01 # um
+dipoleOffset: 1.0 # um
+dipoleStrength: 1.0 # pN
+cellGrowth:
+  - group: 0
+    tauD: 1.0 # s
+    Delta: 4.0 # um
+    sigma: 0.0 # s
+    angle: 0.1 # deg

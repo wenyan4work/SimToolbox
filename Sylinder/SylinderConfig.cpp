@@ -83,6 +83,20 @@ SylinderConfig::SylinderConfig(std::string filename) {
             }
         }
     }
+
+    // load cell growth table if any
+    if (config[VARNAME(ptcGrowth)]) {
+        YAML::Node tables = config[VARNAME(ptcGrowth)];
+        printf("reading sylinder growth settings\n");
+        for (const auto &g : tables) {
+            const int group = g["group"].as<int>();
+            const double time = g["tauD"].as<double>();
+            const double length = g["Delta"].as<double>();
+            const double sigma = g["sigma"].as<double>();
+            const double sftAng = g["angle"].as<double>();
+            ptcGrowth.insert({0, Growth(time, length, sigma, sftAng)});
+        }
+    }
 }
 
 void SylinderConfig::dump() const {
@@ -133,6 +147,15 @@ void SylinderConfig::dump() const {
     {
         for (const auto &b : boundaryPtr) {
             b->echo();
+        }
+    }
+    {
+        if (ptcGrowth.size() == 1) {
+            printf("WARNING: only 1 growth species supplied, used for all cell groups\n");
+        }
+        for (auto &v : ptcGrowth) {
+            std::cout << "cell group id: " << v.first << std::endl;
+            v.second.echo();
         }
     }
 }

@@ -98,7 +98,7 @@ void PGDConstraintSolver::solveConstraints() {
     // Run the recursion //
     ///////////////////////
     // the recursion loop
-    for (int r = 0; r < 2; r++) {
+    for (int r = 0; r < 4; r++) {
         // create the solver object
         BCQPSolver solver(partialSepPartialGammaOpRcp_, sep0Rcp_);
         spdlog::debug("solver constructed");

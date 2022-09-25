@@ -330,7 +330,7 @@ class CalcSylinderNearForce {
                           radI, radJ, 1.0, Ploc, Qloc, stressIJ);
 
             // fill the constraint
-            noPenetrationConstraint(con, 3,                   // constraint object, number of recursions
+            noPenetrationConstraint(con, 5,                   // constraint object, number of recursions
                                     sep,                      // amount of overlap,
                                     spI.gid, spJ.gid,         //
                                     spI.globalIndex,          //
@@ -401,7 +401,7 @@ class CalcSylinderNearForce {
                           syJ.radiusCollision, 1.0, Ploc, Qloc, stressIJ);
 
             // fill the constraint
-            noPenetrationConstraint(con, 3,                   // constraint object, number of recursions
+            noPenetrationConstraint(con, 5,                   // constraint object, number of recursions
                                     sep,                      // amount of overlap,
                                     spI.gid, syJ.gid,         //
                                     spI.globalIndex,          //
@@ -480,7 +480,7 @@ class CalcSylinderNearForce {
                           syI.radiusCollision, syJ.radiusCollision, 1.0, Ploc, Qloc, stressIJ);
 
             // fill the constraint
-            noPenetrationConstraint(con, 3,                   // constraint object, number of recursions
+            noPenetrationConstraint(con, 5,                   // constraint object, number of recursions
                                     sep,                      // amount of overlap,
                                     syI.gid, syJ.gid,         //
                                     syI.globalIndex,          //
