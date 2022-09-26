@@ -131,7 +131,8 @@ BCQPSolver::BCQPSolver(int localSize, double diagonal) {
     generateRandomBounds();
 }
 
-int BCQPSolver::solveBBPGD(Teuchos::RCP<TV> &xsolRcp, const double tol, const int iteMax, IteHistory &history) const {
+int BCQPSolver::solveBBPGD(const Teuchos::RCP<TV> &gsolRcp, const Teuchos::RCP<TV> &xsolRcp, const double tol,
+                           const int iteMax, IteHistory &history) const {
     // map must match
     TEUCHOS_TEST_FOR_EXCEPTION(!this->mapRcp->isSameAs(*(xsolRcp->getMap())), std::invalid_argument,
                                "xsolrcp and A operator do not have the same Map.");
@@ -139,7 +140,7 @@ int BCQPSolver::solveBBPGD(Teuchos::RCP<TV> &xsolRcp, const double tol, const in
     int mvCount = 0; // count matrix-vector multiplications
     int iteCount = 0;
     spdlog::debug("solving APGD");
-    spdlog::debug("Constraint operator ARcp is "+ ARcp->description());
+    spdlog::debug("Constraint operator ARcp is " + ARcp->description());
 
     Teuchos::RCP<TV> xkRcp = Teuchos::rcp(new TV(*xsolRcp, Teuchos::Copy));   // deep copy, xk=x0
     Teuchos::RCP<TV> xkm1Rcp = Teuchos::rcp(new TV(*xsolRcp, Teuchos::Copy)); // deep copy, xkm1=x0
@@ -159,8 +160,11 @@ int BCQPSolver::solveBBPGD(Teuchos::RCP<TV> &xsolRcp, const double tol, const in
     double resPhi = checkProjectionResidual(xkm1Rcp, gradkm1Rcp, xkdiffRcp);
     history.push_back(std::array<double, 6>{{1.0 * iteCount, 0, 0, 0, resPhi, 1.0 * mvCount}});
     if (fabs(resPhi) < tol) {
-        // initial guess works, return
-        xsolRcp = xkm1Rcp;
+        // initial guess works
+        // return the solution
+        gsolRcp->update(1.0, *gradkm1Rcp, 0.0);
+        xsolRcp->update(1.0, *xkm1Rcp, 0.0);
+
         return 0;
     }
 
@@ -239,11 +243,19 @@ int BCQPSolver::solveBBPGD(Teuchos::RCP<TV> &xsolRcp, const double tol, const in
     }
 
     if (iteCount == iteMax) {
-        spdlog::critical("Constraint solver failed to converge!");
+        spdlog::critical("Constraint solver failed to converge! Printing solution history");
+        // print the full solution history
+        for (auto it = history.begin(); it != history.end() - 1; it++) {
+            auto &p = *it;
+            spdlog::critical("RECORD: BCQP history {:g}, {:g}, {:g}, {:g}, {:g}, {:g}", p[0], p[1], p[2], p[3], p[4],
+                          p[5]);
+        }
         throw std::runtime_error("Constraint solver failed to converge");
     }
 
-    xsolRcp = xkRcp; // return solution
+    // return the solution
+    gsolRcp->update(1.0, *gradkRcp, 0.0);
+    xsolRcp->update(1.0, *xkRcp, 0.0);
     if (stagFlag) {
         return 1;
     } else {
@@ -251,14 +263,15 @@ int BCQPSolver::solveBBPGD(Teuchos::RCP<TV> &xsolRcp, const double tol, const in
     }
 }
 
-int BCQPSolver::solveAPGD(Teuchos::RCP<TV> &xsolRcp, const double tol, const int iteMax, IteHistory &history) const {
+int BCQPSolver::solveAPGD(const Teuchos::RCP<TV> &gsolRcp, const Teuchos::RCP<TV> &xsolRcp, const double tol,
+                          const int iteMax, IteHistory &history) const {
     // map must match
     TEUCHOS_TEST_FOR_EXCEPTION(!this->mapRcp->isSameAs(*(xsolRcp->getMap())), std::invalid_argument,
                                "xsolrcp and A operator do not have the same Map.")
 
     int mvCount = 0;
     spdlog::debug("solving APGD");
-    spdlog::debug("Constraint operator ARcp is "+ ARcp->description());
+    spdlog::debug("Constraint operator ARcp is " + ARcp->description());
 
     // allocate vectors
     Teuchos::RCP<TV> xkRcp = Teuchos::rcp(new TV(*xsolRcp, Teuchos::Copy)); // deep copy
@@ -390,8 +403,10 @@ int BCQPSolver::solveAPGD(Teuchos::RCP<TV> &xsolRcp, const double tol, const int
         spdlog::critical("Constraint solver failed to converge!");
         throw std::runtime_error("Constraint solver failed to converge");
     }
-    
-    xsolRcp = xhatkRcp;
+
+    // return the solution
+    gsolRcp->update(1.0, *Axbkp1Rcp, 0.0);
+    xsolRcp->update(1.0, *xhatkRcp, 0.0);
     if (stagFlag) {
         return 1;
     } else {
@@ -403,6 +418,7 @@ int BCQPSolver::selfTest(double tol, int maxIte, int solverChoice) {
     IteHistory history;
 
     Teuchos::RCP<TV> xsolRcp = Teuchos::rcp(new TV(this->mapRcp.getConst(), true)); // zero initial guess
+    Teuchos::RCP<TV> gsolRcp = Teuchos::rcp(new TV(this->mapRcp.getConst(), true)); 
     prepareSolver();
 
     // dump problem
@@ -413,11 +429,13 @@ int BCQPSolver::selfTest(double tol, int maxIte, int solverChoice) {
 
     switch (solverChoice) {
     case 1:
-        solveAPGD(xsolRcp, tol, maxIte, history);
+        solveAPGD(gsolRcp, xsolRcp, tol, maxIte, history);
+        dumpTV(gsolRcp, "gsolAPGD");
         dumpTV(xsolRcp, "xsolAPGD");
         break;
     default:
-        solveBBPGD(xsolRcp, tol, maxIte, history);
+        solveBBPGD(gsolRcp, xsolRcp, tol, maxIte, history);
+        dumpTV(gsolRcp, "gsolAPGD");
         dumpTV(xsolRcp, "xsolBBPGD");
         break;
     }

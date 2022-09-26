@@ -246,9 +246,9 @@ class CalcSylinderNearForce {
     }
 
     /**
-     * @brief Update a collision constraint between two SylinderNearEPs
+     * @brief Update a collision constraint between two known SylinderNearEPs
      *   when a sylinder has length < diameter, it is treated as a sphere with radius_eff = radius + 0.5*length,
-     *   i.e., a big sphere that completely encapsules this sylinder.
+     *   i.e., a big sphere that completely encapsules this sylinder!
      *   collision stress is also calculated in this way
      * @param syI target
      * @param syJ source
@@ -270,6 +270,7 @@ class CalcSylinderNearForce {
             }
         }
     }
+
 
     bool isSphere(const SylinderNearEP &sy) const { return sy.lengthCollision < 2 * sy.radiusCollision; }
 
@@ -330,7 +331,7 @@ class CalcSylinderNearForce {
                           radI, radJ, 1.0, Ploc, Qloc, stressIJ);
 
             // fill the constraint
-            noPenetrationConstraint(con, 5,                   // constraint object, number of recursions
+            noPenetrationConstraint(con,                      // constraint object,
                                     sep,                      // amount of overlap,
                                     spI.gid, spJ.gid,         //
                                     spI.globalIndex,          //
@@ -338,7 +339,7 @@ class CalcSylinderNearForce {
                                     posI.data(), posJ.data(), // location of collision relative to particle center
                                     Ploc.data(), Qloc.data(), // location of collision in lab frame
                                     normI.data(),             // direction of collision force
-                                    stressIJ.data(), false, update);
+                                    stressIJ.data(), false);
         }
         return collision;
     }
@@ -401,7 +402,7 @@ class CalcSylinderNearForce {
                           syJ.radiusCollision, 1.0, Ploc, Qloc, stressIJ);
 
             // fill the constraint
-            noPenetrationConstraint(con, 5,                   // constraint object, number of recursions
+            noPenetrationConstraint(con,                      // constraint object,
                                     sep,                      // amount of overlap,
                                     spI.gid, syJ.gid,         //
                                     spI.globalIndex,          //
@@ -409,7 +410,7 @@ class CalcSylinderNearForce {
                                     posI.data(), posJ.data(), // location of collision relative to particle center
                                     Ploc.data(), Qloc.data(), // location of collision in lab frame
                                     normI.data(),             // direction of collision force
-                                    stressIJ.data(), false, update);
+                                    stressIJ.data(), false);
             if (reverseIJ) {
                 con.reverseIJ();
             }
@@ -480,7 +481,7 @@ class CalcSylinderNearForce {
                           syI.radiusCollision, syJ.radiusCollision, 1.0, Ploc, Qloc, stressIJ);
 
             // fill the constraint
-            noPenetrationConstraint(con, 5,                   // constraint object, number of recursions
+            noPenetrationConstraint(con,                     // constraint object
                                     sep,                      // amount of overlap,
                                     syI.gid, syJ.gid,         //
                                     syI.globalIndex,          //
@@ -488,7 +489,7 @@ class CalcSylinderNearForce {
                                     posI.data(), posJ.data(), // location of collision relative to particle center
                                     Ploc.data(), Qloc.data(), // location of collision in lab frame
                                     normI.data(),             // direction of collision force
-                                    stressIJ.data(), false, update);
+                                    stressIJ.data(), false);
         }
         return collision;
     }

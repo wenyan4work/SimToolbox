@@ -16,8 +16,6 @@ public:
 
   void initialize(const Teuchos::RCP<const TOP> &mobOpRcp, 
            const Teuchos::RCP<const TCMAT> &AMatTransRcp,
-           const Teuchos::RCP<TV> &forceRcp,
-           const Teuchos::RCP<TV> &velRcp,
            const double dt);
 
   void unitialize();
@@ -45,7 +43,6 @@ private:
   Teuchos::RCP<const TCMAT> AMatTransRcp_;
   Teuchos::RCP<const TMAP> xMapRcp_; ///< map for combined vector [gammau; gammab]^T
 
-  Teuchos::RCP<TV> forceMagRcp_; ///< force_mag = S gamma
   Teuchos::RCP<TV> forceRcp_; ///< force = A force_mag
   Teuchos::RCP<TV> velRcp_;   ///< vel = M force
 };

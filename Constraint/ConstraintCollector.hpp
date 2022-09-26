@@ -135,14 +135,24 @@ class ConstraintCollector {
 
     void updateConstraintMatrixVector(const Teuchos::RCP<TCMAT> &AMatTransRcp) const;
 
-    int fillFixedConstraintInfo(const Teuchos::RCP<TV> &gammaGuessRcp, const Teuchos::RCP<TV> &biFlagRcp, 
-                                const Teuchos::RCP<TV> &initialSepRcp, const Teuchos::RCP<TV> &constraintDiagonalRcp) const;
+    int fillFixedConstraintInfo(const Teuchos::RCP<TV> &gammaGuessRcp, const Teuchos::RCP<TV> &biFlagRcp,
+                                const Teuchos::RCP<TV> &initialSepRcp,
+                                const Teuchos::RCP<TV> &constraintDiagonalRcp) const;
 
     int evalConstraintValues(const Teuchos::RCP<const TV> &gammaRcp, const Teuchos::RCP<const TV> &scaleRcp,
                              const Teuchos::RCP<const TV> &constraintSepRcp, const Teuchos::RCP<TV> &constraintValueRcp,
                              const Teuchos::RCP<TV> &constraintStatusRcp) const;
 
-    int resetConstraintVariables();
+    int evalConstraintValues(const Teuchos::RCP<const TV> &gammaRcp, const Teuchos::RCP<const TV> &constraintSepRcp,
+                             const Teuchos::RCP<TV> &constraintValueRcp) const;
+
+    /**
+     * @brief write back the solution gamma and the final sep to the constraints
+     *
+     * @param gammaRcp solution
+     * @return int error code (future)
+     */
+    int writeBackConstraintVariables(const Teuchos::RCP<const TV> &gammaRcp, const Teuchos::RCP<const TV> &sepRcp);
 
     /**
      * @brief build the index of constraints in the ConstraintPool
@@ -152,14 +162,6 @@ class ConstraintCollector {
      * @return int error code (future)
      */
     int buildConIndex(std::vector<int> &cQueSize, std::vector<int> &cQueIndex) const;
-
-    /**
-     * @brief write back the solution gamma to the constraints
-     *
-     * @param gammaRcp solution
-     * @return int error code (future)
-     */
-    int writeBackGamma(const Teuchos::RCP<const TV> &gammaRcp);
 };
 
 #endif

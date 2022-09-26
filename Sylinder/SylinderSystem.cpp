@@ -1015,7 +1015,7 @@ void SylinderSystem::collectBoundaryCollision() {
                         const double sep = -deltanorm - radius;
                         Emat3 stressIJ = Emat3::Zero();
                         Constraint con;
-                        noPenetrationConstraint(con, 1,         // constraint object, number of recursions,
+                        noPenetrationConstraint(con,            // constraint object, 
                                                 sep,            // amount of overlap,
                                                 sy.gid, sy.gid, //
                                                 sy.globalIndex, //
@@ -1024,14 +1024,14 @@ void SylinderSystem::collectBoundaryCollision() {
                                                 posI.data(),        // location of collision relative to particle center
                                                 Query.data(), Proj, // location of collision in lab frame
                                                 norm.data(),        // direction of collision force
-                                                stressIJ.data(), false, false);
+                                                stressIJ.data(), false);
                         conQue.push_back(con);
                     } else if (deltanorm <
                                (1 + runConfig.sylinderColBuf * 2) * sy.radiusCollision) { // inside boundary but close
                         const double sep = deltanorm - radius;
                         Emat3 stressIJ = Emat3::Zero();
                         Constraint con;
-                        noPenetrationConstraint(con, 1,         // constraint object, number of recursions,
+                        noPenetrationConstraint(con,            // constraint object,
                                                 sep,            // amount of overlap,
                                                 sy.gid, sy.gid, //
                                                 sy.globalIndex, //
@@ -1040,7 +1040,7 @@ void SylinderSystem::collectBoundaryCollision() {
                                                 posI.data(),        // location of collision relative to particle center
                                                 Query.data(), Proj, // location of collision in lab frame
                                                 norm.data(),        // direction of collision force
-                                                stressIJ.data(), false, false);
+                                                stressIJ.data(), false);
                         conQue.push_back(con);
                     }
                 };
@@ -1388,7 +1388,7 @@ void SylinderSystem::collectLinkBilateral() {
                                                      syI.radius, syJ.radius, 1.0, Ploc, Qloc, stressIJ);
 
                 Constraint con;
-                springConstraint(con, 3,                   // constraint object, number of recursions
+                springConstraint(con,                      // constraint object
                                  rnorm, restLength,        // length of spring, rest length of spring
                                  runConfig.linkKappa,      // spring constant
                                  syI.gid, syJ.gid,         //
@@ -1397,7 +1397,7 @@ void SylinderSystem::collectLinkBilateral() {
                                  posI.data(), posJ.data(), // location of collision relative to particle center
                                  Ploc.data(), Qloc.data(), // location of collision in lab frame
                                  normI.data(),             // direction of collision force
-                                 stressIJ.data(), false, false);
+                                 stressIJ.data(), false);
                 conQue.push_back(con);
             }
         }
@@ -1470,6 +1470,88 @@ void SylinderSystem::updatePairCollision() {
             const auto &syI = sylinderNearDataDirectoryPtr->dataToFind[idx + 0]; // sylinderNearI
             const auto &syJ = sylinderNearDataDirectoryPtr->dataToFind[idx + 1]; // sylinderNearJ
             calcColFtr.updateCollisionBlock(syI, syJ, conQue[j]);
+        }
+    }
+}
+
+// TODO: Move this into particle-particle interaction class
+void SylinderSystem::collectUnresolvedConstraints() {
+    // Loop over all constraints, check if the constraint is satisfies; 
+    // if not, generate a new constraint to handle the residual
+
+    // TODO: extend this to include updating other types of constraints. Feting via GID should happen regardless.
+    //       The only difference is the update step
+    std::cout << "collectUnresolvedConstraints doesn't account for systems with multiple types of constraints" << std::endl;
+
+    // update the collision constraints stored in the constraintPool
+    // uses special treatment for periodic boundary conditions
+
+    const int nLocal = sylinderContainer.getNumberOfParticleLocal();
+    auto &conPool = *(this->conCollectorPtr->constraintPoolPtr);
+
+    if (conPool.size() != omp_get_max_threads()) {
+        spdlog::critical("cPool multithread mismatch error");
+        std::exit(1);
+    }
+
+    // Step 1. fill gidToFind (2 GIDs per collision constraint)
+
+    // Step1.1. Setup the offset array to allow for parallel filling
+    //      we use  multi-thread filling with nThreads = poolSize and each thread process a queue
+    //      GID's are filled contiguously based on threadID
+    //      threadOffset stores the index of the start of each thread's region of access in gidToFind
+    // This is exactly conCollectorPtr->buildConIndex with slight modification
+    const int nThreads = conPool.size();
+    std::vector<int> threadOffset(nThreads + 1, 0); // last entry is the total GID's to find (2 per constraint)
+    for (int threadId = 0; threadId < nThreads; threadId++) {
+        const auto &conQue = conPool[threadId];
+        threadOffset[threadId + 1] = threadOffset[threadId] + 2 * conQue.size();
+    }
+    assert(threadOffset.back() == 2 * conCollectorPtr->getLocalNumberOfConstraints());
+
+    // Step 1.2 loop over all constraints and add gidI and gidJ to gidToFind
+    auto &gidToFind = sylinderNearDataDirectoryPtr->gidToFind;
+    gidToFind.clear();
+    gidToFind.resize(threadOffset.back());
+
+    // multi-thread filling. nThreads = poolSize, each thread process a queue
+#pragma omp parallel for num_threads(nThreads)
+    for (int threadId = 0; threadId < nThreads; threadId++) {
+        const auto &conQue = conPool[threadId];
+        const int conNum = conQue.size();
+        const int conIndexBase = threadOffset[threadId];
+        for (int j = 0; j < conNum; j++) {
+            gidToFind[conIndexBase + 2 * j + 0] = conQue[j].gidI;
+            gidToFind[conIndexBase + 2 * j + 1] = conQue[j].gidJ;
+        }
+    }
+
+    sylinderNearDataDirectoryPtr->find();
+
+    // Step 2. check each collision pair for violation
+    CalcSylinderNearForce calcColFtr(conCollectorPtr->constraintPoolPtr, runConfig.simBoxPBC, runConfig.simBoxLow,
+                                     runConfig.simBoxHigh);
+
+    // multi-thread filling. nThreads = poolSize, each thread process a queue
+#pragma omp parallel for num_threads(nThreads)
+    for (int threadId = 0; threadId < nThreads; threadId++) {
+        auto &conQue = conPool[threadId];
+        const int conNum = conQue.size();
+        const int conIndexBase = threadOffset[threadId];
+        for (int j = 0; j < conNum; j++) {
+            const int idx = conIndexBase + 2 * j;
+            const auto &syI = sylinderNearDataDirectoryPtr->dataToFind[idx + 0]; // sylinderNearI
+            const auto &syJ = sylinderNearDataDirectoryPtr->dataToFind[idx + 1]; // sylinderNearJ
+
+            // get an updated constraint between the two particles
+            Constraint con;
+            calcColFtr.updateCollisionBlock(syI, syJ, con);
+
+            // if the updated constaint is unsatisfied add it to the que
+            //TODO: generalize this to multi-dof constraints
+            if (con.getSep(0) < -runConfig.conResTol) {
+                conQue.push_back(con);
+            }
         }
     }
 }

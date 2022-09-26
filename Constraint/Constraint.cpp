@@ -12,13 +12,13 @@
 #include "Constraint.hpp"
 
 // public constructors for different types of constraints
-void noPenetrationConstraint(Constraint &con, const int numRecursions, const double sepDistance, const int gidI,
+void noPenetrationConstraint(Constraint &con, const double sepDistance, const int gidI,
                              const int gidJ, const int globalIndexI, const int globalIndexJ, const double posI[3],
                              const double posJ[3], const double labI[3], const double labJ[3], const double normI[3],
-                             const double stressIJ[9], const bool oneSide, const bool recursionFlag) {
+                             const double stressIJ[9], const bool oneSide) {
     // set base information
     con.id = 0;
-    con.numRecursions = numRecursions;
+    con.numDOF = 1;
 
     // set constraint info
     con.diagonal = 0;
@@ -45,27 +45,17 @@ void noPenetrationConstraint(Constraint &con, const int numRecursions, const dou
     const Evec3 unscaledTorqueComJ(-normI[2] * posJ[1] + normI[1] * posJ[2], -normI[0] * posJ[2] + normI[2] * posJ[0],
                                    -normI[1] * posJ[0] + normI[0] * posJ[1]);
     const double gammaGuess = sepDistance < 0 ? -sepDistance : 0;
-    if (recursionFlag) {
-        // check if storing a recursion is necessary. If the constraint is already satisfied, then there's no point
-        // TODO: ideally, this comparison would be against the desired tol
-        if (sepDistance < -std::numeric_limits<double>::epsilon() * 100) {
-            con.addRecursion(gammaGuess, sepDistance, labI, labJ, unscaledForceComI.data(), unscaledForceComJ.data(),
-                            unscaledTorqueComI.data(), unscaledTorqueComJ.data(), stressIJ);
-        }
-    } else {
-        con.initialize(gammaGuess, sepDistance, labI, labJ, unscaledForceComI.data(), unscaledForceComJ.data(),
-                       unscaledTorqueComI.data(), unscaledTorqueComJ.data(), stressIJ);
-    }
+    con.initializeDOF(0, gammaGuess, sepDistance, labI, labJ, unscaledForceComI.data(), unscaledForceComJ.data(),
+                    unscaledTorqueComI.data(), unscaledTorqueComJ.data(), stressIJ);
 }
 
-void springConstraint(Constraint &con, const int numRecursions, const double sepDistance, const double restLength,
+void springConstraint(Constraint &con, const double sepDistance, const double restLength,
                       const double springConstant, const int gidI, const int gidJ, const int globalIndexI,
                       const int globalIndexJ, const double posI[3], const double posJ[3], const double labI[3],
-                      const double labJ[3], const double normI[3], const double stressIJ[9], const bool oneSide,
-                      const bool recursionFlag) {
+                      const double labJ[3], const double normI[3], const double stressIJ[9], const bool oneSide) {
     // set base information
     con.id = 1;
-    con.numRecursions = numRecursions;
+    con.numDOF = 1;
 
     // set constraint info
     con.diagonal = 1.0 / springConstant;
@@ -92,27 +82,17 @@ void springConstraint(Constraint &con, const int numRecursions, const double sep
     const Evec3 unscaledTorqueComJ(-normI[2] * posJ[1] + normI[1] * posJ[2], -normI[0] * posJ[2] + normI[2] * posJ[0],
                                    -normI[1] * posJ[0] + normI[0] * posJ[1]);
     const double gammaGuess = sepDistance - restLength;
-    if (recursionFlag) {
-        // check if storing a recursion is necessary. If the constraint is already satisfied, then there's no point
-        // TODO: ideally, this comparison would be against the desired tol
-        if (std::abs(gammaGuess) < std::numeric_limits<double>::epsilon() * 100) {
-            con.addRecursion(gammaGuess, gammaGuess, labI, labJ, unscaledForceComI.data(), unscaledForceComJ.data(),
-                unscaledTorqueComI.data(), unscaledTorqueComJ.data(), stressIJ);
-        }
-    } else {
-        con.initialize(gammaGuess, gammaGuess, labI, labJ, unscaledForceComI.data(), unscaledForceComJ.data(),
-               unscaledTorqueComI.data(), unscaledTorqueComJ.data(), stressIJ);
-    }
+    con.initializeDOF(0, gammaGuess, gammaGuess, labI, labJ, unscaledForceComI.data(), unscaledForceComJ.data(),
+            unscaledTorqueComI.data(), unscaledTorqueComJ.data(), stressIJ);
 }
 
-void angularSpringConstraint(Constraint &con, const int numRecursions, const double sepAngle, const double restAngle,
+void angularSpringConstraint(Constraint &con, const double sepAngle, const double restAngle,
                              const double springConstant, const int gidI, const int gidJ, const int globalIndexI,
                              const int globalIndexJ, const double posI[3], const double posJ[3], const double labI[3],
-                             const double labJ[3], const double normI[3], const double stressIJ[9], const bool oneSide,
-                             const bool recursionFlag) {
+                             const double labJ[3], const double normI[3], const double stressIJ[9], const bool oneSide) {
     // set base information
     con.id = 2;
-    con.numRecursions = numRecursions;
+    con.numDOF = 1;
 
     // set constraint info
     con.diagonal = 1.0 / springConstant;
@@ -140,26 +120,17 @@ void angularSpringConstraint(Constraint &con, const int numRecursions, const dou
     const Evec3 unscaledTorqueComJ(-normI[2] * posJ[1] + normI[1] * posJ[2], -normI[0] * posJ[2] + normI[2] * posJ[0],
                                    -normI[1] * posJ[0] + normI[0] * posJ[1]);
     const double gammaGuess = sepAngle - restAngle;
-    if (recursionFlag) {
-        // check if storing a recursion is necessary. If the constraint is already satisfied, then there's no point
-        // TODO: ideally, this comparison would be against the desired tol
-        if (std::abs(gammaGuess) < std::numeric_limits<double>::epsilon() * 100) {
-            con.addRecursion(gammaGuess, gammaGuess, labI, labJ, unscaledForceComI.data(), unscaledForceComJ.data(),
-                unscaledTorqueComI.data(), unscaledTorqueComJ.data(), stressIJ);
-        }
-    } else {
-        con.initialize(gammaGuess, gammaGuess, labI, labJ, unscaledForceComI.data(), unscaledForceComJ.data(),
-               unscaledTorqueComI.data(), unscaledTorqueComJ.data(), stressIJ);
-    }
+    con.initializeDOF(0, gammaGuess, gammaGuess, labI, labJ, unscaledForceComI.data(), unscaledForceComJ.data(),
+            unscaledTorqueComI.data(), unscaledTorqueComJ.data(), stressIJ);
 }
 
-void pivotConstraint(Constraint &con, const int numRecursions, const double sepDistance, const int gidI, const int gidJ,
+void pivotConstraint(Constraint &con, const double sepDistance, const int gidI, const int gidJ,
                      const int globalIndexI, const int globalIndexJ, const double posI[3], const double posJ[3],
                      const double labI[3], const double labJ[3], const double normI[3], const double stressIJ[9],
-                     const bool oneSide, const bool recursionFlag) {
+                     const bool oneSide) {
     // set base information
     con.id = 3;
-    con.numRecursions = numRecursions;
+    con.numDOF = 1;
 
     // set constraint info
     con.diagonal = 0;
@@ -186,15 +157,6 @@ void pivotConstraint(Constraint &con, const int numRecursions, const double sepD
     const Evec3 unscaledTorqueComJ(-normI[2] * posJ[1] + normI[1] * posJ[2], -normI[0] * posJ[2] + normI[2] * posJ[0],
                                    -normI[1] * posJ[0] + normI[0] * posJ[1]);
     const double gammaGuess = sepDistance;
-    if (recursionFlag) {
-        // check if storing a recursion is necessary. If the constraint is already satisfied, then there's no point
-        // TODO: ideally, this comparison would be against the desired tol
-        if (sepDistance < std::numeric_limits<double>::epsilon() * 100) {
-            con.addRecursion(gammaGuess, sepDistance, labI, labJ, unscaledForceComI.data(), unscaledForceComJ.data(),
-                unscaledTorqueComI.data(), unscaledTorqueComJ.data(), stressIJ);
-        }
-    } else {
-        con.initialize(gammaGuess, sepDistance, labI, labJ, unscaledForceComI.data(), unscaledForceComJ.data(),
-               unscaledTorqueComI.data(), unscaledTorqueComJ.data(), stressIJ);
-    }
+    con.initializeDOF(0, gammaGuess, sepDistance, labI, labJ, unscaledForceComI.data(), unscaledForceComJ.data(),
+            unscaledTorqueComI.data(), unscaledTorqueComJ.data(), stressIJ);
 }

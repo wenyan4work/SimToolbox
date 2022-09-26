@@ -362,7 +362,8 @@ class SylinderSystem {
     void collectBoundaryCollision(); ///< collect boundary collision constraints
     void collectLinkBilateral();     ///< setup link constraints
     void updatePairCollision();     ///< collect pair collision constraints
-
+    void collectUnresolvedConstraints(); ///< collect unresolved constraints
+     
     void getForceVelocityNonConstraint(const Teuchos::RCP<TV> &forceNCRcp, 
                                       const Teuchos::RCP<TV> &velocityNCRcp) const; ///< fill force and velocity nonconstraint
 

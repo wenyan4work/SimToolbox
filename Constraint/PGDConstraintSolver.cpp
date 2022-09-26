@@ -23,27 +23,19 @@ void PGDConstraintSolver::reset() {
     // the linear complementarity problem 0 <= A gamma + S0 _|_ gamma >= 0
     partialSepPartialGammaOpRcp_.reset(); ///< Operator takes gamma to change in sep w.r.t gamma
                                           ///< this is the operator of BCQP problem. A = dt D^T M D + K^{-1}
-    gammaRcp_.reset();                    ///< the unknown constraint Lagrange multipliers
+    gammaRcp_.reset();                    ///< the unknown constraint Lagrange multipliers (overall)
     sep0Rcp_.reset();                     ///< initial, unconstrained constraint violation
                                           ///< this is the constant part of BCQP problem
 }
 
-void PGDConstraintSolver::setup(const double dt, const double res, const int maxIte, const int solverChoice) {
-    reset();
-
-    // store the inputs
-    dt_ = dt;
-    res_ = res;
-    maxIte_ = maxIte;
-    solverChoice_ = solverChoice;
-
+void PGDConstraintSolver::initialize() {
     // initialize the constraint stuff
     const int numLocalConstraints = conCollectorPtr_->getLocalNumberOfDOF();
     gammaMapRcp_ = getTMAPFromLocalSize(numLocalConstraints, commRcp_);
+    sepRcp_ = Teuchos::rcp(new TV(gammaMapRcp_, true));
     sep0Rcp_ = Teuchos::rcp(new TV(gammaMapRcp_, true));
     gammaRcp_ = Teuchos::rcp(new TV(gammaMapRcp_, true));
     biFlagRcp_ = Teuchos::rcp(new TV(gammaMapRcp_, true));
-    gammaRecRcp_ = Teuchos::rcp(new TV(gammaMapRcp_, true));
     constraintDiagonalRcp_ = Teuchos::rcp(new TV(gammaMapRcp_, true));
 
     // initialize the particle stuff (TODO: what about external force and velocity?)
@@ -62,11 +54,62 @@ void PGDConstraintSolver::setup(const double dt, const double res, const int max
 
     // build the operator that takes gamma to change in sep w.r.t gamma
     partialSepPartialGammaOpRcp_ = Teuchos::rcp(new PartialSepPartialGammaOp(gammaMapRcp_));
-    partialSepPartialGammaOpRcp_->initialize(mobOpRcp_, DMatTransRcp_, forceConRcp_, velConRcp_, dt_);
+    partialSepPartialGammaOpRcp_->initialize(mobOpRcp_, DMatTransRcp_, 1.0);
 
     // fill the initial gamma guess, the constraint flag, the initial unconstrained separation, and the diagonal of
     // K^{-1}
-    conCollectorPtr_->fillFixedConstraintInfo(gammaRecRcp_, biFlagRcp_, sep0Rcp_, constraintDiagonalRcp_);
+    conCollectorPtr_->fillFixedConstraintInfo(gammaRcp_, biFlagRcp_, sep0Rcp_, constraintDiagonalRcp_);
+
+    // // to reduce numerical rounding errors, we scale our LCP by 1/dt // TODO: is this actually necessary?
+    // sep0Rcp_->scale(1.0 / dt_);
+    // constraintDiagonalRcp_->scale(1.0 / dt_);
+}
+
+void PGDConstraintSolver::reinitialize() {
+    // reinitialize any data structure that depends on the number of constraints
+    // this is non-ideal since it involves significant alocation and dealocation
+
+    // initialize the constraint stuff
+    const int numLocalConstraints = conCollectorPtr_->getLocalNumberOfDOF();
+    gammaMapRcp_ = getTMAPFromLocalSize(numLocalConstraints, commRcp_);
+    sepRcp_ = Teuchos::rcp(new TV(gammaMapRcp_, true));
+    sep0Rcp_ = Teuchos::rcp(new TV(gammaMapRcp_, true));
+    gammaRcp_ = Teuchos::rcp(new TV(gammaMapRcp_, true));
+    biFlagRcp_ = Teuchos::rcp(new TV(gammaMapRcp_, true));
+    constraintDiagonalRcp_ = Teuchos::rcp(new TV(gammaMapRcp_, true));
+
+    // build D^T, which maps from constraint Lagrange multiplier to com force vector
+    DMatTransRcp_ = conCollectorPtr_->buildConstraintMatrixVector(mobMapRcp_, gammaMapRcp_);
+    Tpetra::RowMatrixTransposer<double, int, int> transposerDu(DMatTransRcp_);
+    DMatRcp_ = transposerDu.createTranspose();
+    TEUCHOS_ASSERT(nonnull(DMatTransRcp_));
+    TEUCHOS_ASSERT(nonnull(DMatRcp_));
+
+    // build the operator that takes gamma to change in sep w.r.t gamma
+    partialSepPartialGammaOpRcp_ = Teuchos::rcp(new PartialSepPartialGammaOp(gammaMapRcp_));
+    partialSepPartialGammaOpRcp_->initialize(mobOpRcp_, DMatTransRcp_, 1.0); //TODO: this should include the constraint diagonal!!
+
+    // fill the initial gamma guess, the constraint flag, the initial unconstrained separation, and the diagonal of
+    // K^{-1}
+    conCollectorPtr_->fillFixedConstraintInfo(gammaRcp_, biFlagRcp_, sep0Rcp_, constraintDiagonalRcp_);
+
+    // // to reduce numerical rounding errors, we scale our LCP by 1/dt // TODO: is this actually necessary?
+    // sep0Rcp_->scale(1.0 / dt_);
+    // constraintDiagonalRcp_->scale(1.0 / dt_);
+}
+
+void PGDConstraintSolver::setup(const double dt, const double res, const int maxIterations, const int maxRecursions, const int solverChoice) {
+    reset();
+
+    // store the inputs
+    dt_ = dt;
+    res_ = res;
+    maxIterations_ = maxIterations;
+    maxRecursions_ = maxRecursions;
+    solverChoice_ = solverChoice;
+
+    // initialize the stored objects
+    initialize();
 }
 
 void PGDConstraintSolver::solveConstraints() {
@@ -87,20 +130,26 @@ void PGDConstraintSolver::solveConstraints() {
     //     spdlog::info("Global number of constraints: {:g}", numGlobalConstraints);
     // }
 
-    //////////////////////////////
-    // Create the solver object //
-    //////////////////////////////
-    // TODO: update the solver object to support updating A and b instead of creating an entirely new object
-
-
-
     ///////////////////////
     // Run the recursion //
     ///////////////////////
     // the recursion loop
-    for (int r = 0; r < 4; r++) {
+    double maxConViolation;
+    int stepCount = 1;
+    for (int r = 0; r < maxRecursions_; r++) {
+        ///////////
+        // Debug //
+        ///////////
+
+        // // for debug, write out the particle positions and constraints
+        // // conCollectorPtr_->writeBackGamma(xRcp.getConst());
+        // const std::string postfix = std::to_string(stepCount);
+        // ptcSystemPtr_->writeResult(stepCount, "./result/", postfix);
+        // stepCount++;
+
         // create the solver object
-        BCQPSolver solver(partialSepPartialGammaOpRcp_, sep0Rcp_);
+        sep0Rcp_->scale(1.0 / dt_);
+        BCQPSolver solver(partialSepPartialGammaOpRcp_, sep0Rcp_); 
         spdlog::debug("solver constructed");
 
         // setup the lower bound for gamma
@@ -114,46 +163,54 @@ void PGDConstraintSolver::solveConstraints() {
         IteHistory history;
         switch (solverChoice_) {
         case 0:
-            solver.solveBBPGD(gammaRecRcp_, res_, maxIte_, history);
+            solver.solveBBPGD(sepRcp_, gammaRcp_, res_ * (1.0 / dt_), maxIterations_, history);
             break;
         case 1:
-            solver.solveAPGD(gammaRecRcp_, res_, maxIte_, history);
+            solver.solveAPGD(sepRcp_, gammaRcp_, res_ * (1.0 / dt_), maxIterations_, history);
             break;
         default:
-            solver.solveBBPGD(gammaRecRcp_, res_, maxIte_, history);
+            solver.solveBBPGD(sepRcp_, gammaRcp_, res_ * (1.0 / dt_), maxIterations_, history);
             break;
         }
-        gammaRcp_->update(1.0, *gammaRecRcp_, 1.0);
+        sepRcp_->scale(dt_);
 
         // print the full solution history
         for (auto it = history.begin(); it != history.end() - 1; it++) {
             auto &p = *it;
-            spdlog::debug("RECORD: BCQP history {:g}, {:g}, {:g}, {:g}, {:g}, {:g}", p[0], p[1], p[2], p[3], p[4],
+            spdlog::debug("RECORD: BCQP history {:g}, {:g}, {:g}, {:g}, {:g}, {:g}", p[0], p[1], p[2], p[3], dt_ * p[4],
                           p[5]);
         }
         auto &p = history.back();
-        spdlog::info("RECORD: BCQP residue {:g}, {:g}, {:g}, {:g}, {:g}, {:g}", p[0], p[1], p[2], p[3], p[4], p[5]);
+        spdlog::info("RECORD: BCQP residue {:g}, {:g}, {:g}, {:g}, {:g}, {:g}", p[0], p[1], p[2], p[3], dt_ * p[4], p[5]);
 
         // apply the recursion
         recursionStep();
+
+        // get the extent to which the new configuration satisfies all constraints
+        // use sepRcp_ as temporary storage for the constraint violation values
+        gammaRcp_->putScalar(0.0);
+        conCollectorPtr_->evalConstraintValues(gammaRcp_, sep0Rcp_, sepRcp_);
+        maxConViolation = sepRcp_->normInf();
+        spdlog::debug("RECORD: ReLCP constraint history {}, {:g}", r, maxConViolation);
+        if (maxConViolation < res_) { //TODO: should this be a bit larger then the linear solve? Say linear 1e-5 and nonlinear 1e-4? 
+            break;
+        }
     }
 
     // Note, each recursion step passes the results to particleSystem and taking the Euler step
     // By this point, the system will be in its final constraint-satisfying configuration
-    // Print the extent to which this final configuration satisfies all constraints
-    const double maxConViolation = sep0Rcp_->normInf();
-    spdlog::info("RECORD: Maximum constraint violation {:g}", maxConViolation);
+    // the constraints will also have their final gamma and sep values
 
-    // store the result in the constraint objects
-    writebackGamma();
+    // Print the extent to which this final configuration satisfies all constraints
+    spdlog::info("RECORD: ReLCP constraint violation {:g}", maxConViolation);
 }
 
 void PGDConstraintSolver::recursionStep() {
-    // to avoid double counting forces, reset the constraint gamma and constraint sep
-    conCollectorPtr_->resetConstraintVariables();
+    // store the constraint gamma and constraint sep
+    conCollectorPtr_->writeBackConstraintVariables(gammaRcp_, sepRcp_);
 
-    // solve for the induced force and velocity
-    DMatRcp_->apply(*gammaRcp_, *forceConRcp_);    // F_{r}^k = sum_{n=0}^{r} D_{n-1}^{k+1} gamma_{r}^k
+    // solve for the induced force and velocity (sum the forces from previous recursions)
+    DMatRcp_->apply(*gammaRcp_, *forceConRcp_, Teuchos::NO_TRANS, 1.0, 1.0);    // F_{r}^k = sum_{n=0}^{r} D_{n-1}^{k+1} gamma_{r}^k
     mobOpRcp_->apply(*forceConRcp_, *velConRcp_); // U_r^k = M^k F_r^k
 
     // send the constraint vel and force to the particles
@@ -163,27 +220,12 @@ void PGDConstraintSolver::recursionStep() {
     ptcSystemPtr_->stepEuler();  // q_{r}^{k+1} = q^k + dt G^k U_r^k
     ptcSystemPtr_->applyBoxBC(); // TODO: this might not work. We'll see
 
-    // update all constraints
-    // this must NOT generate new constraints and MUST maintain the current constraint ordering
+    // collect unresolved constraints and add them to constraintCollector
+    // this process can generate new constraints and MUST maintain the current constraint ordering
     ptcSystemPtr_->updatesylinderNearDataDirectory();
-    ptcSystemPtr_->updatePairCollision(); // TODO: this only supports systems with pure, particle-particle
-                                          // collisions atm
+    ptcSystemPtr_->collectUnresolvedConstraints(); // TODO: this only supports systems with pure, particle-particle
+                                                   // collisions atm
 
-    // add this recursion to D^T and D
-    // TODO: is using an explicit transpose necessary? It doubles storage of a MASSIVE object
-    conCollectorPtr_->updateConstraintMatrixVector(DMatTransRcp_);
-    Tpetra::RowMatrixTransposer<double, int, int> transposerDu(DMatTransRcp_);
-    DMatRcp_ = transposerDu.createTranspose();
-    TEUCHOS_ASSERT(nonnull(DMatTransRcp_));
-    TEUCHOS_ASSERT(nonnull(DMatRcp_));
-
-    // update PartialSepPartialGamma
-    // TODO: now much speedup do we get when we have block diagonal mobility and compute this explicitly?
-    partialSepPartialGammaOpRcp_->initialize(mobOpRcp_, DMatTransRcp_, forceConRcp_, velConRcp_, dt_);
-
-    // fill the initial gamma guess, the constraint flag, the initial unconstrained separation, and the diagonal of
-    // K^{-1}
-    conCollectorPtr_->fillFixedConstraintInfo(gammaRecRcp_, biFlagRcp_, sep0Rcp_, constraintDiagonalRcp_);
+    // reinitialize data structures that depend on the number of constraints 
+    reinitialize();
 }
-
-void PGDConstraintSolver::writebackGamma() { conCollectorPtr_->writeBackGamma(gammaRcp_.getConst()); }

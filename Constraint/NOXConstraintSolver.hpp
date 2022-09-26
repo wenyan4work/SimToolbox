@@ -78,18 +78,6 @@ class NOXConstraintSolver {
      */
     void solveConstraints();
 
-    /**
-     * @brief write the solution constraint force Lagrange multiplyer back to the constraint blocks
-     *
-     */
-    void writebackGamma();
-
-    /**
-     * @brief write the solution constraint force and velocity to the particles
-     *
-     */
-    void writebackForceVelocity();
-
   private:
     double dt_;                               ///< timestep size
     const Teuchos::RCP<const TCOMM> commRcp_; ///< TCOMM, set as a Teuchos::MpiComm object in constructor

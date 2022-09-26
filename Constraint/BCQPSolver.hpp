@@ -64,13 +64,9 @@ class BCQPSolver {
         ubRcp = ubRcp_;
     };
 
-    Teuchos::RCP<TV> getLowerBound(){
-      return lbRcp;
-    }
+    Teuchos::RCP<TV> getLowerBound() { return lbRcp; }
 
-    Teuchos::RCP<TV> getUpperBound(){
-      return ubRcp;
-    }
+    Teuchos::RCP<TV> getUpperBound() { return ubRcp; }
 
     /**
      * @brief call this before any solve() functions
@@ -87,7 +83,8 @@ class BCQPSolver {
      * @param history iteration history
      * @return int return error code. 0 for normal execution.
      */
-    int solveAPGD(Teuchos::RCP<TV> &xsolRcp, const double tol, const int iteMax, IteHistory &history) const;
+    int solveAPGD(const Teuchos::RCP<TV> &gsolRcp, const Teuchos::RCP<TV> &xsolRcp, const double tol, const int iteMax,
+                  IteHistory &history) const;
 
     /**
      * @brief Barzilai-Borwein PGD
@@ -98,7 +95,8 @@ class BCQPSolver {
      * @param history iteration history
      * @return int return error code. 0 for normal execution.
      */
-    int solveBBPGD(Teuchos::RCP<TV> &xsolRcp, const double tol, const int iteMax, IteHistory &history) const;
+    int solveBBPGD(const Teuchos::RCP<TV> &gsolRcp, const Teuchos::RCP<TV> &xsolRcp, const double tol, const int iteMax,
+                   IteHistory &history) const;
 
     /**
      * @brief self test
@@ -115,8 +113,8 @@ class BCQPSolver {
     Teuchos::RCP<const TV> bRcp;       ///< vector \f$b\f$
     Teuchos::RCP<const TMAP> mapRcp;   ///< map for the distribution of xsolRcp, bRcp, and ARcp->rowMap
     Teuchos::RCP<const TCOMM> commRcp; ///< Teuchos::MpiComm
-    Teuchos::RCP<TV> lbRcp;      ///< lower bound
-    Teuchos::RCP<TV> ubRcp;      ///< upper bound
+    Teuchos::RCP<TV> lbRcp;            ///< lower bound
+    Teuchos::RCP<TV> ubRcp;            ///< upper bound
     bool lbSet = false;
     bool ubSet = false;
 

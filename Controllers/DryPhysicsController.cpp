@@ -90,7 +90,7 @@ void DryPhysicsController::initialize(const SylinderConfig &runConfig_, const st
 
     // constraint stuff
     ptcSystemPtr->collectConstraints(); 
-    conSolverPtr->setup(runConfig.dt);
+    conSolverPtr->setup(runConfig.dt, runConfig.conResTol, runConfig.conMaxIte, 100, runConfig.conSolverChoice);
 
     Teuchos::RCP<Teuchos::Time> solveTimer = Teuchos::TimeMonitor::getNewCounter("ConstraintSolver::solveConstraints");
     {

@@ -165,11 +165,3 @@ void NOXConstraintSolver::solveConstraints() {
     // TODO: is gammaRcp_ the same as the one in evalModelImpl?
     // dumpTV(gammaRcp_, "gammaRcp_");
 }
-
-void NOXConstraintSolver::writebackGamma() { conCollectorPtr_->writeBackGamma(gammaRcp_.getConst()); }
-
-void NOXConstraintSolver::writebackForceVelocity() {
-    // forceRcp_, velRcp_ are filled during the constraint resolution process
-    // send the constraint vel and force to the particles
-    ptcSystemPtr_->saveForceVelocityConstraints(forceConRcp_, velConRcp_);
-}

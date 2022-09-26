@@ -62,12 +62,24 @@ class PGDConstraintSolver {
     void reset();
 
     /**
+     * @brief initializes all data structures
+     *
+     */
+    void initialize();
+
+    /**
+     * @brief reinitializes all data structures that depend on the number of constraints
+     *
+     */
+    void reinitialize();
+
+    /**
      * @brief setup this solver. Initializes all data structures
      *
      * @param constraint_
      * @param objMobMapRcp_
      */
-    void setup(const double dt, const double res = 1e-5, const int maxIte = 1e4, const int solverChoice = 0);
+    void setup(const double dt, const double res = 1e-5, const int maxIterations = 1e5, const int maxRecursions = 100, const int solverChoice = 0);
 
     /**
      * @brief solve the recursively generated BCQP problem
@@ -75,25 +87,14 @@ class PGDConstraintSolver {
      */
     void solveConstraints();
 
-    /**
-     * @brief write the solution constraint force magnitude back to uniConstraints and biConstraints
-     *
-     */
-    void writebackGamma();
-
-    /**
-     * @brief write the solution constraint force and velocity to the particles
-     *
-     */
-    void writebackForceVelocity();
-
     void recursionStep();
 
   private:
-    double dt_;        ///< timestep size
-    double res_;       ///< residual tolerance
-    int maxIte_;       ///< max iterations
-    int solverChoice_; ///< which solver to use
+    double dt_;         ///< timestep size
+    double res_;        ///< residual tolerance
+    int maxIterations_; ///< max iterations
+    int maxRecursions_; ///< max recursions
+    int solverChoice_;  ///< which solver to use
 
     std::shared_ptr<ConstraintCollector> conCollectorPtr_; ///< pointer to ConstraintCollector
     std::shared_ptr<SylinderSystem> ptcSystemPtr_;         ///< pointer to SylinderSystem
@@ -118,9 +119,9 @@ class PGDConstraintSolver {
     Teuchos::RCP<PartialSepPartialGammaOp>
         partialSepPartialGammaOpRcp_; ///< Operator takes gamma to change in sep w.r.t gamma
                                       ///< this is the operator of BCQP problem. A = dt D^T M D + K^{-1}
-    Teuchos::RCP<TV> gammaRecRcp_;    ///< the unknown constraint Lagrange multipliers (for a single recursion)
     Teuchos::RCP<TV> gammaRcp_;       ///< the unknown constraint Lagrange multipliers (overall)
-    Teuchos::RCP<TV> sep0Rcp_;        ///< initial, unconstrained constraint violation
+    Teuchos::RCP<TV> sepRcp_;         ///< final, unconstrained constraint violation (A gamma + S0)
+    Teuchos::RCP<TV> sep0Rcp_;        ///< initial, unconstrained constraint violation (S0)
                                       ///< this is the constant part of BCQP problem
 };
 

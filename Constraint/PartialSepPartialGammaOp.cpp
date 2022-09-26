@@ -6,8 +6,6 @@ PartialSepPartialGammaOp::PartialSepPartialGammaOp(const Teuchos::RCP<const TMAP
 
 void PartialSepPartialGammaOp::initialize(const Teuchos::RCP<const TOP> &mobOpRcp, 
            const Teuchos::RCP<const TCMAT> &AMatTransRcp,
-           const Teuchos::RCP<TV> &forceRcp,
-           const Teuchos::RCP<TV> &velRcp,
            const double dt)
 {
 
@@ -15,20 +13,18 @@ void PartialSepPartialGammaOp::initialize(const Teuchos::RCP<const TOP> &mobOpRc
   dt_ = dt;
   mobOpRcp_ = mobOpRcp;
   AMatTransRcp_ = AMatTransRcp;
-  velRcp_ = velRcp;
-  forceRcp_ = forceRcp;
 
   // check the input
   TEUCHOS_ASSERT(nonnull(mobOpRcp_));
   TEUCHOS_ASSERT(nonnull(AMatTransRcp_));
-  TEUCHOS_ASSERT(nonnull(velRcp_));
-  TEUCHOS_ASSERT(nonnull(forceRcp_));
 
   TEUCHOS_ASSERT(xMapRcp_->isSameAs(*AMatTransRcp_->getRangeMap()));
   TEUCHOS_ASSERT(mobOpRcp_->getDomainMap()->isSameAs(*AMatTransRcp_->getDomainMap()));
 
   // initialize working multivectors, zero out
-  forceMagRcp_ = Teuchos::rcp(new TV(xMapRcp_, true));
+  const Teuchos::RCP<const TMAP> mobMapRcp = mobOpRcp_->getDomainMap();
+  velRcp_ = Teuchos::rcp(new TV(mobMapRcp, true));
+  forceRcp_ = Teuchos::rcp(new TV(mobMapRcp, true));
 }
 
 void PartialSepPartialGammaOp::unitialize()
@@ -65,7 +61,6 @@ apply(const TMV& X, TMV& Y, Teuchos::ETransp mode,
   // TEUCHOS_ASSERT(mode == Teuchos::NO_TRANS); // dt A^T M A is symmetric, so trans apply is ok.
   TEUCHOS_ASSERT(nonnull(mobOpRcp_));
   TEUCHOS_ASSERT(nonnull(forceRcp_));
-  TEUCHOS_ASSERT(nonnull(forceMagRcp_));
   TEUCHOS_ASSERT(nonnull(velRcp_));
   TEUCHOS_ASSERT(nonnull(AMatTransRcp_));
 

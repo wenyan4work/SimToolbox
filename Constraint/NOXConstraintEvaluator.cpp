@@ -233,8 +233,11 @@ void EvaluatorTpetraConstraint::evalModelImpl(const Thyra::ModelEvaluatorBase::I
 }
 
 void EvaluatorTpetraConstraint::recursionStep(const Teuchos::RCP<const TV> &gammaRcp) {
-    // to avoid double counting forces, reset the constraint gamma and constraint sep
-    conCollectorPtr_->resetConstraintVariables();
+    // TODO: make sure this matches the linear solver
+
+
+    // store the constraint gamma and constraint sep
+    conCollectorPtr_->writeBackConstraintVariables(gammaRcp, sepRcp_);
 
     // solve for the induced force and velocity
     AMatRcp_->apply(*gammaRcp, *forceRcp_);   // F_{r}^k = sum_{n=0}^{r} D_{n-1}^{k+1} gamma_{r}^k
