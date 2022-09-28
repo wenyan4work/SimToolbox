@@ -32,7 +32,7 @@ int main(int argc, char **argv) {
         }
 
         // main time loop
-        controller.run();
+         controller.run();
     }
     // mpi finalize
     // let the root rank wait for other

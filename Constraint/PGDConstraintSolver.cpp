@@ -1,6 +1,9 @@
 #include "PGDConstraintSolver.hpp"
 #include "Util/Logger.hpp"
 
+// multiplyRAP
+#include <TpetraExt_TripleMatrixMultiply.hpp>
+
 PGDConstraintSolver::PGDConstraintSolver(const Teuchos::RCP<const TCOMM> &commRcp,
                                          std::shared_ptr<ConstraintCollector> conCollectorPtr,
                                          std::shared_ptr<SylinderSystem> ptcSystemPtr)
@@ -8,7 +11,7 @@ PGDConstraintSolver::PGDConstraintSolver(const Teuchos::RCP<const TCOMM> &commRc
 
 void PGDConstraintSolver::reset() {
     mobMapRcp_.reset(); ///< distributed map for obj mobility. 6 dof per obj
-    mobOpRcp_.reset();  ///< mobility operator, 6 dof per obj maps to 6 dof per obj
+    mobMatRcp_.reset();  ///< mobility operator, 6 dof per obj maps to 6 dof per obj
 
     forceConRcp_.reset(); ///< constraints force vec, 6 dof per obj
     forceExtRcp_.reset(); ///< external (non-constraint) force, 6 dof per obj
@@ -21,8 +24,11 @@ void PGDConstraintSolver::reset() {
     biFlagRcp_.reset();
 
     // the linear complementarity problem 0 <= A gamma + S0 _|_ gamma >= 0
-    partialSepPartialGammaOpRcp_.reset(); ///< Operator takes gamma to change in sep w.r.t gamma
+    partialSepPartialGammaMatRcp_.reset(); ///< CRS matrix takes gamma to change in sep w.r.t gamma
                                           ///< this is the operator of BCQP problem. A = dt D^T M D + K^{-1}
+
+    // partialSepPartialGammaOpRcp_.reset(); ///< Operator takes gamma to change in sep w.r.t gamma
+    //                                       ///< this is the operator of BCQP problem. A = dt D^T M D + K^{-1}
     gammaRcp_.reset();                    ///< the unknown constraint Lagrange multipliers (overall)
     sep0Rcp_.reset();                     ///< initial, unconstrained constraint violation
                                           ///< this is the constant part of BCQP problem
@@ -39,13 +45,13 @@ void PGDConstraintSolver::initialize() {
     constraintDiagonalRcp_ = Teuchos::rcp(new TV(gammaMapRcp_, true));
 
     // initialize the particle stuff (TODO: what about external force and velocity?)
-    mobOpRcp_ = ptcSystemPtr_->getMobOperator();
-    mobMapRcp_ = mobOpRcp_->getDomainMap();
+    mobMatRcp_ = ptcSystemPtr_->getMobMatrix();
+    mobMapRcp_ = mobMatRcp_->getDomainMap();
     velConRcp_ = Teuchos::rcp(new TV(mobMapRcp_, true));
     forceConRcp_ = Teuchos::rcp(new TV(mobMapRcp_, true));
 
     // build D^T, which maps from constraint Lagrange multiplier to com force vector
-    mobMapRcp_ = mobOpRcp_->getDomainMap();
+    mobMapRcp_ = mobMatRcp_->getDomainMap();
     DMatTransRcp_ = conCollectorPtr_->buildConstraintMatrixVector(mobMapRcp_, gammaMapRcp_);
     Tpetra::RowMatrixTransposer<double, int, int> transposerDu(DMatTransRcp_);
     DMatRcp_ = transposerDu.createTranspose();
@@ -53,8 +59,10 @@ void PGDConstraintSolver::initialize() {
     TEUCHOS_ASSERT(nonnull(DMatRcp_));
 
     // build the operator that takes gamma to change in sep w.r.t gamma
-    partialSepPartialGammaOpRcp_ = Teuchos::rcp(new PartialSepPartialGammaOp(gammaMapRcp_));
-    partialSepPartialGammaOpRcp_->initialize(mobOpRcp_, DMatTransRcp_, 1.0);
+    // partialSepPartialGammaOpRcp_ = Teuchos::rcp(new PartialSepPartialGammaOp(gammaMapRcp_));
+    // partialSepPartialGammaOpRcp_->initialize(mobMatRcp_, DMatTransRcp_, 1.0);
+    partialSepPartialGammaMatRcp_ = Teuchos::rcp(new TCMAT(gammaMapRcp_, 0));
+    Tpetra::TripleMatrixMultiply::MultiplyRAP(*DMatRcp_, true, *mobMatRcp_, false, *DMatRcp_, false, *partialSepPartialGammaMatRcp_);
 
     // fill the initial gamma guess, the constraint flag, the initial unconstrained separation, and the diagonal of
     // K^{-1}
@@ -86,8 +94,10 @@ void PGDConstraintSolver::reinitialize() {
     TEUCHOS_ASSERT(nonnull(DMatRcp_));
 
     // build the operator that takes gamma to change in sep w.r.t gamma
-    partialSepPartialGammaOpRcp_ = Teuchos::rcp(new PartialSepPartialGammaOp(gammaMapRcp_));
-    partialSepPartialGammaOpRcp_->initialize(mobOpRcp_, DMatTransRcp_, 1.0); //TODO: this should include the constraint diagonal!!
+    // partialSepPartialGammaOpRcp_ = Teuchos::rcp(new PartialSepPartialGammaOp(gammaMapRcp_));
+    // partialSepPartialGammaOpRcp_->initialize(mobMatRcp_, DMatTransRcp_, 1.0); //TODO: this should include the constraint diagonal!!
+    partialSepPartialGammaMatRcp_ = Teuchos::rcp(new TCMAT(gammaMapRcp_, 0));
+    Tpetra::TripleMatrixMultiply::MultiplyRAP(*DMatRcp_, true, *mobMatRcp_, false, *DMatRcp_, false, *partialSepPartialGammaMatRcp_);
 
     // fill the initial gamma guess, the constraint flag, the initial unconstrained separation, and the diagonal of
     // K^{-1}
@@ -149,7 +159,7 @@ void PGDConstraintSolver::solveConstraints() {
 
         // create the solver object
         sep0Rcp_->scale(1.0 / dt_);
-        BCQPSolver solver(partialSepPartialGammaOpRcp_, sep0Rcp_); 
+        BCQPSolver solver(partialSepPartialGammaMatRcp_, sep0Rcp_); 
         spdlog::debug("solver constructed");
 
         // setup the lower bound for gamma
@@ -211,7 +221,7 @@ void PGDConstraintSolver::recursionStep() {
 
     // solve for the induced force and velocity (sum the forces from previous recursions)
     DMatRcp_->apply(*gammaRcp_, *forceConRcp_, Teuchos::NO_TRANS, 1.0, 1.0);    // F_{r}^k = sum_{n=0}^{r} D_{n-1}^{k+1} gamma_{r}^k
-    mobOpRcp_->apply(*forceConRcp_, *velConRcp_); // U_r^k = M^k F_r^k
+    mobMatRcp_->apply(*forceConRcp_, *velConRcp_); // U_r^k = M^k F_r^k
 
     // send the constraint vel and force to the particles
     ptcSystemPtr_->saveForceVelocityConstraints(forceConRcp_, velConRcp_);
