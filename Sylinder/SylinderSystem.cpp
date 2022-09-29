@@ -95,9 +95,6 @@ void SylinderSystem::reinitialize(const std::string &pvtpFileName_) {
     exchangeSylinder(); // distribute to ranks, initial domain decomposition
     updateSylinderMap();
 
-    // initialize sylinder growth 
-    initSylinderGrowth();
-
     // initialize the GID search tree
     sylinderNearDataDirectoryPtr = std::make_shared<ZDD<SylinderNearEP>>(sylinderContainer.getNumberOfParticleLocal());
 
@@ -495,6 +492,11 @@ void SylinderSystem::setInitialFromVTKFile(const std::string &pvtpFileName) {
         vtkSmartPointer<vtkDataArray> znormData = polydata->GetCellData()->GetArray("znorm");
         vtkSmartPointer<vtkDataArray> velData = polydata->GetCellData()->GetArray("vel");
         vtkSmartPointer<vtkDataArray> omegaData = polydata->GetCellData()->GetArray("omega");
+        vtkSmartPointer<vtkDataArray> tData = polydata->GetCellData()->GetArray("t");
+        vtkSmartPointer<vtkDataArray> tgData = polydata->GetCellData()->GetArray("tg");
+        vtkSmartPointer<vtkDataArray> tauDData = polydata->GetCellData()->GetArray("tauD");
+        vtkSmartPointer<vtkDataArray> sigmaData = polydata->GetCellData()->GetArray("sigma");
+        vtkSmartPointer<vtkDataArray> deltaLData = polydata->GetCellData()->GetArray("deltaL");
 
         const int sylinderNumberInFile = posData->GetNumberOfPoints() / 2; // two points per sylinder
         sylinderContainer.setNumberOfParticleLocal(sylinderNumberInFile);
@@ -519,6 +521,15 @@ void SylinderSystem::setInitialFromVTKFile(const std::string &pvtpFileName) {
             const Evec3 direction(znormData->GetComponent(i, 0), znormData->GetComponent(i, 1),
                                   znormData->GetComponent(i, 2));
             Emapq(sy.orientation) = Equatn::FromTwoVectors(Evec3(0, 0, 1), direction);
+
+            // read in growth information (if necessary) // TODO: use a growth flag to turn off and on this kind of functionality
+            sy.t = tData->GetComponent(i, 0);
+            sy.tg = tgData->GetComponent(i, 0);
+            sy.tauD = tauDData->GetComponent(i, 0);
+            sy.sigma = sigmaData->GetComponent(i, 0);
+            sy.deltaL = deltaLData->GetComponent(i, 0);
+
+            // read in velocity for correct stepping
             sy.vel[0] = velData->GetComponent(i, 0);
             sy.vel[1] = velData->GetComponent(i, 1);
             sy.vel[2] = velData->GetComponent(i, 2);

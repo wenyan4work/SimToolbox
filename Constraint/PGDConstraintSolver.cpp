@@ -117,28 +117,30 @@ void PGDConstraintSolver::setup(const double dt, const double res, const int max
     maxIterations_ = maxIterations;
     maxRecursions_ = maxRecursions;
     solverChoice_ = solverChoice;
-
-    // initialize the stored objects
-    initialize();
 }
 
 void PGDConstraintSolver::solveConstraints() {
-    // TODO: Is the following reduction necessary?
-    //       If it is necessary, should we call stepEuler without constraint force?
+    /////////////////////////////////////////////////
+    // Check if there are any constraints to solve //
+    /////////////////////////////////////////////////
+    const int numLocalConstraints = conCollectorPtr_->getLocalNumberOfDOF();
+    int numGlobalConstraints;
+    MPI_Allreduce(&numLocalConstraints, &numGlobalConstraints, 1, MPI_INT, MPI_SUM, MPI_COMM_WORLD);
 
-    // /////////////////////////////////////////////////
-    // // Check if there are any constraints to solve //
-    // /////////////////////////////////////////////////
-    // const int numLocalConstraints = conCollectorPtr_->getLocalNumberOfDOF();
-    // int numGlobalConstraints;
-    // MPI_Allreduce(&numLocalConstraints, &numGlobalConstraints, 1, MPI_INT, MPI_SUM, MPI_COMM_WORLD);
+    if (numGlobalConstraints == 0) {
+        spdlog::info("No constraints to solve. Moving the system forward in time");
+        // move the configuration from q^k to q_{r}^{k+1}
+        ptcSystemPtr_->stepEuler();  // q_{r}^{k+1} = q^k + dt G^k U_r^k
+        return;
+    } else {
+        spdlog::info("Global number of constraints: {:g}", numGlobalConstraints);
+    }
 
-    // if (numGlobalConstraints == 0) {
-    //     spdlog::info("No constraints to solve");
-    //     return;
-    // } else {
-    //     spdlog::info("Global number of constraints: {:g}", numGlobalConstraints);
-    // }
+
+    ////////////////////////////////////
+    // Initialize the data structures //
+    ////////////////////////////////////
+    initialize();
 
     ///////////////////////
     // Run the recursion //

@@ -35,7 +35,7 @@ conResTol: 1e-5 # residual
 conMaxIte: 10000 # max iteration
 conSolverChoice: 0 # 0 for BBPGD, 1 for APGD, etc
 # growth settings
-cellGrowth:
+ptcGrowth:
   - group: 0
     tauD: 1.0 # s
     Delta: 4.0 # um

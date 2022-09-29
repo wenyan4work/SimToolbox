@@ -252,6 +252,12 @@ class Sylinder {
         cellDataFields.emplace_back(1, IOHelper::IOTYPE::Float32, "length");
         cellDataFields.emplace_back(1, IOHelper::IOTYPE::Float32, "lengthCollision");
 
+        cellDataFields.emplace_back(1, IOHelper::IOTYPE::Float32, "t");
+        cellDataFields.emplace_back(1, IOHelper::IOTYPE::Float32, "tg");
+        cellDataFields.emplace_back(1, IOHelper::IOTYPE::Float32, "tauD");
+        cellDataFields.emplace_back(1, IOHelper::IOTYPE::Float32, "sigma");
+        cellDataFields.emplace_back(1, IOHelper::IOTYPE::Float32, "deltaL");
+
         cellDataFields.emplace_back(3, IOHelper::IOTYPE::Float32, "vel");
         cellDataFields.emplace_back(3, IOHelper::IOTYPE::Float32, "omega");
         cellDataFields.emplace_back(3, IOHelper::IOTYPE::Float32, "velConstraint");
@@ -321,6 +327,13 @@ class Sylinder {
         std::vector<float> length(sylinderNumber);
         std::vector<float> lengthCollision(sylinderNumber);
 
+        // growth stuff that needs renamed
+        std::vector<float> t(sylinderNumber);
+        std::vector<float> tg(sylinderNumber); 
+        std::vector<float> tauD(sylinderNumber);
+        std::vector<float> sigma(sylinderNumber);
+        std::vector<float> deltaL(sylinderNumber);
+
         // vel
         std::vector<float> vel(3 * sylinderNumber);
         std::vector<float> omega(3 * sylinderNumber);
@@ -377,6 +390,14 @@ class Sylinder {
             length[i] = sy.length;
             lengthCollision[i] = sy.lengthCollision;
 
+            // growth stuff that needs renamed
+            t[i] = sy.t;
+            tg[i] = sy.tg; 
+            tauD[i] = sy.tauD;
+            sigma[i] = sy.sigma;
+            deltaL[i] = sy.deltaL;
+
+            // force velocity data
             Evec3 nx = ECmapq(sy.orientation) * Evec3(1, 0, 0);
             Evec3 nz = ECmapq(sy.orientation) * Evec3(0, 0, 1);
             for (int j = 0; j < 3; j++) {
@@ -431,6 +452,12 @@ class Sylinder {
         IOHelper::writeDataArrayBase64(radiusCollision, "radiusCollision", 1, file);
         IOHelper::writeDataArrayBase64(length, "length", 1, file);
         IOHelper::writeDataArrayBase64(lengthCollision, "lengthCollision", 1, file);
+
+        IOHelper::writeDataArrayBase64(t, "t", 1, file);
+        IOHelper::writeDataArrayBase64(tg, "tg", 1, file);
+        IOHelper::writeDataArrayBase64(tauD, "tauD", 1, file);
+        IOHelper::writeDataArrayBase64(sigma, "sigma", 1, file);
+        IOHelper::writeDataArrayBase64(deltaL, "deltaL", 1, file);
 
         IOHelper::writeDataArrayBase64(vel, "vel", 3, file);
         IOHelper::writeDataArrayBase64(omega, "omega", 3, file);
