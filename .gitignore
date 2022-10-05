@@ -22,5 +22,5 @@
 html/
 latex/
 doc/
-build/
+build*/
 .ipynb_*/

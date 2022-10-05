@@ -584,9 +584,9 @@ int ConstraintCollector::evalConstraintValues(const Teuchos::RCP<const TV> &gamm
             const int numDOF = con.numDOF;
             for (int d = 0; d < numDOF; d++) {
                 // get the value and status
-                constraintValuePtr(conIndex, 0) = con.getValue(constraintSepPtr(conIndex, 0), gammaPtr(conIndex, 0));
+                constraintValuePtr(conIndex, 0) = con.getValue(con, constraintSepPtr(conIndex, 0), gammaPtr(conIndex, 0));
                 constraintStatusPtr(conIndex, 0) =
-                    con.isConstrained(constraintSepPtr(conIndex, 0), gammaPtr(conIndex, 0));
+                    con.isConstrained(con, constraintSepPtr(conIndex, 0), gammaPtr(conIndex, 0));
 
                 // scaling is applied to inactive constraints
                 if (constraintStatusPtr(conIndex, 0) < 0.5) {
@@ -632,7 +632,7 @@ int ConstraintCollector::evalConstraintValues(const Teuchos::RCP<const TV> &gamm
             const int numDOF = con.numDOF;
             for (int d = 0; d < numDOF; d++) {
                 // get the value only
-                constraintValuePtr(conIndex, 0) = con.getValue(constraintSepPtr(conIndex, 0), gammaPtr(conIndex, 0));
+                constraintValuePtr(conIndex, 0) = con.getValue(con, constraintSepPtr(conIndex, 0), gammaPtr(conIndex, 0));
                 conIndex += 1;
             }
         }

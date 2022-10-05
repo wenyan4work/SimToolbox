@@ -28,10 +28,10 @@ void noPenetrationConstraint(Constraint &con, const double sepDistance, const in
     con.gidJ = gidJ;
     con.globalIndexI = globalIndexI;
     con.globalIndexJ = globalIndexJ;
-    std::function<bool(const double sep, const double gamma)> isConstrained = [](const double sep, const double gamma) {
+    std::function<bool(const Constraint &con, const double sep, const double gamma)> isConstrained = [](const Constraint &con, const double sep, const double gamma) {
         return sep < gamma; // min-map
     };
-    std::function<double(const double sep, const double gamma)> getValue = [](const double sep, const double gamma) {
+    std::function<double(const Constraint &con, const double sep, const double gamma)> getValue = [](const Constraint &con, const double sep, const double gamma) {
         return std::min(sep, gamma); // min-map
     };
     con.isConstrained = std::move(isConstrained);
@@ -65,11 +65,11 @@ void springConstraint(Constraint &con, const double sepDistance, const double re
     con.gidJ = gidJ;
     con.globalIndexI = globalIndexI;
     con.globalIndexJ = globalIndexJ;
-    std::function<bool(const double sep, const double gamma)> isConstrained = [](const double sep, const double gamma) {
+    std::function<bool(const Constraint &con, const double sep, const double gamma)> isConstrained = [](const Constraint &con, const double sep, const double gamma) {
         return true;
     };
-    std::function<double(const double sep, const double gamma)> getValue = [](const double sep, const double gamma) {
-        return sep;
+    std::function<double(const Constraint &con, const double sep, const double gamma)> getValue = [](const Constraint &con, const double sep, const double gamma) {
+        return con.diagonal * sep + gamma;
     };
     con.isConstrained = std::move(isConstrained);
     con.getValue = std::move(getValue);
@@ -82,7 +82,7 @@ void springConstraint(Constraint &con, const double sepDistance, const double re
     const Evec3 unscaledTorqueComJ(-normI[2] * posJ[1] + normI[1] * posJ[2], -normI[0] * posJ[2] + normI[2] * posJ[0],
                                    -normI[1] * posJ[0] + normI[0] * posJ[1]);
     const double gammaGuess = sepDistance - restLength;
-    con.initializeDOF(0, gammaGuess, gammaGuess, labI, labJ, unscaledForceComI.data(), unscaledForceComJ.data(),
+    con.initializeDOF(0, gammaGuess, -gammaGuess, labI, labJ, unscaledForceComI.data(), unscaledForceComJ.data(),
             unscaledTorqueComI.data(), unscaledTorqueComJ.data(), stressIJ);
 }
 
@@ -102,10 +102,10 @@ void angularSpringConstraint(Constraint &con, const double sepAngle, const doubl
     con.gidJ = gidJ;
     con.globalIndexI = globalIndexI;
     con.globalIndexJ = globalIndexJ;
-    std::function<bool(const double sep, const double gamma)> isConstrained = [](const double sep, const double gamma) {
+    std::function<bool(const Constraint &con, const double sep, const double gamma)> isConstrained = [](const Constraint &con, const double sep, const double gamma) {
         return true;
     };
-    std::function<double(const double sep, const double gamma)> getValue = [](const double sep, const double gamma) {
+    std::function<double(const Constraint &con, const double sep, const double gamma)> getValue = [](const Constraint &con, const double sep, const double gamma) {
         return sep;
     };
     con.isConstrained = std::move(isConstrained);
@@ -120,7 +120,7 @@ void angularSpringConstraint(Constraint &con, const double sepAngle, const doubl
     const Evec3 unscaledTorqueComJ(-normI[2] * posJ[1] + normI[1] * posJ[2], -normI[0] * posJ[2] + normI[2] * posJ[0],
                                    -normI[1] * posJ[0] + normI[0] * posJ[1]);
     const double gammaGuess = sepAngle - restAngle;
-    con.initializeDOF(0, gammaGuess, gammaGuess, labI, labJ, unscaledForceComI.data(), unscaledForceComJ.data(),
+    con.initializeDOF(0, gammaGuess, -gammaGuess, labI, labJ, unscaledForceComI.data(), unscaledForceComJ.data(),
             unscaledTorqueComI.data(), unscaledTorqueComJ.data(), stressIJ);
 }
 
@@ -140,10 +140,10 @@ void pivotConstraint(Constraint &con, const double sepDistance, const int gidI, 
     con.gidJ = gidJ;
     con.globalIndexI = globalIndexI;
     con.globalIndexJ = globalIndexJ;
-    std::function<bool(const double sep, const double gamma)> isConstrained = [](const double sep, const double gamma) {
+    std::function<bool(const Constraint &con, const double sep, const double gamma)> isConstrained = [](const Constraint &con, const double sep, const double gamma) {
         return true;
     };
-    std::function<double(const double sep, const double gamma)> getValue = [](const double sep, const double gamma) {
+    std::function<double(const Constraint &con, const double sep, const double gamma)> getValue = [](const Constraint &con, const double sep, const double gamma) {
         return sep;
     };
     con.isConstrained = std::move(isConstrained);

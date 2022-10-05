@@ -13,7 +13,7 @@
 
 #include "BCQPSolver.hpp"
 #include "ConstraintCollector.hpp"
-#include "PartialSepPartialGammaOp.hpp"
+#include "ConstraintJacobianOp.hpp"
 #include "Sylinder/SylinderSystem.hpp"
 
 #include "Trilinos/TpetraUtil.hpp"
@@ -103,11 +103,11 @@ class PGDConstraintSolver {
     const Teuchos::RCP<const TCOMM> commRcp_; ///< TCOMM, set as a Teuchos::MpiComm object in constructor
     Teuchos::RCP<const TMAP> mobMapRcp_;      ///< distributed map for obj mobility. 6 dof per obj
     Teuchos::RCP<const TMAP> gammaMapRcp_;    ///< distributed map for constraints. 1 dof per constraint
-    Teuchos::RCP<TCMAT> mobMatRcp_;            ///< mobility matrix, 6 dof per obj maps to 6 dof per obj
+    Teuchos::RCP<TCMAT> mobMatRcp_;           ///< mobility matrix, 6 dof per obj maps to 6 dof per obj
 
     Teuchos::RCP<TV> forceConRcp_; ///< constraints force vec, 6 dof per obj
-    Teuchos::RCP<TV> forceExtRcp_; ///< external (non-constraint) force, 6 dof per obj
     Teuchos::RCP<TV> velConRcp_;   ///< constraints velocity vec, 6 dof per obj
+    Teuchos::RCP<TV> forceExtRcp_; ///< external (non-constraint) force, 6 dof per obj
     Teuchos::RCP<TV> velExtRcp_;   ///< external (non-constraint) velocity, 6 dof per obj
 
     Teuchos::RCP<TCMAT> DMatTransRcp_; ///< D^Trans matrix
@@ -117,12 +117,9 @@ class PGDConstraintSolver {
     Teuchos::RCP<TV> biFlagRcp_; ///< constraint flag. 0 if unilaterial constraint, 1 if bilaterial constraint
 
     // the linear complementarity problem 0 <= A gamma + S0 _|_ gamma >= 0
-    Teuchos::RCP<TCMAT>
-        partialSepPartialGammaMatRcp_; ///< CRS matrix takes gamma to change in sep w.r.t gamma
-                                       ///< this is the operator of BCQP problem. A = dt D^T M D + K^{-1}
-    // Teuchos::RCP<PartialSepPartialGammaOp>
-    //     partialSepPartialGammaOpRcp_; ///< Operator takes gamma to change in sep w.r.t gamma
-    //                                   ///< this is the operator of BCQP problem. A = dt D^T M D + K^{-1}
+    Teuchos::RCP<ConstraintJacobianOp>
+        constraintJacobianOp_;  ///< operator taking gamma to change in sep w.r.t gamma
+                                ///< this is the operator of BCQP problem. A = dt D^T M D + K^{-1}
     Teuchos::RCP<TV> gammaRcp_; ///< the unknown constraint Lagrange multipliers (overall)
     Teuchos::RCP<TV> sepRcp_;   ///< final, unconstrained constraint violation (A gamma + S0)
     Teuchos::RCP<TV> sep0Rcp_;  ///< initial, unconstrained constraint violation (S0)

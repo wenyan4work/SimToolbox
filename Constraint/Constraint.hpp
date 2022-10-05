@@ -38,7 +38,7 @@
 struct Constraint {
   private:
     // private members to be accessed with getters and set with setters
-    // currently, constraints use at most 3 dof, so arrays will be sized to fix this maxima
+    // currently, constraints use at most 1 dof, so arrays will be sized to fix this maxima
     // TODO: template this class using maxNumDOF_ (Harder than it sounds)
     static const int maxNumDOF_ = 1;
     double seps_[maxNumDOF_] = {0};                   ///< initial constrainted quantity
@@ -66,8 +66,8 @@ struct Constraint {
     int globalIndexJ = GEO_INVALID_INDEX; ///< global index of particle J
     double diagonal = 0;
 
-    std::function<bool(const double sep, const double gamma)> isConstrained;
-    std::function<double(const double sep, const double gamma)> getValue;
+    std::function<bool(const Constraint &con, const double sep, const double gamma)> isConstrained;
+    std::function<double(const Constraint &con, const double sep, const double gamma)> getValue;
 
     double getSep(const int idxDOF) const { return seps_[idxDOF]; }
     double getGamma(const int idxDOF) const { return gammas_[idxDOF]; }

@@ -3,7 +3,7 @@
 
 // Our stuff
 #include "ConstraintCollector.hpp"
-#include "PartialSepPartialGammaOp.hpp"
+#include "ConstraintJacobianOp.hpp"
 #include "Sylinder/SylinderSystem.hpp"
 #include "Trilinos/TpetraUtil.hpp"
 

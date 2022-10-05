@@ -49,7 +49,7 @@ void SylinderSystem::initialize(const std::string &posFile) {
     decomposeDomain();
     exchangeSylinder(); // distribute to ranks, initial domain decomposition
 
-    // initialize sylinder growth 
+    // initialize sylinder growth
     initSylinderGrowth();
 
     // initialize the GID search tree
@@ -162,7 +162,7 @@ void SylinderSystem::calcSylinderDivision() {
         const double currentLength = sy.length;
         const double newLength = currentLength * 0.5 - sy.radius;
         if (newLength <= 0) {
-            continue;   
+            continue;
         }
 
         // old sylinder, shrink and reset center, no rotation
@@ -522,7 +522,8 @@ void SylinderSystem::setInitialFromVTKFile(const std::string &pvtpFileName) {
                                   znormData->GetComponent(i, 2));
             Emapq(sy.orientation) = Equatn::FromTwoVectors(Evec3(0, 0, 1), direction);
 
-            // read in growth information (if necessary) // TODO: use a growth flag to turn off and on this kind of functionality
+            // read in growth information (if necessary) // TODO: use a growth flag to turn off and on this kind of
+            // functionality
             sy.t = tData->GetComponent(i, 0);
             sy.tg = tgData->GetComponent(i, 0);
             sy.tauD = tauDData->GetComponent(i, 0);
@@ -879,7 +880,7 @@ void SylinderSystem::applyMonolayer() {
 
 void SylinderSystem::getForceVelocityNonConstraint(const Teuchos::RCP<TV> &forceNCRcp,
                                                    const Teuchos::RCP<TV> &velocityNCRcp) const {
-    // save results
+    // store results
     auto forceNCPtr = forceNCRcp->getLocalView<Kokkos::HostSpace>();
     auto velocityNCPtr = velocityNCRcp->getLocalView<Kokkos::HostSpace>();
     forceNCRcp->modify<Kokkos::HostSpace>();
@@ -1026,7 +1027,7 @@ void SylinderSystem::collectBoundaryCollision() {
                         const double sep = -deltanorm - radius;
                         Emat3 stressIJ = Emat3::Zero();
                         Constraint con;
-                        noPenetrationConstraint(con,            // constraint object, 
+                        noPenetrationConstraint(con,            // constraint object,
                                                 sep,            // amount of overlap,
                                                 sy.gid, sy.gid, //
                                                 sy.globalIndex, //
@@ -1035,7 +1036,7 @@ void SylinderSystem::collectBoundaryCollision() {
                                                 posI.data(),        // location of collision relative to particle center
                                                 Query.data(), Proj, // location of collision in lab frame
                                                 norm.data(),        // direction of collision force
-                                                stressIJ.data(), false);
+                                                stressIJ.data(), true);
                         conQue.push_back(con);
                     } else if (deltanorm <
                                (1 + runConfig.sylinderColBuf * 2) * sy.radiusCollision) { // inside boundary but close
@@ -1051,7 +1052,7 @@ void SylinderSystem::collectBoundaryCollision() {
                                                 posI.data(),        // location of collision relative to particle center
                                                 Query.data(), Proj, // location of collision in lab frame
                                                 norm.data(),        // direction of collision force
-                                                stressIJ.data(), false);
+                                                stressIJ.data(), true);
                         conQue.push_back(con);
                     }
                 };
@@ -1392,7 +1393,8 @@ void SylinderSystem::collectLinkBilateral() {
                 const Evec3 normJ = -normI;
                 const Evec3 posI = Ploc - centerI;
                 const Evec3 posJ = Qloc - centerJ;
-                const double restLength = syI.radius + syJ.radius + runConfig.linkGap;
+                const double restLength = runConfig.linkGap;
+                const double springLength = rnorm - syI.radius - syJ.radius;
 
                 Emat3 stressIJ = Emat3::Zero();
                 CalcSylinderNearForce::collideStress(directionI, directionJ, centerI, centerJ, syI.length, syJ.length,
@@ -1400,7 +1402,7 @@ void SylinderSystem::collectLinkBilateral() {
 
                 Constraint con;
                 springConstraint(con,                      // constraint object
-                                 rnorm, restLength,        // length of spring, rest length of spring
+                                 springLength, restLength, // length of spring, rest length of spring
                                  runConfig.linkKappa,      // spring constant
                                  syI.gid, syJ.gid,         //
                                  syI.globalIndex,          //
@@ -1487,14 +1489,12 @@ void SylinderSystem::updatePairCollision() {
 
 // TODO: Move this into particle-particle interaction class
 void SylinderSystem::collectUnresolvedConstraints() {
-    // Loop over all constraints, check if the constraint is satisfies; 
+    // TODO: extend this function to use a factory for updating constraints
+
+    // Loop over all constraints, check if the constraint is satisfies;
     // if not, generate a new constraint to handle the residual
 
-    // TODO: extend this to include updating other types of constraints. Feting via GID should happen regardless.
-    //       The only difference is the update step
-    std::cout << "collectUnresolvedConstraints doesn't account for systems with multiple types of constraints" << std::endl;
-
-    // update the collision constraints stored in the constraintPool
+    // update the constraints stored in the constraintPool
     // uses special treatment for periodic boundary conditions
 
     const int nLocal = sylinderContainer.getNumberOfParticleLocal();
@@ -1505,7 +1505,7 @@ void SylinderSystem::collectUnresolvedConstraints() {
         std::exit(1);
     }
 
-    // Step 1. fill gidToFind (2 GIDs per collision constraint)
+    // Step 1. fill gidToFind (2 GIDs per constraint)
 
     // Step1.1. Setup the offset array to allow for parallel filling
     //      we use  multi-thread filling with nThreads = poolSize and each thread process a queue
@@ -1556,12 +1556,128 @@ void SylinderSystem::collectUnresolvedConstraints() {
 
             // get an updated constraint between the two particles
             Constraint con;
-            calcColFtr.updateCollisionBlock(syI, syJ, con);
+            // TODO: replace the following with a factory based on the ID of the constraint. For now, this is ok.
+            // TODO: add in ball joints and angular springs
+            // TODO: how to account for nonconvex boundaries?
+            // TODO: generalize this to multi-dof constraints
+            if (conQue[j].oneSide) { // boundary collision
+                // // check each boundary
+                // for (const auto &bPtr : runConfig.boundaryPtr) {
+                //     const Evec3 center = ECmap3(syI.pos);
 
-            // if the updated constaint is unsatisfied add it to the que
-            //TODO: generalize this to multi-dof constraints
-            if (con.getSep(0) < -runConfig.conResTol) {
-                conQue.push_back(con);
+                //     // check one point
+                //     auto checkEnd = [&](const Evec3 &Query, const double radius) {
+                //         bool collision = false;
+                //         double Proj[3], delta[3];
+                //         bPtr->project(Query.data(), Proj, delta);
+                //         // if (!bPtr->check(Query.data(), Proj, delta)) {
+                //         //     printf("boundary projection error\n");
+                //         // }
+                //         // if inside boundary, delta = Q-Proj
+                //         // if outside boundary, delta = Proj-Q
+                //         double deltanorm = Emap3(delta).norm();
+                //         Evec3 norm = Emap3(delta) * (1 / deltanorm);
+                //         Evec3 posI = Query - center;
+
+                //         if ((Query - ECmap3(Proj)).dot(ECmap3(delta)) < 0) { // outside boundary
+                //             collision = true;
+                //             const double sep = -deltanorm - radius;
+                //             Emat3 stressIJ = Emat3::Zero();
+                //             noPenetrationConstraint(con,            // constraint object,
+                //                                     sep,            // amount of overlap,
+                //                                     syI.gid, syI.gid, //
+                //                                     syI.globalIndex, //
+                //                                     syI.globalIndex, //
+                //                                     posI.data(),
+                //                                     posI.data(),        // location of collision relative to particle
+                //                                     center Query.data(), Proj, // location of collision in lab frame
+                //                                     norm.data(),        // direction of collision force
+                //                                     stressIJ.data(), false);
+                //         }
+                //         return collision;
+                //     };
+
+                //     bool unsatisfied = false;
+                //     if (syI.isSphere(true)) {
+                //         double radius = syI.lengthCollision * 0.5 + syI.radiusCollision;
+                //         const bool collision = checkEnd(center, radius);
+                //         unsatisfied = collision;
+                //     } else {
+                //         const Evec3 direction = ECmap3(syI.direction);
+                //         const double length = syI.lengthCollision;
+                //         const Evec3 Qm = center - direction * (length * 0.5);
+                //         const Evec3 Qp = center + direction * (length * 0.5);
+                //         const bool collisionM = checkEnd(Qm, syI.radiusCollision);
+                //         const bool collisionP = checkEnd(Qp, syI.radiusCollision);
+                //         unsatisfied = (collisionM || collisionP);
+                //     }
+
+                //     // if the updated constaint is unsatisfied add it to the que
+                //     if (unsatisfied) {
+                //         conQue.push_back(con);
+                //     }
+                // }
+            } else if (conQue[j].bilaterial) { // spring
+                const Evec3 &centerI = ECmap3(syI.pos);
+                Evec3 centerJ = ECmap3(syJ.pos);
+                // apply PBC on centerJ
+                for (int k = 0; k < 3; k++) {
+                    if (!runConfig.simBoxPBC[k])
+                        continue;
+                    double trg = centerI[k];
+                    double xk = centerJ[k];
+                    findPBCImage(runConfig.simBoxLow[k], runConfig.simBoxHigh[k], xk, trg);
+                    centerJ[k] = xk;
+                    // error check
+                    if (fabs(trg - xk) > 0.5 * (runConfig.simBoxHigh[k] - runConfig.simBoxLow[k])) {
+                        spdlog::critical("pbc image error in bilateral links");
+                        std::exit(1);
+                    }
+                }
+                // sylinders are not treated as spheres for bilateral constraints
+                // constraint is always added between Pp and Qm
+                // constraint target length is radiusI + radiusJ + runConfig.linkGap
+                const Evec3 directionI = ECmap3(syI.direction);
+                const Evec3 directionJ = ECmap3(syJ.direction);
+
+                const Evec3 Pp = centerI + directionI * (0.5 * syI.length); // plus end
+                const Evec3 Qm = centerJ - directionJ * (0.5 * syJ.length);
+                const Evec3 Ploc = Pp;
+                const Evec3 Qloc = Qm;
+                const Evec3 rvec = Qloc - Ploc;
+                const double rnorm = rvec.norm();
+                const Evec3 normI = (Ploc - Qloc).normalized();
+                const Evec3 normJ = -normI;
+                const Evec3 posI = Ploc - centerI;
+                const Evec3 posJ = Qloc - centerJ;
+                const double restLength = runConfig.linkGap;
+                const double springLength = rnorm - syI.radius - syJ.radius;
+
+                Emat3 stressIJ = Emat3::Zero();
+                CalcSylinderNearForce::collideStress(directionI, directionJ, centerI, centerJ, syI.length, syJ.length,
+                                                     syI.radius, syJ.radius, 1.0, Ploc, Qloc, stressIJ);
+
+                springConstraint(con,                      // constraint object
+                                 springLength, restLength, // length of spring, rest length of spring
+                                 runConfig.linkKappa,      // spring constant
+                                 syI.gid, syJ.gid,         //
+                                 syI.globalIndex,          //
+                                 syJ.globalIndex,          //
+                                 posI.data(), posJ.data(), // location of collision relative to particle center
+                                 Ploc.data(), Qloc.data(), // location of collision in lab frame
+                                 normI.data(),             // direction of collision force
+                                 stressIJ.data(), false);
+
+                // if the updated constaint is unsatisfied add it to the que
+                if (std::abs(rnorm - restLength) > runConfig.conResTol) {
+                    conQue.push_back(con);
+                }
+            } else { // pairwise collision
+                calcColFtr.updateCollisionBlock(syI, syJ, con);
+                // if the updated constaint is unsatisfied add it to the que
+                if (con.getSep(0) < -runConfig.conResTol) {
+                    conQue.push_back(con);
+                }
             }
         }
     }

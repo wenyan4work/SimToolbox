@@ -79,37 +79,40 @@ void DryPhysicsController::initialize(const SylinderConfig &runConfig_, const st
         IOHelper::makeSubFolder("./result"); 
     }
 
-    // Collect and resolve the initial constraints 
-    spdlog::warn("Initial Constraint Resolution Begin");
-    // preconstraint stuff
-    ptcSystemPtr->prepareStep(stepCount);
-    if (runConfig.monolayer) { ptcSystemPtr->applyMonolayer(); }// TODO: applyMonolayer is VERY hacky and needs updated
-    ptcSystemPtr->updateSylinderMap();
-    ptcSystemPtr->buildsylinderNearDataDirectory();
-    ptcSystemPtr->calcMobOperator();
-
-    // constraint stuff
-    ptcSystemPtr->collectConstraints(); 
-    conSolverPtr->setup(runConfig.dt, runConfig.conResTol, runConfig.conMaxIte, 100, runConfig.conSolverChoice);
-
-    Teuchos::RCP<Teuchos::Time> solveTimer = Teuchos::TimeMonitor::getNewCounter("ConstraintSolver::solveConstraints");
-    {
-        Teuchos::TimeMonitor mon(*solveTimer);
-        conSolverPtr->solveConstraints(); 
-    }
-
-    // merge the constraint and nonconstraint vel and force
-    ptcSystemPtr->sumForceVelocity();
-
     // write the initial, potentially overlapped results
     std::string baseFolder = getCurrentResultFolder();
     IOHelper::makeSubFolder(baseFolder);
     const std::string postfix = std::to_string(-1);
     ptcSystemPtr->writeResult(stepCount, baseFolder, postfix); //TODO: split this function into two: one for ptcSystem and one for ConCollector
 
-    // update the configuration
-    // ptcSystemPtr->stepEuler(); // TODO: make sure this should be here since the collision may need to run this type of update
-    ptcSystemPtr->advanceParticles();
+    // Collect and resolve the initial constraints 
+    // the initial configuration may be such that no non-overlapping solution exists to the nonlinear collision problem
+    // we take initPreSteps initial collision resolution steps with 1 recursion each to counteract this
+    spdlog::warn("Initial Constraint Resolution Begin");
+    for (int i = 0; i < runConfig.initPreSteps; i++) {
+        // preconstraint stuff
+        conCollectorPtr->clear();
+        
+        ptcSystemPtr->prepareStep(stepCount);
+        if (runConfig.monolayer) { ptcSystemPtr->applyMonolayer(); }// TODO: applyMonolayer is VERY hacky and needs updated
+        ptcSystemPtr->updateSylinderMap();
+        ptcSystemPtr->buildsylinderNearDataDirectory();
+        ptcSystemPtr->calcMobOperator();
+
+        // constraint stuff
+        ptcSystemPtr->collectConstraints(); 
+        conSolverPtr->setup(runConfig.dt, runConfig.conResTol, runConfig.conMaxIte, 1, runConfig.conSolverChoice);
+
+        Teuchos::RCP<Teuchos::Time> solveTimer = Teuchos::TimeMonitor::getNewCounter("ConstraintSolver::solveConstraints");
+        {
+            Teuchos::TimeMonitor mon(*solveTimer);
+            conSolverPtr->solveConstraints(); 
+        }
+
+        // update the configuration
+        // ptcSystemPtr->stepEuler(); // TODO: make sure this should be here since the collision may need to run this type of update
+        ptcSystemPtr->advanceParticles();
+    }
 
     spdlog::warn("Initial Collision Resolution End");
 }
@@ -206,7 +209,8 @@ void DryPhysicsController::run() {
         ptcSystemPtr->collectConstraints();
 
         // constraint solve
-        conSolverPtr->setup(runConfig.dt);
+        conSolverPtr->setup(runConfig.dt, runConfig.conResTol, runConfig.conMaxIte, 100, runConfig.conSolverChoice);
+
         Teuchos::RCP<Teuchos::Time> solveTimer = Teuchos::TimeMonitor::getNewCounter("ConstraintSolver::solveConstraints");
         {
             Teuchos::TimeMonitor mon(*solveTimer);

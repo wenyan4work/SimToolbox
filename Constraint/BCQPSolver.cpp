@@ -139,7 +139,7 @@ int BCQPSolver::solveBBPGD(const Teuchos::RCP<TV> &gsolRcp, const Teuchos::RCP<T
 
     int mvCount = 0; // count matrix-vector multiplications
     int iteCount = 0;
-    spdlog::debug("solving APGD");
+    spdlog::debug("solving BBPGD");
     spdlog::debug("Constraint operator ARcp is " + ARcp->description());
 
     Teuchos::RCP<TV> xkRcp = Teuchos::rcp(new TV(*xsolRcp, Teuchos::Copy));   // deep copy, xk=x0
@@ -248,9 +248,9 @@ int BCQPSolver::solveBBPGD(const Teuchos::RCP<TV> &gsolRcp, const Teuchos::RCP<T
         for (auto it = history.begin(); it != history.end() - 1; it++) {
             auto &p = *it;
             spdlog::critical("RECORD: BCQP history {:g}, {:g}, {:g}, {:g}, {:g}, {:g}", p[0], p[1], p[2], p[3], p[4],
-                          p[5]);
+                             p[5]);
         }
-        throw std::runtime_error("Constraint solver failed to converge");
+        throw std::runtime_error("Constraint solver failed to converge. \n Try decreasing the timestep size or increasing the maximum number of iterations");
     }
 
     // return the solution
@@ -401,7 +401,7 @@ int BCQPSolver::solveAPGD(const Teuchos::RCP<TV> &gsolRcp, const Teuchos::RCP<TV
 
     if (iteCount == iteMax) {
         spdlog::critical("Constraint solver failed to converge!");
-        throw std::runtime_error("Constraint solver failed to converge");
+        throw std::runtime_error("Constraint solver failed to converge. \n Try decreasing the timestep size or increasing the maximum number of iterations");
     }
 
     // return the solution
@@ -418,7 +418,7 @@ int BCQPSolver::selfTest(double tol, int maxIte, int solverChoice) {
     IteHistory history;
 
     Teuchos::RCP<TV> xsolRcp = Teuchos::rcp(new TV(this->mapRcp.getConst(), true)); // zero initial guess
-    Teuchos::RCP<TV> gsolRcp = Teuchos::rcp(new TV(this->mapRcp.getConst(), true)); 
+    Teuchos::RCP<TV> gsolRcp = Teuchos::rcp(new TV(this->mapRcp.getConst(), true));
     prepareSolver();
 
     // dump problem
