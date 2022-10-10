@@ -667,10 +667,13 @@ int ConstraintCollector::writeBackConstraintVariables(const Teuchos::RCP<const T
             auto &con = conQue[j];
             const int numDOF = con.numDOF;
             for (int d = 0; d < numDOF; d++) {
+                // get the current gamma //TODO add in an alpha beta 
+                const double gamma = con.getGamma(d);
+
                 // store gamma and sep 
                 // TODO: is there a better place to update gammaGuess?
                 con.setGammaGuess(d, 0.0);
-                con.setGamma(d, gammaPtr(conIndex, 0));
+                con.setGamma(d, gamma + gammaPtr(conIndex, 0));
                 con.setSep(d, sepPtr(conIndex, 0));
                 conIndex += 1;
 

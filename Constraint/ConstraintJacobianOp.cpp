@@ -103,17 +103,17 @@ void ConstraintJacobianOp::applyMatrixFree(const TMV &X, TMV &Y, Teuchos::ETrans
 
         // step 3. dt D^T times velocity to get change in sep (change in sep = dt D^T U)
         // we merge into this step the fact that Tpetra OPs wants to solve Y = alpha * Op * X + beta * Y
-        DMatTransRcp_->apply(*velRcp_, *YcolRcp, Teuchos::NO_TRANS, alpha * dt_, beta);
+        DMatTransRcp_->apply(*velRcp_, *YcolRcp, Teuchos::NO_TRANS, dt_ * alpha, beta);
 
         // step 4, add diagonal. Y += alpha * K^{-1} X
         auto XcolPtr = XcolRcp->getLocalView<Kokkos::HostSpace>();
         auto YcolPtr = YcolRcp->getLocalView<Kokkos::HostSpace>();
-        YcolRcp->modify<Kokkos::HostSpace>();
         auto invKappaDiagPtr = invKappaDiagRcp_->getLocalView<Kokkos::HostSpace>();
+        YcolRcp->modify<Kokkos::HostSpace>();
         const auto localSize = YcolPtr.extent(0);
 #pragma omp parallel for
         for (size_t idx = 0; idx < localSize; idx++) {
-            YcolPtr(idx, 0) += alpha * invKappaDiagPtr(idx, 0) * XcolPtr(idx, 0);
+            YcolPtr(idx, 0) += dt_ * alpha * invKappaDiagPtr(idx, 0) * XcolPtr(idx, 0);
         }
     }
 }
@@ -135,17 +135,17 @@ void ConstraintJacobianOp::applyExplicitMatrix(const TMV &X, TMV &Y, Teuchos::ET
         // Goal Y = alpha (dt D^T M D X + K^[-1]X) + beta Y
 
         // step 1, Y = alpha * D^T M D * X + beta * Y
-        partialSepPartialGammaMatRcp_->apply(*XcolRcp, *YcolRcp, Teuchos::NO_TRANS, alpha, beta);
+        partialSepPartialGammaMatRcp_->apply(*XcolRcp, *YcolRcp, Teuchos::NO_TRANS, dt_ * alpha, beta);
 
         // step 2, add diagonal. Y += alpha * K^{-1} X
         auto XcolPtr = XcolRcp->getLocalView<Kokkos::HostSpace>();
         auto YcolPtr = YcolRcp->getLocalView<Kokkos::HostSpace>();
-        YcolRcp->modify<Kokkos::HostSpace>();
         auto invKappaDiagPtr = invKappaDiagRcp_->getLocalView<Kokkos::HostSpace>();
+        YcolRcp->modify<Kokkos::HostSpace>();
         const auto localSize = YcolPtr.extent(0);
 #pragma omp parallel for
         for (size_t idx = 0; idx < localSize; idx++) {
-            YcolPtr(idx, 0) += alpha * invKappaDiagPtr(idx, 0) * XcolPtr(idx, 0);
+            YcolPtr(idx, 0) += dt_ * alpha * invKappaDiagPtr(idx, 0) * XcolPtr(idx, 0);
         }
     }
 }

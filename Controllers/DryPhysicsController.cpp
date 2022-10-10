@@ -96,21 +96,20 @@ void DryPhysicsController::initialize(const SylinderConfig &runConfig_, const st
         ptcSystemPtr->prepareStep(stepCount);
         if (runConfig.monolayer) { ptcSystemPtr->applyMonolayer(); }// TODO: applyMonolayer is VERY hacky and needs updated
         ptcSystemPtr->updateSylinderMap();
-        ptcSystemPtr->buildsylinderNearDataDirectory();
         ptcSystemPtr->calcMobOperator();
+        ptcSystemPtr->buildsylinderNearDataDirectory();
 
         // constraint stuff
         ptcSystemPtr->collectConstraints(); 
         conSolverPtr->setup(runConfig.dt, runConfig.conResTol, runConfig.conMaxIte, 1, runConfig.conSolverChoice);
 
-        Teuchos::RCP<Teuchos::Time> solveTimer = Teuchos::TimeMonitor::getNewCounter("ConstraintSolver::solveConstraints");
+        Teuchos::RCP<Teuchos::Time> solveTimer = Teuchos::TimeMonitor::getNewCounter("ConstraintSolver::run");
         {
             Teuchos::TimeMonitor mon(*solveTimer);
-            conSolverPtr->solveConstraints(); 
+            conSolverPtr->resolveConstraints(); 
         }
 
-        // update the configuration
-        // ptcSystemPtr->stepEuler(); // TODO: make sure this should be here since the collision may need to run this type of update
+        // store the current configuration
         ptcSystemPtr->advanceParticles();
     }
 
@@ -181,13 +180,14 @@ void DryPhysicsController::run() {
         std::string baseFolder = getCurrentResultFolder();
         IOHelper::makeSubFolder(baseFolder);
 
-        //////////////////////////
-        // pre-constraint stuff //
-        //////////////////////////
+        ////////////////////
+        // pre-step stuff //
+        ////////////////////
         // compute growth and devision (if necessary)
         if (runConfig.ptcGrowth.size() > 0) {
             ptcSystemPtr->calcSylinderGrowth();
             ptcSystemPtr->calcSylinderDivision();
+            ptcSystemPtr->advanceParticles();
         }
         // empty the constraint collector
         conCollectorPtr->clear();
@@ -196,25 +196,35 @@ void DryPhysicsController::run() {
         ptcSystemPtr->prepareStep(stepCount);
         if (runConfig.monolayer) { ptcSystemPtr->applyMonolayer(); }// TODO: applyMonolayer is VERY hacky and needs updated
         ptcSystemPtr->updateSylinderMap();
-        ptcSystemPtr->buildsylinderNearDataDirectory();
         ptcSystemPtr->calcMobOperator();
 
         // compute the Brownian veloicity (if necessary)
         if (runConfig.KBT > 0) { ptcSystemPtr->calcVelocityBrown(); }
 
-        //////////////////////
-        // constraint stuff //
-        //////////////////////
-        ptcSystemPtr->advanceParticles();
-        ptcSystemPtr->collectConstraints();
+        ////////////////////////
+        // unconstrained step //
+        ////////////////////////
+        // apply the unconstrained motion
+        ptcSystemPtr->stepEuler();  // q_{r}^{k+1} = q^k + dt G^k (U_r^k + U_ext^k)
+        ptcSystemPtr->applyBoxBC(); // TODO: this might not work. We'll see!
+        spdlog::debug("particle position updated");
 
-        // constraint solve
+        // store the particle map and collect the constraints
+        // the initial constraints are those induced by the external forces and velocities
+        ptcSystemPtr->buildsylinderNearDataDirectory();
+        ptcSystemPtr->collectConstraints(); 
+        spdlog::debug("initial constraints collected");
+
+        //////////////////////
+        // constrained step //
+        //////////////////////
+        // solve for the constrained motion
         conSolverPtr->setup(runConfig.dt, runConfig.conResTol, runConfig.conMaxIte, 100, runConfig.conSolverChoice);
 
-        Teuchos::RCP<Teuchos::Time> solveTimer = Teuchos::TimeMonitor::getNewCounter("ConstraintSolver::solveConstraints");
+        Teuchos::RCP<Teuchos::Time> solveTimer = Teuchos::TimeMonitor::getNewCounter("ConstraintSolver::run");
         {
             Teuchos::TimeMonitor mon(*solveTimer);
-            conSolverPtr->solveConstraints(); 
+            conSolverPtr->resolveConstraints(); 
         }
 
         // merge the constraint and nonconstraint vel and force
@@ -230,8 +240,9 @@ void DryPhysicsController::run() {
             snapID++;
         }
 
-        // post-step stuff
-        // ptcSystemPtr->stepEuler(); // TODO: make sure this should be here since the collision may need to run this type of update
+        /////////////////////
+        // post-step stuff //
+        /////////////////////
         ptcSystemPtr->advanceParticles(); 
         ptcSystemPtr->calcOrderParameter();
         ptcSystemPtr->calcConStress();

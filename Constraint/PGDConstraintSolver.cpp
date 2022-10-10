@@ -14,9 +14,7 @@ void PGDConstraintSolver::reset() {
     mobMatRcp_.reset(); ///< mobility operator, 6 dof per obj maps to 6 dof per obj
 
     forceConRcp_.reset(); ///< constraints force vec, 6 dof per obj
-    forceExtRcp_.reset(); ///< external (non-constraint) force, 6 dof per obj
     velConRcp_.reset();   ///< constraints velocity vec, 6 dof per obj
-    velExtRcp_.reset();   ///< external (non-constraint) velocity, 6 dof per obj
 
     DMatTransRcp_.reset(); ///< D^Trans matrix
     DMatRcp_.reset();      ///< D matrix TODO: is is better to build this explicitly or to use implicit tranpose of D^T?
@@ -47,9 +45,6 @@ void PGDConstraintSolver::initialize() {
     mobMapRcp_ = mobMatRcp_->getDomainMap();
     velConRcp_ = Teuchos::rcp(new TV(mobMapRcp_, true));
     forceConRcp_ = Teuchos::rcp(new TV(mobMapRcp_, true));
-    velExtRcp_ = Teuchos::rcp(new TV(mobMapRcp_, true));
-    forceExtRcp_ = Teuchos::rcp(new TV(mobMapRcp_, true));
-    ptcSystemPtr_->getForceVelocityNonConstraint(forceExtRcp_, velExtRcp_);
 
     // build D^T, which maps from constraint Lagrange multiplier to com force vector
     mobMapRcp_ = mobMatRcp_->getDomainMap();
@@ -63,19 +58,13 @@ void PGDConstraintSolver::initialize() {
     // K^{-1}
     conCollectorPtr_->fillFixedConstraintInfo(gammaRcp_, biFlagRcp_, sep0Rcp_, constraintDiagonalRcp_);
 
-    // to reduce numerical rounding errors, we scale our LCP by 1/dt
-    sep0Rcp_->scale(1.0 / dt_);
-    constraintDiagonalRcp_->scale(1.0 / dt_);
+    // // to reduce numerical rounding errors, we scale our LCP by 1/dt
+    // sep0Rcp_->scale(1.0 / dt_);
+    // constraintDiagonalRcp_->scale(1.0 / dt_);
 
     // build the constraint Jacobian operator
     constraintJacobianOp_ = Teuchos::rcp(new ConstraintJacobianOp(gammaMapRcp_));
-    constraintJacobianOp_->initialize(mobMatRcp_, DMatRcp_, DMatTransRcp_, constraintDiagonalRcp_, 1.0);
-
-    // account for external force and torque
-    // these only need accounted for during the FIRST collision solve,
-    // everything else is correcting missing constraints
-    mobMatRcp_->apply(*forceExtRcp_, *velExtRcp_, Teuchos::NO_TRANS, 1.0, 1.0);
-    DMatTransRcp_->apply(*velExtRcp_, *sep0Rcp_, Teuchos::NO_TRANS, 1.0, 1.0);
+    constraintJacobianOp_->initialize(mobMatRcp_, DMatRcp_, DMatTransRcp_, constraintDiagonalRcp_, dt_);
 }
 
 void PGDConstraintSolver::reinitialize() {
@@ -102,13 +91,13 @@ void PGDConstraintSolver::reinitialize() {
     // K^{-1}
     conCollectorPtr_->fillFixedConstraintInfo(gammaRcp_, biFlagRcp_, sep0Rcp_, constraintDiagonalRcp_);
 
-    // to reduce numerical rounding errors, we scale our LCP by 1/dt
-    sep0Rcp_->scale(1.0 / dt_);
-    constraintDiagonalRcp_->scale(1.0 / dt_);
+    // // to reduce numerical rounding errors, we scale our LCP by 1/dt
+    // sep0Rcp_->scale(1.0 / dt_);
+    // constraintDiagonalRcp_->scale(1.0 / dt_);
 
     // build the constraint Jacobian operator
     constraintJacobianOp_ = Teuchos::rcp(new ConstraintJacobianOp(gammaMapRcp_));
-    constraintJacobianOp_->initialize(mobMatRcp_, DMatRcp_, DMatTransRcp_, constraintDiagonalRcp_, 1.0);
+    constraintJacobianOp_->initialize(mobMatRcp_, DMatRcp_, DMatTransRcp_, constraintDiagonalRcp_, dt_);
 }
 
 void PGDConstraintSolver::setup(const double dt, const double res, const int maxIterations, const int maxRecursions,
@@ -123,7 +112,7 @@ void PGDConstraintSolver::setup(const double dt, const double res, const int max
     solverChoice_ = solverChoice;
 }
 
-void PGDConstraintSolver::solveConstraints() {
+void PGDConstraintSolver::resolveConstraints() {
     /////////////////////////////////////////////////
     // Check if there are any constraints to solve //
     /////////////////////////////////////////////////
@@ -132,9 +121,7 @@ void PGDConstraintSolver::solveConstraints() {
     MPI_Allreduce(&numLocalConstraints, &numGlobalConstraints, 1, MPI_INT, MPI_SUM, MPI_COMM_WORLD);
 
     if (numGlobalConstraints == 0) {
-        spdlog::info("No constraints to solve. Moving the system forward in time");
-        // move the configuration from q^k to q_{r}^{k+1}
-        ptcSystemPtr_->stepEuler(); // q_{r}^{k+1} = q^k + dt G^k U_r^k
+        spdlog::info("No constraints to solve. System advances unconstrained");
         return;
     } else {
         spdlog::info("Global number of constraints: {}", numGlobalConstraints);
@@ -152,15 +139,11 @@ void PGDConstraintSolver::solveConstraints() {
     double maxConViolation;
     int stepCount = 1;
     for (int r = 0; r < maxRecursions_; r++) {
-        ///////////
-        // Debug //
-        ///////////
-
-        // for debug, write out the particle positions and constraints
-        // conCollectorPtr_->writeBackGamma(xRcp.getConst());
-        const std::string postfix = std::to_string(stepCount);
-        ptcSystemPtr_->writeResult(stepCount, "./result/", postfix);
-        stepCount++;
+        // // for debug, write out the particle positions and constraints
+        // // conCollectorPtr_->writeBackGamma(xRcp.getConst());
+        // const std::string postfix = std::to_string(stepCount);
+        // ptcSystemPtr_->writeResult(stepCount, "./result/", postfix);
+        // stepCount++;
 
         // create the solver object
         BCQPSolver solver(constraintJacobianOp_, sep0Rcp_);
@@ -177,25 +160,25 @@ void PGDConstraintSolver::solveConstraints() {
         IteHistory history;
         switch (solverChoice_) {
         case 0:
-            solver.solveBBPGD(sepRcp_, gammaRcp_, res_ * (1.0 / dt_), maxIterations_, history);
+            solver.solveBBPGD(sepRcp_, gammaRcp_, res_, maxIterations_, history);
             break;
         case 1:
-            solver.solveAPGD(sepRcp_, gammaRcp_, res_ * (1.0 / dt_), maxIterations_, history);
+            solver.solveAPGD(sepRcp_, gammaRcp_, res_, maxIterations_, history);
             break;
         default:
-            solver.solveBBPGD(sepRcp_, gammaRcp_, res_ * (1.0 / dt_), maxIterations_, history);
+            solver.solveBBPGD(sepRcp_, gammaRcp_, res_, maxIterations_, history);
             break;
         }
-        sepRcp_->scale(dt_);
+        // sepRcp_->scale(dt_);
 
         // print the full solution history
         for (auto it = history.begin(); it != history.end() - 1; it++) {
             auto &p = *it;
-            spdlog::debug("RECORD: BCQP history {:g}, {:g}, {:g}, {:g}, {:g}, {:g}", p[0], p[1], p[2], p[3], dt_ * p[4],
+            spdlog::debug("RECORD: BCQP history {:g}, {:g}, {:g}, {:g}, {:g}, {:g}", p[0], p[1], p[2], p[3], p[4],
                           p[5]);
         }
         auto &p = history.back();
-        spdlog::info("RECORD: BCQP residue {:g}, {:g}, {:g}, {:g}, {:g}, {:g}", p[0], p[1], p[2], p[3], dt_ * p[4],
+        spdlog::info("RECORD: BCQP residue {:g}, {:g}, {:g}, {:g}, {:g}, {:g}", p[0], p[1], p[2], p[3], p[4],
                      p[5]);
 
         // apply the recursion
@@ -203,8 +186,8 @@ void PGDConstraintSolver::solveConstraints() {
 
         // get the extent to which the new configuration satisfies all constraints
         // use sepRcp_ as temporary storage for the constraint violation values
+        // sep0Rcp_->scale(dt_);
         gammaRcp_->putScalar(0.0);
-        sep0Rcp_->scale(dt_);
         conCollectorPtr_->evalConstraintValues(gammaRcp_, sep0Rcp_, sepRcp_);
         maxConViolation = sepRcp_->normInf();
         spdlog::debug("RECORD: ReLCP constraint history {}, {:g}", r, maxConViolation);
@@ -213,6 +196,12 @@ void PGDConstraintSolver::solveConstraints() {
             break;
         }
     }
+
+    // // for debug, write out the final particle positions and constraints
+    // // conCollectorPtr_->writeBackGamma(xRcp.getConst());
+    // const std::string postfix = std::to_string(stepCount);
+    // ptcSystemPtr_->writeResult(stepCount, "./result/", postfix);
+    // stepCount++;
 
     // Note, each recursion step passes the results to particleSystem and taking the Euler step
     // By this point, the system will be in its final constraint-satisfying configuration

@@ -363,9 +363,15 @@ class Sylinder {
             const auto &sy = sylinder[i];
             // point and point data
             // store current position and orientation
-            Evec3 direction = ECmapq(sy.orientationCurrent) * Evec3(0, 0, 1);
-            Evec3 end0 = ECmap3(sy.posCurrent) - direction * (sy.length * 0.5);
-            Evec3 end1 = ECmap3(sy.posCurrent) + direction * (sy.length * 0.5);
+            Evec3 direction = ECmapq(sy.orientation) * Evec3(0, 0, 1);
+            Evec3 end0 = ECmap3(sy.pos) - direction * (sy.length * 0.5);
+            Evec3 end1 = ECmap3(sy.pos) + direction * (sy.length * 0.5);
+
+
+
+            // Evec3 direction = ECmapq(sy.orientationCurrent) * Evec3(0, 0, 1);
+            // Evec3 end0 = ECmap3(sy.posCurrent) - direction * (sy.length * 0.5);
+            // Evec3 end1 = ECmap3(sy.posCurrent) + direction * (sy.length * 0.5);
             pos[6 * i] = end0[0];
             pos[6 * i + 1] = end0[1];
             pos[6 * i + 2] = end0[2];

@@ -481,7 +481,7 @@ class CalcSylinderNearForce {
                           syI.radiusCollision, syJ.radiusCollision, 1.0, Ploc, Qloc, stressIJ);
 
             // fill the constraint
-            noPenetrationConstraint(con,                     // constraint object
+            noPenetrationConstraint(con,                      // constraint object
                                     sep,                      // amount of overlap,
                                     syI.gid, syJ.gid,         //
                                     syI.globalIndex,          //

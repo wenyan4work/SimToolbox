@@ -86,7 +86,7 @@ class PGDConstraintSolver {
      * @brief solve the recursively generated BCQP problem
      *
      */
-    void solveConstraints();
+    void resolveConstraints();
 
     void recursionStep();
 
@@ -107,8 +107,6 @@ class PGDConstraintSolver {
 
     Teuchos::RCP<TV> forceConRcp_; ///< constraints force vec, 6 dof per obj
     Teuchos::RCP<TV> velConRcp_;   ///< constraints velocity vec, 6 dof per obj
-    Teuchos::RCP<TV> forceExtRcp_; ///< external (non-constraint) force, 6 dof per obj
-    Teuchos::RCP<TV> velExtRcp_;   ///< external (non-constraint) velocity, 6 dof per obj
 
     Teuchos::RCP<TCMAT> DMatTransRcp_; ///< D^Trans matrix
     Teuchos::RCP<TCMAT>
