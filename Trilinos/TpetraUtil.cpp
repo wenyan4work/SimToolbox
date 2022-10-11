@@ -99,7 +99,7 @@ Teuchos::RCP<TV> getTVFromVector(const std::vector<double> &in, const Teuchos::R
     Teuchos::RCP<TV> out = Teuchos::rcp(new TV(contigMapRcp, false));
 
     auto out_2d = out->getLocalView<Kokkos::HostSpace>();
-    assert(out_2d.extent(0)() == localSize);
+    assert(out_2d.extent(0) == localSize);
 
     out->modify<Kokkos::HostSpace>();
     for (size_t c = 0; c < out_2d.extent(1); c++) {
