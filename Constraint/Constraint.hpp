@@ -82,35 +82,41 @@ struct Constraint {
             labJ[i] = labJ_[3 * idxDOF + i];
         }
     }
-    void getUnscaledForceComI(const int idxDOF, double unscaledForceComI[3]) const {
+    void getForceComI(const int idxDOF, double unscaledForceComI[3], const bool scaled = false) const {
+        const double scale = scaled ? gammas_[idxDOF] : 1;
         for (int i = 0; i < 3; i++) {
-            unscaledForceComI[i] = unscaledForceComI_[3 * idxDOF + i];
+            unscaledForceComI[i] = scale * unscaledForceComI_[3 * idxDOF + i];
         }
     }
-    void getUnscaledForceComJ(const int idxDOF, double unscaledForceComJ[3]) const {
+    void getForceComJ(const int idxDOF, double unscaledForceComJ[3], const bool scaled = false) const {
+        const double scale = scaled ? gammas_[idxDOF] : 1;
         for (int i = 0; i < 3; i++) {
-            unscaledForceComJ[i] = unscaledForceComJ_[3 * idxDOF + i];
+            unscaledForceComJ[i] = scale * unscaledForceComJ_[3 * idxDOF + i];
         }
     }
-    void getUnscaledTorqueComI(const int idxDOF, double unscaledTorqueComI[3]) const {
+    void getTorqueComI(const int idxDOF, double unscaledTorqueComI[3], const bool scaled = false) const {
+        const double scale = scaled ? gammas_[idxDOF] : 1;
         for (int i = 0; i < 3; i++) {
-            unscaledTorqueComI[i] = unscaledTorqueComI_[3 * idxDOF + i];
+            unscaledTorqueComI[i] = scale * unscaledTorqueComI_[3 * idxDOF + i];
         }
     }
-    void getUnscaledTorqueComJ(const int idxDOF, double unscaledTorqueComJ[3]) const {
+    void getTorqueComJ(const int idxDOF, double unscaledTorqueComJ[3], const bool scaled = false) const {
+        const double scale = scaled ? gammas_[idxDOF] : 1;
         for (int i = 0; i < 3; i++) {
-            unscaledTorqueComJ[i] = unscaledTorqueComJ_[3 * idxDOF + i];
+            unscaledTorqueComJ[i] = scale * unscaledTorqueComJ_[3 * idxDOF + i];
         }
     }
-    void getStress(const int idxDOF, double stress[9]) const {
+    void getStress(const int idxDOF, double stress[9], const bool scaled = false) const {
+        const double scale = scaled ? gammas_[idxDOF] : 1;
         for (int i = 0; i < 9; i++) {
-            stress[i] = stress_[9 * idxDOF + i];
+            stress[i] = scale * stress_[9 * idxDOF + i];
         }
     }
-    void getStress(const int idxDOF, Emat3 &stress) const {
+    void getStress(const int idxDOF, Emat3 &stress, const bool scaled = false) const {
+        const double scale = scaled ? gammas_[idxDOF] : 1;
         for (int i = 0; i < 3; i++) {
             for (int j = 0; j < 3; j++) {
-                stress(i, j) = stress_[idxDOF * 9 + i * 3 + j];
+                stress(i, j) = scale * stress_[idxDOF * 9 + i * 3 + j];
             }
         }
     }

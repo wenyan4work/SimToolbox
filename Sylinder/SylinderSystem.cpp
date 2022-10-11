@@ -207,7 +207,9 @@ void SylinderSystem::calcSylinderDivision() {
     addNewSylinder(newPtc);
 }
 
-void SylinderSystem::calcSylinderGrowth() {
+void SylinderSystem::calcSylinderGrowth(const Teuchos::RCP<const TV> &ptcStressRcp) {
+    TEUCHOS_ASSERT(nonnull(ptcStressRcp));
+
     if (runConfig.ptcGrowth.size() == 0) {
         return;
     }
@@ -216,12 +218,37 @@ void SylinderSystem::calcSylinderGrowth() {
         pgrowth = &(runConfig.ptcGrowth.begin()->second);
 
     const double dt = runConfig.dt;
-    const int nLocal = sylinderContainer.getNumberOfParticleLocal();
+    const int sylinderLocalNumber = sylinderContainer.getNumberOfParticleLocal();
+    
+    // get the local view of the stress vector
+    auto ptcStressPtr = ptcStressRcp->getLocalView<Kokkos::HostSpace>();
+    TEUCHOS_ASSERT(ptcStressPtr.extent(0) == sylinderLocalNumber * 9);
+    TEUCHOS_ASSERT(ptcStressPtr.extent(1) == 1);
 
 #pragma omp parallel for
-    for (int i = 0; i < nLocal; i++) {
+    for (int i = 0; i < sylinderLocalNumber; i++) {
         auto &sy = sylinderContainer[i];
+
+        // get the particle virial stress
+        Emat3 stress;
+        for (int idx1 = 0; idx1 < 3; idx1++) {
+            for (int idx2 = 0; idx2 < 3; idx2++) {
+                stress(idx1, idx2) = ptcStressPtr(i * 9 + idx1 * 3 + idx2, 0);
+            }
+        }
+
+        // transform the stress into the particle frame
+        const Emat3 rotMat = Emapq(sy.orientation).toRotationMatrix();
+        const Emat3 rotMatInv = Emapq(sy.orientation).inverse().toRotationMatrix();
+        stress = rotMat * stress * rotMatInv;
+
+        // output the normal stress to the terminal // TODO: couple it to growth rate
+        spdlog::warn("Normal Stress: {:g}", stress(0, 0));
+
+        // compute the amount of growth 
         double dLdt = log(2.0) * sy.length / sy.tauD;
+
+        // apply the growth to the particle
         sy.t += dt;
         sy.length += fabs(dLdt * dt); // never shrink
         sy.lengthCollision = sy.length * runConfig.sylinderLengthColRatio;
@@ -832,6 +859,7 @@ void SylinderSystem::updateSylinderMap() {
     // setup the new sylinderMap
     sylinderMapRcp = getTMAPFromLocalSize(nLocal, commRcp);
     sylinderMobilityMapRcp = getTMAPFromLocalSize(nLocal * 6, commRcp);
+    sylinderStressMapRcp = getTMAPFromLocalSize(nLocal * 9, commRcp);
 
     // setup the globalIndex
     int globalIndexBase = sylinderMapRcp->getMinGlobalIndex(); // this is a contiguous map

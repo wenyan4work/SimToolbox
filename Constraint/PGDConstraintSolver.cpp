@@ -178,8 +178,7 @@ void PGDConstraintSolver::resolveConstraints() {
                           p[5]);
         }
         auto &p = history.back();
-        spdlog::info("RECORD: BCQP residue {:g}, {:g}, {:g}, {:g}, {:g}, {:g}", p[0], p[1], p[2], p[3], p[4],
-                     p[5]);
+        spdlog::info("RECORD: BCQP residue {:g}, {:g}, {:g}, {:g}, {:g}, {:g}", p[0], p[1], p[2], p[3], p[4], p[5]);
 
         // apply the recursion
         recursionStep();
@@ -241,4 +240,30 @@ void PGDConstraintSolver::recursionStep() {
 
     // reinitialize data structures that depend on the number of constraints
     reinitialize();
+}
+
+Teuchos::RCP<TV> PGDConstraintSolver::getParticleStress() const {
+    // TODO: This entire operation is just a reduction operation from constraints to particles
+    //       Being able to loop over each particle and fetch the constraints that impact them would be FAR better and
+    //       cleaner. Instead, I'm legit building a massive sparce matrix just so I can calapse it onto an axis!!
+    const Teuchos::RCP<const TMAP> ptcStressMapRcp = ptcSystemPtr_->getParticleStressMap();
+    Teuchos::RCP<TV> ptcStressRcp = Teuchos::rcp(new TV(ptcStressMapRcp));
+
+    // build S^T, which maps from constraint Lagrange multiplier to particle virial stress
+    // the "true" ensures that the stresses in scaled
+    // hence, muliplying by a vector of all 1s will give us the sum of stress on each particle
+    const Teuchos::RCP<const TCMAT> SMatTransRcp =
+        conCollectorPtr_->buildGammaToVirialStressMatrix(ptcStressMapRcp, gammaMapRcp_, true);
+    Tpetra::RowMatrixTransposer<double, int, int> transposerSu(SMatTransRcp);
+    const Teuchos::RCP<const TCMAT> SMatRcp = transposerSu.createTranspose();
+    TEUCHOS_ASSERT(nonnull(SMatTransRcp));
+    TEUCHOS_ASSERT(nonnull(SMatRcp));
+
+    // do the computation
+    const Teuchos::RCP<TV> onesRcp = Teuchos::rcp(new TV(gammaMapRcp_, true));
+    onesRcp->putScalar(Teuchos::ScalarTraits<Scalar>::one());
+
+    SMatRcp->apply(*onesRcp, *ptcStressRcp);
+
+    return ptcStressRcp;
 }

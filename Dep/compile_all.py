@@ -7,8 +7,8 @@ import multiprocessing
 
 install = True  # compile only or compile + install
 use_openblas = False   # use OpenBLAS by default, set to False if you use MKL
-#enable_packages = ['boost', 'eigen', 'trilinos', 'vtk']
-enable_packages = ['trilinos']
+enable_packages = ['boost', 'eigen', 'trilinos', 'vtk']
+
 # your installation destination, use ABSOLUTE PATH
 os.environ["SFTPATH"] = os.environ['HOME'] + \
     '/envs/stb_intel_13/'
@@ -55,9 +55,9 @@ if make_jobs <= 0:
 print("make_jobs: ", make_jobs)
 
 
-#k = input("Press Y to continue, else to quit...  ")
-#if k != 'y' and k != 'Y':
-#    exit()
+k = input("Press Y to continue, else to quit...  ")
+if k != 'y' and k != 'Y':
+    exit()
 
 
 def run(cmd):

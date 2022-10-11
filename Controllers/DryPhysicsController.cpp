@@ -185,7 +185,7 @@ void DryPhysicsController::run() {
         ////////////////////
         // compute growth and devision (if necessary)
         if (runConfig.ptcGrowth.size() > 0) {
-            ptcSystemPtr->calcSylinderGrowth();
+            ptcSystemPtr->calcSylinderGrowth(conSolverPtr->getParticleStress());
             ptcSystemPtr->calcSylinderDivision();
             ptcSystemPtr->advanceParticles();
         }

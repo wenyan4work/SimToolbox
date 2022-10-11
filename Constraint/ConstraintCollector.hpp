@@ -133,6 +133,10 @@ class ConstraintCollector {
     Teuchos::RCP<TCMAT> buildConstraintMatrixVector(const Teuchos::RCP<const TMAP> &mobMapRcp,
                                                     const Teuchos::RCP<const TMAP> &gammaMapRcp) const;
 
+    Teuchos::RCP<TCMAT> buildGammaToVirialStressMatrix(const Teuchos::RCP<const TMAP> &ptcStressMapRcp,
+                                                       const Teuchos::RCP<const TMAP> &gammaMapRcp,
+                                                       const bool scaled = false) const;
+
     void updateConstraintMatrixVector(const Teuchos::RCP<TCMAT> &AMatTransRcp) const;
 
     int fillFixedConstraintInfo(const Teuchos::RCP<TV> &gammaGuessRcp, const Teuchos::RCP<TV> &biFlagRcp,

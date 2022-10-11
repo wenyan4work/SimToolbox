@@ -50,6 +50,7 @@ class SylinderSystem {
     const Teuchos::RCP<const TCOMM> commRcp;   ///< TCOMM, set as a Teuchos::MpiComm object in constructor
     Teuchos::RCP<TMAP> sylinderMapRcp;         ///< TMAP, contiguous and sequentially ordered 1 dof per sylinder
     Teuchos::RCP<TMAP> sylinderMobilityMapRcp; ///< TMAP, contiguous and sequentially ordered 6 dofs per sylinder
+    Teuchos::RCP<TMAP> sylinderStressMapRcp;   ///< TMAP, contiguous and sequentially ordered 9 dofs per sylinder
     Teuchos::RCP<TCMAT> mobilityMatrixRcp;     ///< block-diagonal mobility matrix
     Teuchos::RCP<TCMAT> mobilityMatrixInvRcp;  ///< block-diagonal inverse mobility matrix
     Teuchos::RCP<TOP> mobilityOperatorRcp;     ///< full mobility operator (matrix-free), to be implemented
@@ -182,7 +183,7 @@ class SylinderSystem {
 
     void initSylinderGrowth();
     
-    void calcSylinderGrowth();
+    void calcSylinderGrowth(const Teuchos::RCP<const TV> &ptcStressRcp);
 
     void calcSylinderDivision();
 
@@ -380,11 +381,13 @@ class SylinderSystem {
 
     // expose raw vectors and operators
 
-    // mobility
-    Teuchos::RCP<TCMAT> getMobMatrix() { return mobilityMatrixRcp; };
-    Teuchos::RCP<TOP> getMobOperator() { return mobilityOperatorRcp; };
-
     // get information
+    Teuchos::RCP<const TCMAT> getMobMatrix() { return mobilityMatrixRcp; };
+    Teuchos::RCP<const TOP> getMobOperator() { return mobilityOperatorRcp; };
+    Teuchos::RCP<const TMAP> getParticleMap() { return sylinderMapRcp; };
+    Teuchos::RCP<const TMAP> getParticleMobilityMap() { return sylinderMobilityMapRcp; };
+    Teuchos::RCP<const TMAP> getParticleStressMap() { return sylinderStressMapRcp; };
+
     /**
      * @brief Get the local and global max gid for sylinders
      *

@@ -167,10 +167,10 @@ void ConstraintCollector::writeVTP(const std::string &folder, const std::string 
                 double unscaledTorqueComI[3];
                 double unscaledTorqueComJ[3];
                 const double g = con.getGamma(d);
-                con.getUnscaledForceComI(d, unscaledForceComI);
-                con.getUnscaledForceComJ(d, unscaledForceComJ);
-                con.getUnscaledTorqueComI(d, unscaledTorqueComI);
-                con.getUnscaledTorqueComJ(d, unscaledTorqueComJ);
+                con.getForceComI(d, unscaledForceComI);
+                con.getForceComJ(d, unscaledForceComJ);
+                con.getTorqueComI(d, unscaledTorqueComI);
+                con.getTorqueComJ(d, unscaledTorqueComJ);
 
                 gid[2 * conIndex + 0] = con.gidI;
                 gid[2 * conIndex + 1] = con.gidJ;
@@ -324,8 +324,8 @@ ConstraintCollector::buildConstraintMatrixVector(const Teuchos::RCP<const TMAP> 
                 // 6 nnz for I
                 double unscaledForceComI[3];
                 double unscaledTorqueComI[3];
-                con.getUnscaledForceComI(d, unscaledForceComI);
-                con.getUnscaledTorqueComI(d, unscaledTorqueComI);
+                con.getForceComI(d, unscaledForceComI);
+                con.getTorqueComI(d, unscaledTorqueComI);
 
                 columnIndices[kk + 0] = 6 * con.globalIndexI;
                 columnIndices[kk + 1] = 6 * con.globalIndexI + 1;
@@ -345,8 +345,8 @@ ConstraintCollector::buildConstraintMatrixVector(const Teuchos::RCP<const TMAP> 
                     // 6 nnz for J
                     double unscaledForceComJ[3];
                     double unscaledTorqueComJ[3];
-                    con.getUnscaledForceComJ(d, unscaledForceComJ);
-                    con.getUnscaledTorqueComJ(d, unscaledTorqueComJ);
+                    con.getForceComJ(d, unscaledForceComJ);
+                    con.getTorqueComJ(d, unscaledTorqueComJ);
 
                     columnIndices[kk + 0] = 6 * con.globalIndexJ;
                     columnIndices[kk + 1] = 6 * con.globalIndexJ + 1;
@@ -449,8 +449,8 @@ void ConstraintCollector::updateConstraintMatrixVector(const Teuchos::RCP<TCMAT>
                 // 6 nnz for I
                 double unscaledForceComI[3];
                 double unscaledTorqueComI[3];
-                con.getUnscaledForceComI(d, unscaledForceComI);
-                con.getUnscaledTorqueComI(d, unscaledTorqueComI);
+                con.getForceComI(d, unscaledForceComI);
+                con.getTorqueComI(d, unscaledTorqueComI);
 
                 const auto nnz = con.oneSide ? 6 : 12;
                 GO columnIndices[nnz];
@@ -472,8 +472,8 @@ void ConstraintCollector::updateConstraintMatrixVector(const Teuchos::RCP<TCMAT>
                     // 6 nnz for J
                     double unscaledForceComJ[3];
                     double unscaledTorqueComJ[3];
-                    con.getUnscaledForceComJ(d, unscaledForceComJ);
-                    con.getUnscaledTorqueComJ(d, unscaledTorqueComJ);
+                    con.getForceComJ(d, unscaledForceComJ);
+                    con.getTorqueComJ(d, unscaledTorqueComJ);
 
                     columnIndices[6] = 6 * con.globalIndexJ;
                     columnIndices[7] = 6 * con.globalIndexJ + 1;
@@ -501,8 +501,154 @@ void ConstraintCollector::updateConstraintMatrixVector(const Teuchos::RCP<TCMAT>
     AMatTransRcp->fillComplete(domainMapRcp, rangeMapRcp);
 }
 
-int ConstraintCollector::fillFixedConstraintInfo(const Teuchos::RCP<TV> &gammaGuessRcp, const Teuchos::RCP<TV> &biFlagRcp, 
-                                                 const Teuchos::RCP<TV> &initialSepRcp, const Teuchos::RCP<TV> &constraintDiagonalRcp) const {
+Teuchos::RCP<TCMAT>
+ConstraintCollector::buildGammaToVirialStressMatrix(const Teuchos::RCP<const TMAP> &ptcStressMapRcp,
+                                                    const Teuchos::RCP<const TMAP> &gammaMapRcp, 
+                                                    const bool scaled) const {
+    TEUCHOS_ASSERT(nonnull(ptcStressMapRcp));
+    TEUCHOS_ASSERT(nonnull(gammaMapRcp));
+
+    const Teuchos::RCP<const TCOMM> commRcp = ptcStressMapRcp->getComm();
+    const auto &conPool = *constraintPoolPtr; // the constraint pool
+    const int conQueNum = conPool.size();
+
+    // TODO: buildConIndex should store the result and only update if the number of constraints has been updated
+    //       Only after switching away from FDPS. FSPS requires this class have low copy overhead.
+    //       A shared ptr to a vector would work around this temporarily
+    // prepare 1, build the index for block queue
+    std::vector<int> conQueSize;
+    std::vector<int> conQueIndex;
+    buildConIndex(conQueSize, conQueIndex);
+    const int localGammaSize = conQueIndex.back();
+
+    // step 1, count the number of entries to each row
+    // each constraint block, correspoding to a gamma, occupies a row
+    // 18 entries for two sided constraint blocks
+    // 9 entries for one sided constraint blocks
+    // 1 for each component of the stress matrix
+    Kokkos::View<size_t *> rowPointers("rowPointers", localGammaSize + 1); // last entry is the total nnz in this matrix
+    rowPointers[0] = 0;
+
+    std::vector<int> colIndexPool(conQueNum + 1,
+                                  0); // The beginning index in crs columnIndices for each constraint queue
+
+    int rowPointerIndex = 0;
+    int colIndexCount = 0;
+    for (int i = 0; i < conQueNum; i++) {
+        const auto &conQue = conPool[i];
+        const int conNum = conQue.size();
+        for (int j = 0; j < conNum; j++) {
+            const auto &con = conQue[j];
+            const int numDOF = con.numDOF;
+            for (int d = 0; d < numDOF; d++) {
+                rowPointerIndex++;
+                const int cBlockNNZ = (con.oneSide ? 9 : 18);
+                rowPointers[rowPointerIndex] = rowPointers[rowPointerIndex - 1] + cBlockNNZ;
+                colIndexCount += cBlockNNZ;
+            }
+        }
+        colIndexPool[i + 1] = colIndexCount;
+    }
+
+    if (rowPointerIndex != localGammaSize) {
+        spdlog::critical("rowPointerIndexError in collision solver");
+        std::exit(1);
+    }
+
+    // step 2, fill the values to each row
+    Kokkos::View<int *> columnIndices("columnIndices", rowPointers[localGammaSize]);
+    Kokkos::View<double *> values("values", rowPointers[localGammaSize]);
+    // multi-thread filling. nThreads = poolSize, each thread process a queue
+#pragma omp parallel for num_threads(conQueNum)
+    for (int threadId = 0; threadId < conQueNum; threadId++) {
+        // each thread process a queue
+        const auto &conQue = conPool[threadId];
+        const int conNum = conQue.size();
+        int kk = colIndexPool[threadId];
+
+        for (int j = 0; j < conNum; j++) {
+            const auto &con = conQue[j];
+            const int numDOF = con.numDOF;
+            for (int d = 0; d < numDOF; d++) {
+                // 9 nnz for I
+                // TODO: should stress be split into I and J
+                //       or is stress symmetric?
+                double stress[9];
+                con.getStress(d, stress, scaled);
+
+                for (int idx = 0; idx < 9; idx++) {
+                    columnIndices[kk + idx] = 9 * con.globalIndexI + idx;
+                    values[kk + idx] = stress[idx];
+                }
+
+                kk += 9;
+                if (!con.oneSide) {
+                    // 9 nnz for J
+                    for (int idx = 0; idx < 9; idx++) {
+                        columnIndices[kk + idx] = 9 * con.globalIndexJ + idx;
+                        values[kk + idx] = stress[idx];
+                    }
+                    kk += 9;
+                }
+            }
+        }
+    }
+
+    // step 3 prepare the partitioned column map
+    // Each process owns some columns. In the map, processes share entries. (multiply-owned)
+    // 3.1 column map has to cover the contiguous range of the mobility map locally owned
+    const int ptcMin = ptcStressMapRcp->getMinGlobalIndex();
+    const int ptcMax = ptcStressMapRcp->getMaxGlobalIndex();
+    std::vector<int> colMapIndex(ptcMax - ptcMin + 1);
+#pragma omp parallel for
+    for (int i = ptcMin; i <= ptcMax; i++) {
+        colMapIndex[i - ptcMin] = i;
+    }
+    // this is the list of the columns that have nnz entries
+    // if the column index is out of [mobMinLID, mobMaxLID], add it to the map
+    const auto colIndexNum = columnIndices.extent(0);
+    if (colIndexNum != colIndexCount) {
+        spdlog::critical("colIndexNum error");
+        std::exit(1);
+    }
+    for (size_t i = 0; i < colIndexNum; i++) {
+        if (columnIndices[i] < ptcMin || columnIndices[i] > ptcMax)
+            colMapIndex.push_back(columnIndices[i]);
+    }
+
+    // sort and unique
+    std::sort(colMapIndex.begin(), colMapIndex.end());
+    auto ip = std::unique(colMapIndex.begin(), colMapIndex.end());
+    colMapIndex.resize(std::distance(colMapIndex.begin(), ip));
+
+    // create colMap
+    Teuchos::RCP<TMAP> colMapRcp = Teuchos::rcp(
+        new TMAP(Teuchos::OrdinalTraits<int>::invalid(), colMapIndex.data(), colMapIndex.size(), 0, commRcp));
+
+    // convert columnIndices from global column index to local column index according to colMap
+    auto &colmap = *colMapRcp;
+#pragma omp parallel for
+    for (size_t i = 0; i < colIndexNum; i++) {
+        columnIndices[i] = colmap.getLocalElement(columnIndices[i]);
+    }
+
+    // printf("local number of cols: %d on rank %d\n", colMapRcp->getNodeNumElements(), commRcp->getRank());
+    // printf("local number of rows: %d on rank %d\n", ptcStressMapRcp->getNodeNumElements(), commRcp->getRank());
+    // dumpTMAP(colMapRcp,"colMap");
+    // dumpTMAP(ptcStressMapRcp,"mobMap");
+
+    // step 4, allocate the S^Trans matrix, which maps force magnatude to virial stress
+    Teuchos::RCP<TCMAT> SMatTransRcp =
+        Teuchos::rcp(new TCMAT(gammaMapRcp, colMapRcp, rowPointers, columnIndices, values));
+    SMatTransRcp->fillComplete(ptcStressMapRcp, gammaMapRcp); // domainMap, rangeMap
+
+    return SMatTransRcp;
+}
+
+int ConstraintCollector::fillFixedConstraintInfo(const Teuchos::RCP<TV> &gammaGuessRcp,
+                                                 const Teuchos::RCP<TV> &biFlagRcp,
+                                                 const Teuchos::RCP<TV> &initialSepRcp,
+                                                 const Teuchos::RCP<TV> &constraintDiagonalRcp) const {
     TEUCHOS_ASSERT(nonnull(gammaGuessRcp));
     TEUCHOS_ASSERT(nonnull(biFlagRcp));
     TEUCHOS_ASSERT(nonnull(initialSepRcp));
@@ -584,7 +730,8 @@ int ConstraintCollector::evalConstraintValues(const Teuchos::RCP<const TV> &gamm
             const int numDOF = con.numDOF;
             for (int d = 0; d < numDOF; d++) {
                 // get the value and status
-                constraintValuePtr(conIndex, 0) = con.getValue(con, constraintSepPtr(conIndex, 0), gammaPtr(conIndex, 0));
+                constraintValuePtr(conIndex, 0) =
+                    con.getValue(con, constraintSepPtr(conIndex, 0), gammaPtr(conIndex, 0));
                 constraintStatusPtr(conIndex, 0) =
                     con.isConstrained(con, constraintSepPtr(conIndex, 0), gammaPtr(conIndex, 0));
 
@@ -632,7 +779,8 @@ int ConstraintCollector::evalConstraintValues(const Teuchos::RCP<const TV> &gamm
             const int numDOF = con.numDOF;
             for (int d = 0; d < numDOF; d++) {
                 // get the value only
-                constraintValuePtr(conIndex, 0) = con.getValue(con, constraintSepPtr(conIndex, 0), gammaPtr(conIndex, 0));
+                constraintValuePtr(conIndex, 0) =
+                    con.getValue(con, constraintSepPtr(conIndex, 0), gammaPtr(conIndex, 0));
                 conIndex += 1;
             }
         }
@@ -641,8 +789,8 @@ int ConstraintCollector::evalConstraintValues(const Teuchos::RCP<const TV> &gamm
     return 0;
 }
 
-
-int ConstraintCollector::writeBackConstraintVariables(const Teuchos::RCP<const TV> &gammaRcp, const Teuchos::RCP<const TV> &sepRcp) {
+int ConstraintCollector::writeBackConstraintVariables(const Teuchos::RCP<const TV> &gammaRcp,
+                                                      const Teuchos::RCP<const TV> &sepRcp) {
     TEUCHOS_ASSERT(nonnull(gammaRcp));
     TEUCHOS_ASSERT(nonnull(sepRcp));
 
@@ -667,16 +815,15 @@ int ConstraintCollector::writeBackConstraintVariables(const Teuchos::RCP<const T
             auto &con = conQue[j];
             const int numDOF = con.numDOF;
             for (int d = 0; d < numDOF; d++) {
-                // get the current gamma //TODO add in an alpha beta 
+                // get the current gamma //TODO add in an alpha beta
                 const double gamma = con.getGamma(d);
 
-                // store gamma and sep 
+                // store gamma and sep
                 // TODO: is there a better place to update gammaGuess?
                 con.setGammaGuess(d, 0.0);
                 con.setGamma(d, gamma + gammaPtr(conIndex, 0));
                 con.setSep(d, sepPtr(conIndex, 0));
                 conIndex += 1;
-
             }
         }
     }

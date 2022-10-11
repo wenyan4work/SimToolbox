@@ -90,6 +90,8 @@ class PGDConstraintSolver {
 
     void recursionStep();
 
+    Teuchos::RCP<TV> getParticleStress() const;
+
   private:
     double dt_;         ///< timestep size
     double res_;        ///< residual tolerance
@@ -103,7 +105,7 @@ class PGDConstraintSolver {
     const Teuchos::RCP<const TCOMM> commRcp_; ///< TCOMM, set as a Teuchos::MpiComm object in constructor
     Teuchos::RCP<const TMAP> mobMapRcp_;      ///< distributed map for obj mobility. 6 dof per obj
     Teuchos::RCP<const TMAP> gammaMapRcp_;    ///< distributed map for constraints. 1 dof per constraint
-    Teuchos::RCP<TCMAT> mobMatRcp_;           ///< mobility matrix, 6 dof per obj maps to 6 dof per obj
+    Teuchos::RCP<const TCMAT> mobMatRcp_;     ///< mobility matrix, 6 dof per obj maps to 6 dof per obj
 
     Teuchos::RCP<TV> forceConRcp_; ///< constraints force vec, 6 dof per obj
     Teuchos::RCP<TV> velConRcp_;   ///< constraints velocity vec, 6 dof per obj
