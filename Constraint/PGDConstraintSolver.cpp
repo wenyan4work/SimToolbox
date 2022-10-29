@@ -10,6 +10,7 @@ PGDConstraintSolver::PGDConstraintSolver(const Teuchos::RCP<const TCOMM> &commRc
     : commRcp_(commRcp), conCollectorPtr_(std::move(conCollectorPtr)), ptcSystemPtr_(std::move(ptcSystemPtr)) {}
 
 void PGDConstraintSolver::reset() {
+    gammaMapRcp_.reset(); ///< distributed map for constraints. 1 dof per constraint
     mobMapRcp_.reset(); ///< distributed map for obj mobility. 6 dof per obj
     mobMatRcp_.reset(); ///< mobility operator, 6 dof per obj maps to 6 dof per obj
 

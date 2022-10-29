@@ -325,7 +325,7 @@ int BCQPSolver::solveAPGD(const Teuchos::RCP<TV> &gsolRcp, const Teuchos::RCP<TV
         double rightTerm1 = ykRcp->dot(*AxbRcp) * 0.5; // yk.dot(A.dot(yk))*0.5
         double rightTerm2 = ykRcp->dot(*bRcp);         // yk.dot(b)
 
-        while (1) {
+        while (true) {
             //  xkdiff=xkp1-yk
             xkdiffRcp->update(1.0, *xkp1Rcp, -1.0, *ykRcp, 0.0);
 
@@ -342,24 +342,25 @@ int BCQPSolver::solveAPGD(const Teuchos::RCP<TV> &gsolRcp, const Teuchos::RCP<TV
             }
             // line 10 & 11 of Mazhar, 2015
             Lk *= 2;
-            tk = 1 / Lk;
+            tk = 1.0 / Lk;
 
             // print Lk and tk for debugging
             // std::cout << Lk << " " << tk << std::endl;
+
+            if (tk < std::numeric_limits<double>::epsilon() * 10) {
+                spdlog::critical("APGD Stagnate");
+                stagFlag = true;
+                break;
+            }
 
             // line 12 of Mazhar, 2015
             xkp1Rcp->update(1.0, *ykRcp, -tk, *gVecRcp, 0.0);
             boundProjection(xkp1Rcp);
         }
 
-        if (tk < std::numeric_limits<double>::epsilon() * 10) {
-            spdlog::critical("APGD Stagnate");
-            stagFlag = true;
-            break;
-        }
 
         // line 14-16, Mazhar, 2015
-        thetakp1 = (-thetak * thetak + thetak * sqrt(4 + thetak * thetak)) / 2;
+        thetakp1 = (-thetak * thetak + thetak * sqrt(4 + thetak * thetak)) / 2.0;
         double betakp1 = thetak * (1 - thetak) / (thetak * thetak + thetakp1);
         // ykp1=xkp1+betakp1*(xkp1-xk)
         ykp1Rcp->update((1 + betakp1), *xkp1Rcp, -betakp1, *xkRcp, 0);
@@ -390,7 +391,7 @@ int BCQPSolver::solveAPGD(const Teuchos::RCP<TV> &gsolRcp, const Teuchos::RCP<TV
 
         // line 29-30, Mazhar, 2015
         Lk *= 0.9;
-        tk = 1 / Lk;
+        tk = 1.0 / Lk;
 
         // next iteration
         // swap the contents of pointers directly, be careful
@@ -400,7 +401,13 @@ int BCQPSolver::solveAPGD(const Teuchos::RCP<TV> &gsolRcp, const Teuchos::RCP<TV
     }
 
     if (iteCount == iteMax) {
-        spdlog::critical("Constraint solver failed to converge!");
+        spdlog::critical("Constraint solver failed to converge! Printing solution history");
+        // print the full solution history
+        for (auto it = history.begin(); it != history.end() - 1; it++) {
+            auto &p = *it;
+            spdlog::critical("RECORD: APGD history {:g}, {:g}, {:g}, {:g}, {:g}, {:g}", p[0], p[1], p[2], p[3], p[4],
+                             p[5]);
+        }
         throw std::runtime_error("Constraint solver failed to converge. \n Try decreasing the timestep size or increasing the maximum number of iterations");
     }
 

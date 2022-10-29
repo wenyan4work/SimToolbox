@@ -26,7 +26,10 @@ void ConstraintJacobianOp::initialize(const Teuchos::RCP<const TOP> &mobOpRcp,
 
     // check if mobOpRcp is a TCMAT in disguise, if so precompute D^T M D
     mobMatRcp_ = Teuchos::rcp_dynamic_cast<const TCMAT>(mobOpRcp_);
-    if (nonnull(mobMatRcp_)) {
+    // if (nonnull(mobMatRcp_)) {
+    if (false) { 
+        // TODO: sometimes MuliplyRAP fails with error realloc(): invalid next sizerealloc():
+        //       Reason unknown. We'll stick to matrix free until this is resolved. 
         // tell apply to use explicitly built A
         matrixFree_ = false;
 
@@ -93,7 +96,7 @@ void ConstraintJacobianOp::applyMatrixFree(const TMV &X, TMV &Y, Teuchos::ETrans
     for (int i = 0; i < numVecs; i++) {
         auto XcolRcp = X.getVector(i);
         auto YcolRcp = Y.getVectorNonConst(i);
-        // Goal Y = alpha (dt D^T M D X) + beta Y
+        // Goal Y = alpha (dt D^T M D X) + alpha K^{-1} X + beta Y
 
         // step 1. D times force magnatude to get force/torque vector (F = D x)
         DMatRcp_->apply(*XcolRcp, *forceRcp_);
@@ -113,7 +116,7 @@ void ConstraintJacobianOp::applyMatrixFree(const TMV &X, TMV &Y, Teuchos::ETrans
         const auto localSize = YcolPtr.extent(0);
 #pragma omp parallel for
         for (size_t idx = 0; idx < localSize; idx++) {
-            YcolPtr(idx, 0) += dt_ * alpha * invKappaDiagPtr(idx, 0) * XcolPtr(idx, 0);
+            YcolPtr(idx, 0) += alpha * invKappaDiagPtr(idx, 0) * XcolPtr(idx, 0);
         }
     }
 }
@@ -132,7 +135,7 @@ void ConstraintJacobianOp::applyExplicitMatrix(const TMV &X, TMV &Y, Teuchos::ET
     for (int i = 0; i < numVecs; i++) {
         auto XcolRcp = X.getVector(i);
         auto YcolRcp = Y.getVectorNonConst(i);
-        // Goal Y = alpha (dt D^T M D X + K^[-1]X) + beta Y
+        // Goal Y = alpha (dt D^T M D X + K^[-1] X) + beta Y
 
         // step 1, Y = alpha * D^T M D * X + beta * Y
         partialSepPartialGammaMatRcp_->apply(*XcolRcp, *YcolRcp, Teuchos::NO_TRANS, dt_ * alpha, beta);
@@ -145,7 +148,7 @@ void ConstraintJacobianOp::applyExplicitMatrix(const TMV &X, TMV &Y, Teuchos::ET
         const auto localSize = YcolPtr.extent(0);
 #pragma omp parallel for
         for (size_t idx = 0; idx < localSize; idx++) {
-            YcolPtr(idx, 0) += dt_ * alpha * invKappaDiagPtr(idx, 0) * XcolPtr(idx, 0);
+            YcolPtr(idx, 0) += alpha * invKappaDiagPtr(idx, 0) * XcolPtr(idx, 0);
         }
     }
 }

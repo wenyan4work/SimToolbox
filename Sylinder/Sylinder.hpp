@@ -51,7 +51,8 @@ class Sylinder {
     double tauD;
     double sigma;
     double deltaL;
-    
+    double normalStress;
+
     // sylinder stuff
     double radius;          ///< radius
     double radiusCollision; ///< radius for collision resolution
@@ -257,6 +258,7 @@ class Sylinder {
         cellDataFields.emplace_back(1, IOHelper::IOTYPE::Float32, "tauD");
         cellDataFields.emplace_back(1, IOHelper::IOTYPE::Float32, "sigma");
         cellDataFields.emplace_back(1, IOHelper::IOTYPE::Float32, "deltaL");
+        cellDataFields.emplace_back(1, IOHelper::IOTYPE::Float32, "normalStress");
 
         cellDataFields.emplace_back(3, IOHelper::IOTYPE::Float32, "vel");
         cellDataFields.emplace_back(3, IOHelper::IOTYPE::Float32, "omega");
@@ -333,6 +335,7 @@ class Sylinder {
         std::vector<float> tauD(sylinderNumber);
         std::vector<float> sigma(sylinderNumber);
         std::vector<float> deltaL(sylinderNumber);
+        std::vector<float> normalStress(sylinderNumber);
 
         // vel
         std::vector<float> vel(3 * sylinderNumber);
@@ -402,6 +405,7 @@ class Sylinder {
             tauD[i] = sy.tauD;
             sigma[i] = sy.sigma;
             deltaL[i] = sy.deltaL;
+            normalStress[i] = sy.normalStress;
 
             // force velocity data
             Evec3 nx = ECmapq(sy.orientation) * Evec3(1, 0, 0);
@@ -464,6 +468,7 @@ class Sylinder {
         IOHelper::writeDataArrayBase64(tauD, "tauD", 1, file);
         IOHelper::writeDataArrayBase64(sigma, "sigma", 1, file);
         IOHelper::writeDataArrayBase64(deltaL, "deltaL", 1, file);
+        IOHelper::writeDataArrayBase64(normalStress, "normalStress", 1, file);
 
         IOHelper::writeDataArrayBase64(vel, "vel", 3, file);
         IOHelper::writeDataArrayBase64(omega, "omega", 3, file);

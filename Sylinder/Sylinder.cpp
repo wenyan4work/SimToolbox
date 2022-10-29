@@ -42,6 +42,8 @@ void Sylinder::clear() {
     Emap3(omegaCon).setZero();
     Emap3(velNonB).setZero();
     Emap3(omegaNonB).setZero();
+    Emap3(velBrown).setZero();
+    Emap3(omegaBrown).setZero();
 
     Emap3(force).setZero();
     Emap3(torque).setZero();
@@ -49,9 +51,6 @@ void Sylinder::clear() {
     Emap3(torqueCon).setZero();
     Emap3(forceNonB).setZero();
     Emap3(torqueNonB).setZero();
-
-    Emap3(velBrown).setZero();
-    Emap3(omegaBrown).setZero();
 
     sepmin = std::numeric_limits<double>::max();
     globalIndex = GEO_INVALID_INDEX;

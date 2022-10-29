@@ -243,7 +243,10 @@ void SylinderSystem::calcSylinderGrowth(const Teuchos::RCP<const TV> &ptcStressR
         stress = rotMat * stress * rotMatInv;
 
         // output the normal stress to the terminal // TODO: couple it to growth rate
-        spdlog::warn("Normal Stress: {:g}", stress(0, 0));
+        // spdlog::warn("Normal Stress: {:g}", stress(0, 0));
+
+        // store the normal stress
+        sy.normalStress = stress(2, 2);
 
         // compute the amount of growth 
         double dLdt = log(2.0) * sy.length / sy.tauD;
@@ -1587,7 +1590,7 @@ void SylinderSystem::collectUnresolvedConstraints() {
             // TODO: replace the following with a factory based on the ID of the constraint. For now, this is ok.
             // TODO: add in ball joints and angular springs
             // TODO: how to account for nonconvex boundaries?
-            // TODO: generalize this to multi-dof constraints
+            // TODO: generalize this to multi-dof constraints (friction)
             if (conQue[j].oneSide) { // boundary collision
                 // // check each boundary
                 // for (const auto &bPtr : runConfig.boundaryPtr) {
@@ -1697,7 +1700,8 @@ void SylinderSystem::collectUnresolvedConstraints() {
                                  stressIJ.data(), false);
 
                 // if the updated constaint is unsatisfied add it to the que
-                if (std::abs(rnorm - restLength) > runConfig.conResTol) {
+                // TODO: this is wrong. We aren't trying to force the spring to be at rest, we are trying to compute the reactionary spring force
+                if (std::abs(rnorm - restLength) > runConfig.conResTol) { 
                     conQue.push_back(con);
                 }
             } else { // pairwise collision

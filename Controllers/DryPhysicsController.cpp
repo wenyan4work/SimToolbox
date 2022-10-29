@@ -94,7 +94,10 @@ void DryPhysicsController::initialize(const SylinderConfig &runConfig_, const st
         conCollectorPtr->clear();
         
         ptcSystemPtr->prepareStep(stepCount);
-        if (runConfig.monolayer) { ptcSystemPtr->applyMonolayer(); }// TODO: applyMonolayer is VERY hacky and needs updated
+        if (runConfig.monolayer) { 
+            ptcSystemPtr->applyMonolayer();   // TODO: applyMonolayer is VERY hacky and needs updated
+            ptcSystemPtr->advanceParticles(); // advance particles is always necessary after applying monbolayer
+        }
         ptcSystemPtr->updateSylinderMap();
         ptcSystemPtr->calcMobOperator();
         ptcSystemPtr->buildsylinderNearDataDirectory();
@@ -187,14 +190,20 @@ void DryPhysicsController::run() {
         if (runConfig.ptcGrowth.size() > 0) {
             ptcSystemPtr->calcSylinderGrowth(conSolverPtr->getParticleStress());
             ptcSystemPtr->calcSylinderDivision();
-            ptcSystemPtr->advanceParticles();
+            ptcSystemPtr->advanceParticles(); // advance particles is always necessary after new particles are generated 
+                                              // TODO: the current state should always be initialized upon construction
+                                              //       delete this call to advance particles after this fix is done
         }
         // empty the constraint collector
         conCollectorPtr->clear();
+        
         // TODO: completely desolve the prepareStep function into other, clear API calls. 
         //       I want this class to have full control of what is being called and in what order. 
         ptcSystemPtr->prepareStep(stepCount);
-        if (runConfig.monolayer) { ptcSystemPtr->applyMonolayer(); }// TODO: applyMonolayer is VERY hacky and needs updated
+        if (runConfig.monolayer) { 
+            ptcSystemPtr->applyMonolayer();   // TODO: applyMonolayer is VERY hacky and needs updated
+            ptcSystemPtr->advanceParticles(); // advance particles is always necessary after applying monbolayer
+        }
         ptcSystemPtr->updateSylinderMap();
         ptcSystemPtr->calcMobOperator();
 

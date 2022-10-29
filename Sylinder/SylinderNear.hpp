@@ -104,10 +104,18 @@ struct SylinderNearEP {
      * interface for FDPS
      * FDPS does not support search with rI+rJ.
      * Here length ensures contact is detected with Symmetry search mode
+     * FDPS gives the following discription of Symmetry search mode:
+     *      This type is used when its force decays to zero at a finite distance and when the distance is
+     *      determined by the larger of the sizes of i- and j-particles.
+     *
+     * The member variable search radius is a radius of a particle. Neighbor particles of the
+     * particle are defined as those inside the particle.
      * @return PS::F64
      */
     PS::F64 getRSearch() const {
-        return std::max(length + 2 * radius, lengthCollision + 2 * lengthCollision) * (1 + colBuf);
+        const double boundingSphereRad =  0.5 * std::max(length + 2 * radius, lengthCollision + 2 * radiusCollision);
+        const double searchRadius = boundingSphereRad + colBuf;
+        return searchRadius;
     }
 
     /**
@@ -271,7 +279,6 @@ class CalcSylinderNearForce {
         }
     }
 
-
     bool isSphere(const SylinderNearEP &sy) const { return sy.lengthCollision < 2 * sy.radiusCollision; }
 
     /**
@@ -287,7 +294,6 @@ class CalcSylinderNearForce {
     bool sp_sp(const SylinderNearEP &spI, const SylinderNearEP &spJ, ForceNear &forceI, Constraint &con,
                bool update = false) const {
         // sphere collide with sphere
-        const int pi = 3.141592653589793238;
 
         // apply PBC on centerJ
         const Evec3 centerI = ECmap3(spI.pos);
@@ -316,7 +322,8 @@ class CalcSylinderNearForce {
         bool collision = false;
         const double sep = rnorm - (radI + radJ); // goal of collision constraint is sep >=0
 
-        if ((sep < (radI * spI.colBuf + radJ * spJ.colBuf)) || (update)) {
+        const double buffer = std::max(spI.colBuf, spJ.colBuf);
+        if ((sep < buffer) || (update)) {
             collision = true;
             const Evec3 &Ploc = centerI;
             const Evec3 &Qloc = centerJ;
@@ -358,7 +365,6 @@ class CalcSylinderNearForce {
     bool sp_sy(const SylinderNearEP &spI, const SylinderNearEP &syJ, ForceNear &forceI, Constraint &con,
                bool update = false, const bool reverseIJ = false) const {
         // sphere collide with sylinder
-        const int pi = 3.141592653589793238;
 
         // apply PBC on centerJ
         const Evec3 centerI = ECmap3(spI.pos);
@@ -390,7 +396,8 @@ class CalcSylinderNearForce {
         bool collision = false;
         const double sep = distMin - (radI + syJ.radiusCollision); // goal of constraint is sep >=0
 
-        if ((sep < (radI * spI.colBuf + syJ.radiusCollision * syJ.colBuf)) || (update)) {
+        const double buffer = std::max(spI.colBuf, syJ.colBuf);
+        if ((sep < buffer) || (update)) {
             collision = true;
             const Evec3 normI = (Ploc - Qloc).normalized();
             const Evec3 normJ = -normI;
@@ -431,8 +438,6 @@ class CalcSylinderNearForce {
     bool sy_sy(const SylinderNearEP &syI, const SylinderNearEP &syJ, ForceNear &forceI, Constraint &con,
                bool update = false) const {
         // sylinder collide with sylinder
-        const int pi = 3.141592653589793238;
-
         DCPQuery<3, double, Evec3> DistSegSeg3;
 
         // apply PBC on centerJ
@@ -469,7 +474,8 @@ class CalcSylinderNearForce {
         bool collision = false;
         const double sep = distMin - (syI.radiusCollision + syJ.radiusCollision); // goal of constraint is sep >=0
 
-        if ((sep < (syI.radiusCollision * syI.colBuf + syJ.radiusCollision * syJ.colBuf)) || (update)) {
+        const double buffer = std::max(syI.colBuf, syJ.colBuf);
+        if ((sep < buffer) || (update)) {
             collision = true;
             const Evec3 normI = (Ploc - Qloc).normalized();
             const Evec3 normJ = -normI;
@@ -601,6 +607,10 @@ class CalcSylinderNearForce {
 
 /**
  * @brief tree type for computing near interaction of sylinders
+ * 
+ * FDPS gives the following discription of Symmetry search mode:
+ *      This type is used when its force decays to zero at a finite distance, and when the distance is
+ *      determined by the larger of the sizes of i- and j-particles.
  *
  */
 using TreeSylinderNear = PS::TreeForForceShort<ForceNear, SylinderNearEP, SylinderNearEP>::Symmetry;
