@@ -2,9 +2,9 @@ add_executable(
   main
   main.cpp
   DryPhysicsController.cpp
-  ${PROJECT_SOURCE_DIR}/Sylinder/SylinderSystem.cpp
-  ${PROJECT_SOURCE_DIR}/Sylinder/SylinderConfig.cpp
-  ${PROJECT_SOURCE_DIR}/Sylinder/Sylinder.cpp
+  ${PROJECT_SOURCE_DIR}/Particle/ParticleSystem.cpp
+  ${PROJECT_SOURCE_DIR}/Particle/ParticleConfig.cpp
+  ${PROJECT_SOURCE_DIR}/Particle/Particle.cpp
   ${PROJECT_SOURCE_DIR}/Trilinos/TpetraUtil.cpp
   ${PROJECT_SOURCE_DIR}/Boundary/Boundary.cpp
   ${PROJECT_SOURCE_DIR}/Constraint/BCQPSolver.cpp

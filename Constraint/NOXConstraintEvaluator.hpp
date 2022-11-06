@@ -4,7 +4,7 @@
 // Our stuff
 #include "ConstraintCollector.hpp"
 #include "ConstraintJacobianOp.hpp"
-#include "Sylinder/SylinderSystem.hpp"
+#include "Particle/ParticleSystem.hpp"
 #include "Trilinos/TpetraUtil.hpp"
 
 // NOX Stuff
@@ -27,7 +27,7 @@ class EvaluatorTpetraConstraint : public Thyra::StateFuncModelEvaluatorBase<Scal
     // Constructor
     EvaluatorTpetraConstraint(const Teuchos::RCP<const TCOMM> &commRcp, const Teuchos::RCP<const TCMAT> &mobMatRcp,
                               std::shared_ptr<ConstraintCollector> conCollectorPtr,
-                              std::shared_ptr<SylinderSystem> ptcSystemPtr, const Teuchos::RCP<TV> &forceRcp,
+                              std::shared_ptr<ParticleSystem> ptcSystemPtr, const Teuchos::RCP<TV> &forceRcp,
                               const Teuchos::RCP<TV> &velRcp, const double dt);
 
     /** \name Initializers/Accessors */
@@ -86,7 +86,7 @@ class EvaluatorTpetraConstraint : public Thyra::StateFuncModelEvaluatorBase<Scal
     double dt_;
 
     std::shared_ptr<ConstraintCollector> conCollectorPtr_;
-    std::shared_ptr<SylinderSystem> ptcSystemPtr_;
+    std::shared_ptr<ParticleSystem> ptcSystemPtr_;
     const Teuchos::RCP<const TCOMM> commRcp_;
     const Teuchos::RCP<const TCMAT> mobMatRcp_;
     const Teuchos::RCP<const TOP> mobInvOpRcp_;

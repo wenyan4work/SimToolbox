@@ -40,14 +40,14 @@ class NOXConstraintSolver {
      * @brief Construct a new NOXConstraintSolver object with particle system access
      *
      * This constructor calls setup() internally
-     * @param config SylinderConfig object
+     * @param config ParticleConfig object
      * @param posFile initial configuration. use empty string ("") for no such file
      * @param argc command line argument
      * @param argv command line argument
      */
     NOXConstraintSolver(const Teuchos::RCP<const Teuchos::Comm<int>> &commRcp,
                      std::shared_ptr<ConstraintCollector> conCollectorPtr,
-                     std::shared_ptr<SylinderSystem> ptcSystemPtr);
+                     std::shared_ptr<ParticleSystem> ptcSystemPtr);
 
     // destructor
     ~NOXConstraintSolver() = default;
@@ -85,7 +85,7 @@ class NOXConstraintSolver {
     Teuchos::RCP<const TMAP> mobMapRcp_;      ///< map for mobility matrix. 6 DOF per obj
 
     std::shared_ptr<ConstraintCollector> conCollectorPtr_; ///< pointer to ConstraintCollector
-    std::shared_ptr<SylinderSystem> ptcSystemPtr_;         ///< pointer to SylinderSystem
+    std::shared_ptr<ParticleSystem> ptcSystemPtr_;         ///< pointer to ParticleSystem
     Teuchos::RCP<TV> gammaRcp_;                            ///< constraint Lagrange multiplier
     Teuchos::RCP<TV> velConRcp_;                           ///< constraint velocity
     Teuchos::RCP<TV> forceConRcp_;                         ///< constraint force

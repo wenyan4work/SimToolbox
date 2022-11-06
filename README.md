@@ -10,7 +10,7 @@ The folder `Trilinos` contains an interface to [the huge C++ project](https://tr
 
 The folder `Collision` contains the routines for LCP based collision resolution algorithms, supporting both OpenMP and MPI through `Trilinos`.
 
-The folder `Sylinder` contains a parallel `SylinderSystem` class for simulating rigid spherocylinders with overdamped dynamics. A geometric constraint optimization method is implemented to resolve collisions. Parallel IO is also supported for each geometric primitive through the XML-based vtk routines. This code is used in my publications:
+The folder `Particle` contains a parallel `ParticleSystem` class for simulating rigid spherocylinders with overdamped dynamics. A geometric constraint optimization method is implemented to resolve collisions. Parallel IO is also supported for each geometric primitive through the XML-based vtk routines. This code is used in my publications:
 
 1. Yan, Wen, Huan Zhang, and Michael J. Shelley. 2019. “Computing Collision Stress in Assemblies of Active Spherocylinders: Applications of a Fast and Generic Geometric Method.” The Journal of Chemical Physics 150(6): 064109.
  

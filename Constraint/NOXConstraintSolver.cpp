@@ -7,7 +7,7 @@
 
 NOXConstraintSolver::NOXConstraintSolver(const Teuchos::RCP<const Teuchos::Comm<int>> &commRcp,
                                    std::shared_ptr<ConstraintCollector> conCollectorPtr,
-                                   std::shared_ptr<SylinderSystem> ptcSystemPtr)
+                                   std::shared_ptr<ParticleSystem> ptcSystemPtr)
     : commRcp_(commRcp), conCollectorPtr_(std::move(conCollectorPtr)), ptcSystemPtr_(std::move(ptcSystemPtr)) {
     //////////////////////////////////////////
     // Create the NOX linear solver factory //

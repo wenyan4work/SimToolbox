@@ -1,0 +1,52 @@
+# program settings
+rngSeed: 1234
+# simulation box
+simBoxLow: [0, 0, 0]
+simBoxHigh: [25, 25, 25]
+simBoxPBC: [true, true, false]
+monolayer: false
+# initialization box
+initBoxLow: [0, 0, 0]
+initBoxHigh: [25, 25, 25]
+initCircularX: false
+# components outside [-1,1] will be randomly set
+initOrient: [2, 2, 0]
+# physical settings
+viscosity: 0.01 #pN/(um^2.s)
+KBT: 0.00411 #pN.um, 300K
+linkKappa: 1000.0 # pN/um spring constant for particle links.
+linkGap: 0.001 # um separation for particle links.
+# Particle
+particleFixed: false
+particleNumber: 10
+particleLength: 2.0
+particleLengthColRatio: 1.0
+particleLengthSigma: -0.5 # <0 means no randomness
+particleDiameter: 1.0
+particleDiameterColRatio: 1.0
+particleColBuf: 0.3
+# time-stepping
+dt: 0.0001 # s
+timeTotal: 1.0 # s
+timeSnap: 0.0001 # s
+# ConstraintSolver
+conResTol: 1e-5 # residual
+conMaxIte: 100000 # max iteration
+conSolverChoice: 0 # 0 for BBPGD, 1 for APGD, etc
+# Boundaries
+boundaries:
+  - type: "wall"
+    center: [5, 5, 5]
+    norm: [1, 1, 0]
+  - type: "wall"
+    center: [0, 0, 20]
+    norm: [0, 0, -1]
+  - type: "tube"
+    center: [12, 12, 12]
+    radius: 8
+    axis: [1, 1, 1]
+    inside: true
+  - type: "sphere"
+    center: [12, 12, 12]
+    radius: 10
+    inside: true

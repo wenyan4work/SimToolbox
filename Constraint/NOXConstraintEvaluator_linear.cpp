@@ -18,7 +18,7 @@ EvaluatorTpetraConstraint::EvaluatorTpetraConstraint(const Teuchos::RCP<const TC
                      const Teuchos::RCP<const TV> &velExternalRcp, 
                      const Teuchos::RCP<const TV> &forceExternalRcp, 
                      std::shared_ptr<ConstraintCollector> conCollectorPtr,
-                     std::shared_ptr<SylinderSystem> ptcSystemPtr,
+                     std::shared_ptr<ParticleSystem> ptcSystemPtr,
                      const Teuchos::RCP<TV> &forceRcp,
                      const Teuchos::RCP<TV> &velRcp,
                      const double dt) :

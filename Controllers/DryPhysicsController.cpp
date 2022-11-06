@@ -26,14 +26,14 @@
 #include <omp.h>
 
 DryPhysicsController::DryPhysicsController(const std::string &configFile, const std::string &posFile) {
-    initialize(SylinderConfig(configFile), posFile);
+    initialize(ParticleConfig(configFile), posFile);
 }
 
-DryPhysicsController::DryPhysicsController(const SylinderConfig &runConfig_, const std::string &posFile) {
+DryPhysicsController::DryPhysicsController(const ParticleConfig &runConfig_, const std::string &posFile) {
     initialize(runConfig_, posFile);
 }
 
-void DryPhysicsController::initialize(const SylinderConfig &runConfig_, const std::string &posFile) {
+void DryPhysicsController::initialize(const ParticleConfig &runConfig_, const std::string &posFile) {
     runConfig = runConfig_;
     stepCount = 0;
     snapID = 0; // the first snapshot starts from 0 in writeResult
@@ -56,7 +56,7 @@ void DryPhysicsController::initialize(const SylinderConfig &runConfig_, const st
 
     // dump the settings on rank 0
     if (commRcp->getRank() == 0) {
-        printf("-----------SylinderSystem Settings-----------\n");
+        printf("-----------ParticleSystem Settings-----------\n");
         runConfig.dump();
     }
 
@@ -70,7 +70,7 @@ void DryPhysicsController::initialize(const SylinderConfig &runConfig_, const st
     // TRNG pool must be initialized after mpi is initialized
     rngPoolPtr = std::make_shared<TRngPool>(runConfig.rngSeed);
     conCollectorPtr = std::make_shared<ConstraintCollector>();
-    ptcSystemPtr = std::make_shared<SylinderSystem>(runConfig, commRcp, rngPoolPtr, conCollectorPtr);
+    ptcSystemPtr = std::make_shared<ParticleSystem>(runConfig, commRcp, rngPoolPtr, conCollectorPtr);
     conSolverPtr = std::make_shared<PGDConstraintSolver>(commRcp, conCollectorPtr, ptcSystemPtr); 
     ptcSystemPtr->initialize(posFile);
     
@@ -98,9 +98,9 @@ void DryPhysicsController::initialize(const SylinderConfig &runConfig_, const st
             ptcSystemPtr->applyMonolayer();   // TODO: applyMonolayer is VERY hacky and needs updated
             ptcSystemPtr->advanceParticles(); // advance particles is always necessary after applying monbolayer
         }
-        ptcSystemPtr->updateSylinderMap();
+        ptcSystemPtr->updateParticleMap();
         ptcSystemPtr->calcMobOperator();
-        ptcSystemPtr->buildsylinderNearDataDirectory();
+        ptcSystemPtr->buildparticleNearDataDirectory();
 
         // constraint stuff
         ptcSystemPtr->collectConstraints(); 
@@ -119,7 +119,7 @@ void DryPhysicsController::initialize(const SylinderConfig &runConfig_, const st
     spdlog::warn("Initial Collision Resolution End");
 }
 
-void DryPhysicsController::reinitialize(const SylinderConfig &runConfig_, const std::string &restartFile, bool eulerStep) {
+void DryPhysicsController::reinitialize(const ParticleConfig &runConfig_, const std::string &restartFile, bool eulerStep) {
     runConfig = runConfig_;
 
     // Read the timestep information and pvtp filenames from restartFile
@@ -149,7 +149,7 @@ void DryPhysicsController::reinitialize(const SylinderConfig &runConfig_, const 
 
     // dump the settings on rank 0
     if (commRcp->getRank() == 0) {
-        printf("-----------SylinderSystem Settings-----------\n");
+        printf("-----------ParticleSystem Settings-----------\n");
         runConfig.dump();
     }
 
@@ -157,7 +157,7 @@ void DryPhysicsController::reinitialize(const SylinderConfig &runConfig_, const 
     // TRNG pool must be initialized after mpi is initialized
     rngPoolPtr = std::make_shared<TRngPool>(restartRngSeed);
     conCollectorPtr = std::make_shared<ConstraintCollector>();
-    ptcSystemPtr = std::make_shared<SylinderSystem>(runConfig, commRcp, rngPoolPtr, conCollectorPtr);
+    ptcSystemPtr = std::make_shared<ParticleSystem>(runConfig, commRcp, rngPoolPtr, conCollectorPtr);
     conSolverPtr = std::make_shared<PGDConstraintSolver>(commRcp, conCollectorPtr, ptcSystemPtr); 
     std::string baseFolder = getCurrentResultFolder();
     pvtpFileName = baseFolder + pvtpFileName;
@@ -188,8 +188,8 @@ void DryPhysicsController::run() {
         ////////////////////
         // compute growth and devision (if necessary)
         if (runConfig.ptcGrowth.size() > 0) {
-            ptcSystemPtr->calcSylinderGrowth(conSolverPtr->getParticleStress());
-            ptcSystemPtr->calcSylinderDivision();
+            ptcSystemPtr->calcParticleGrowth(conSolverPtr->getParticleStress());
+            ptcSystemPtr->calcParticleDivision();
             ptcSystemPtr->advanceParticles(); // advance particles is always necessary after new particles are generated 
                                               // TODO: the current state should always be initialized upon construction
                                               //       delete this call to advance particles after this fix is done
@@ -204,7 +204,7 @@ void DryPhysicsController::run() {
             ptcSystemPtr->applyMonolayer();   // TODO: applyMonolayer is VERY hacky and needs updated
             ptcSystemPtr->advanceParticles(); // advance particles is always necessary after applying monbolayer
         }
-        ptcSystemPtr->updateSylinderMap();
+        ptcSystemPtr->updateParticleMap();
         ptcSystemPtr->calcMobOperator();
 
         // compute the Brownian veloicity (if necessary)
@@ -220,7 +220,7 @@ void DryPhysicsController::run() {
 
         // store the particle map and collect the constraints
         // the initial constraints are those induced by the external forces and velocities
-        ptcSystemPtr->buildsylinderNearDataDirectory();
+        ptcSystemPtr->buildparticleNearDataDirectory();
         ptcSystemPtr->collectConstraints(); 
         spdlog::debug("initial constraints collected");
 
@@ -237,7 +237,7 @@ void DryPhysicsController::run() {
         }
 
         // merge the constraint and nonconstraint vel and force
-        // TODO: having a total force and velocity is unnecessary. Delete it from sylinder object but still write it out to vtk.
+        // TODO: having a total force and velocity is unnecessary. Delete it from particle object but still write it out to vtk.
         ptcSystemPtr->sumForceVelocity();
 
         // data output stuff
@@ -264,7 +264,7 @@ void DryPhysicsController::writeTimeStepInfo(const std::string &baseFolder, cons
     if (commRcp->getRank() == 0) {
         // write a single txt file containing timestep and most recent pvtp file names
         std::string name = baseFolder + std::string("../../TimeStepInfo.txt");
-        std::string pvtpFileName = std::string("Sylinder_") + postfix + std::string(".pvtp");
+        std::string pvtpFileName = std::string("Particle_") + postfix + std::string(".pvtp");
 
         FILE *restartFile = fopen(name.c_str(), "w");
         fprintf(restartFile, "%u\n", restartRngSeed);

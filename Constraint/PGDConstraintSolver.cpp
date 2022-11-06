@@ -6,7 +6,7 @@
 
 PGDConstraintSolver::PGDConstraintSolver(const Teuchos::RCP<const TCOMM> &commRcp,
                                          std::shared_ptr<ConstraintCollector> conCollectorPtr,
-                                         std::shared_ptr<SylinderSystem> ptcSystemPtr)
+                                         std::shared_ptr<ParticleSystem> ptcSystemPtr)
     : commRcp_(commRcp), conCollectorPtr_(std::move(conCollectorPtr)), ptcSystemPtr_(std::move(ptcSystemPtr)) {}
 
 void PGDConstraintSolver::reset() {
@@ -233,7 +233,7 @@ void PGDConstraintSolver::recursionStep() {
 
     // collect unresolved constraints and add them to constraintCollector
     // this process can generate new constraints and MUST maintain the current constraint ordering
-    ptcSystemPtr_->updatesylinderNearDataDirectory();
+    ptcSystemPtr_->updateparticleNearDataDirectory();
     spdlog::debug("near particles updated");
 
     ptcSystemPtr_->collectUnresolvedConstraints();

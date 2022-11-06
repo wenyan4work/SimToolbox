@@ -11,7 +11,7 @@
 #ifndef DRYPHYSICSCONTROLLER_HPP_
 #define DRYPHYSICSCONTROLLER_HPP_
 
-#include "Sylinder/SylinderSystem.hpp"
+#include "Particle/ParticleSystem.hpp"
 #include "Boundary/Boundary.hpp"
 #include "Constraint/NOXConstraintSolver.hpp"
 #include "Constraint/PGDConstraintSolver.hpp"
@@ -34,7 +34,7 @@ class DryPhysicsController {
     unsigned int restartRngSeed; ///< parallel seed used by restarted simulations
 
     // singletons
-    std::shared_ptr<SylinderSystem> ptcSystemPtr;       ///< pointer to SylinderSystem
+    std::shared_ptr<ParticleSystem> ptcSystemPtr;       ///< pointer to ParticleSystem
     std::shared_ptr<PGDConstraintSolver> conSolverPtr;       ///< pointer to ConstraintSolver
     std::shared_ptr<ConstraintCollector> conCollectorPtr; ///<  pointer to ConstraintCollector
 
@@ -43,7 +43,7 @@ class DryPhysicsController {
     Teuchos::RCP<const TCOMM> commRcp;         ///< TCOMM, set as a Teuchos::MpiComm object in constrctor
 
   public:
-    SylinderConfig runConfig;   ///< sylinder system configuration. Be careful if this is modified on the fly
+    ParticleConfig runConfig;   ///< particle system configuration. Be careful if this is modified on the fly
     // SimulationConfig runConfig; 
     ///< TODO: create two configs or one massive yaml.
     ///< TODO: give everyone sharedpointers to runConfig, no coppies!
@@ -59,7 +59,7 @@ class DryPhysicsController {
      * @brief Construct a new DryPhysicsController object
      *
      * This constructor calls initialize() internally
-     * @param configFile a yaml file for SylinderConfig
+     * @param configFile a yaml file for ParticleConfig
      * @param posFile initial configuration. use empty string ("") for no such file
      * @param argc command line argument
      * @param argv command line argument
@@ -70,12 +70,12 @@ class DryPhysicsController {
      * @brief Construct a new DryPhysicsController object
      *
      * This constructor calls initialize() internally
-     * @param config SylinderConfig object
+     * @param config ParticleConfig object
      * @param posFile initial configuration. use empty string ("") for no such file
      * @param argc command line argument
      * @param argv command line argument
      */
-    DryPhysicsController(const SylinderConfig &config, const std::string &posFile);
+    DryPhysicsController(const ParticleConfig &config, const std::string &posFile);
 
     ~DryPhysicsController() = default;
 
@@ -86,22 +86,22 @@ class DryPhysicsController {
     /**
      * @brief initialize after an empty constructor
      *
-     * @param config SylinderConfig object
+     * @param config ParticleConfig object
      * @param posFile initial configuration. use empty string ("") for no such file
      * @param argc command line argument
      * @param argv command line argument
      */
-    void initialize(const SylinderConfig &config, const std::string &posFile);
+    void initialize(const ParticleConfig &config, const std::string &posFile);
 
     /**
      * @brief reinitialize from vtk files
      *
-     * @param config SylinderConfig object
+     * @param config ParticleConfig object
      * @param restartFile txt file containing timestep and most recent pvtp file names
      * @param argc command line argument
      * @param argv command line argument
      */
-    void reinitialize(const SylinderConfig &config, const std::string &restartFile,
+    void reinitialize(const ParticleConfig &config, const std::string &restartFile,
                       bool eulerStep = true);
 
     /**

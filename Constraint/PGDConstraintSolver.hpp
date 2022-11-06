@@ -14,7 +14,7 @@
 #include "BCQPSolver.hpp"
 #include "ConstraintCollector.hpp"
 #include "ConstraintJacobianOp.hpp"
-#include "Sylinder/SylinderSystem.hpp"
+#include "Particle/ParticleSystem.hpp"
 
 #include "Trilinos/TpetraUtil.hpp"
 #include "Util/EigenDef.hpp"
@@ -37,14 +37,14 @@ class PGDConstraintSolver {
      * @brief Construct a new PGDConstraintSolver object with particle system access
      *
      * This constructor calls setup() internally
-     * @param config SylinderConfig object
+     * @param config ParticleConfig object
      * @param posFile initial configuration. use empty string ("") for no such file
      * @param argc command line argument
      * @param argv command line argument
      */
     PGDConstraintSolver(const Teuchos::RCP<const Teuchos::Comm<int>> &commRcp,
                         std::shared_ptr<ConstraintCollector> conCollectorPtr,
-                        std::shared_ptr<SylinderSystem> ptcSystemPtr);
+                        std::shared_ptr<ParticleSystem> ptcSystemPtr);
 
     // destructor
     ~PGDConstraintSolver() = default;
@@ -100,7 +100,7 @@ class PGDConstraintSolver {
     int solverChoice_;  ///< which solver to use
 
     std::shared_ptr<ConstraintCollector> conCollectorPtr_; ///< pointer to ConstraintCollector
-    std::shared_ptr<SylinderSystem> ptcSystemPtr_;         ///< pointer to SylinderSystem
+    std::shared_ptr<ParticleSystem> ptcSystemPtr_;         ///< pointer to ParticleSystem
 
     const Teuchos::RCP<const TCOMM> commRcp_; ///< TCOMM, set as a Teuchos::MpiComm object in constructor
     Teuchos::RCP<const TMAP> mobMapRcp_;      ///< distributed map for obj mobility. 6 dof per obj

@@ -16,7 +16,7 @@
 EvaluatorTpetraConstraint::EvaluatorTpetraConstraint(const Teuchos::RCP<const TCOMM> &commRcp,
                                                      const Teuchos::RCP<const TCMAT> &mobMatRcp,
                                                      std::shared_ptr<ConstraintCollector> conCollectorPtr,
-                                                     std::shared_ptr<SylinderSystem> ptcSystemPtr,
+                                                     std::shared_ptr<ParticleSystem> ptcSystemPtr,
                                                      const Teuchos::RCP<TV> &forceRcp, const Teuchos::RCP<TV> &velRcp,
                                                      const double dt)
     : commRcp_(commRcp), mobMatRcp_(mobMatRcp), conCollectorPtr_(std::move(conCollectorPtr)),
@@ -252,7 +252,7 @@ void EvaluatorTpetraConstraint::recursionStep(const Teuchos::RCP<const TV> &gamm
 
     // update all constraints
     // this must NOT generate new constraints and MUST maintain the current constraint ordering
-    ptcSystemPtr_->updatesylinderNearDataDirectory();
+    ptcSystemPtr_->updateparticleNearDataDirectory();
     ptcSystemPtr_->updatePairCollision(); // TODO: this only supports systems with pure, particle-particle
                                             // collisions atm
 

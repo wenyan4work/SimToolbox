@@ -1,7 +1,7 @@
 /**
- * @file SylinderSystem_main.cpp
+ * @file ParticleSystem_main.cpp
  * @author Wen Yan (wenyan4work@gmail.com)
- * @brief main driver of SylinderSystem class
+ * @brief main driver of ParticleSystem class
  * @version 0.1
  * @date 2021-02-24
  *
@@ -22,7 +22,7 @@ int main(int argc, char **argv) {
         // create a system and distribute it to all ranks
         // MPI is initialized inside PS::Initialize()
         std::string runConfigFile = "RunConfig.yaml";
-        std::string posFile = "SylinderInitial.dat";
+        std::string posFile = "ParticleInitial.dat";
         std::string restartFile = "TimeStepInfo.txt";
         DryPhysicsController controller;
         if (IOHelper::fileExist(restartFile)) {

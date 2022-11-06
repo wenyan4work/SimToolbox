@@ -1,0 +1,37 @@
+# program settings
+# Brownian spheres at vol%=30.3% for C-S EOS verification
+# theoretical P_collision = 3.037
+rngSeed: 1234
+# simulation box
+simBoxLow: [0, 0, 0]
+simBoxHigh: [12, 12, 12]
+simBoxPBC: [true, true, true]
+monolayer: false
+# initialization box
+initBoxLow: [0, 0, 0]
+initBoxHigh: [12, 12, 12]
+initCircularX: false
+# components outside [-1,1] will be randomly set
+initOrient: [2, 2, 2]
+# physical settings
+viscosity: 0.01 #pN/(um^2.s)
+KBT: 0.00411 #pN.um, 300K
+linkKappa: 1000.0 # pN/um spring constant for particle links.
+linkGap: 0.05 # um separation for particle links.
+# Particle
+particleFixed: false
+particleNumber: 1000
+particleLength: 0.0
+particleLengthColRatio: 1.0
+particleLengthSigma: -1.0 # <0 means no randomness
+particleDiameter: 1.0
+particleDiameterColRatio: 1.0
+particleColBuf: 0.3
+# time-stepping
+dt: 0.0001 # s
+timeTotal: 4.0 # s
+timeSnap: 0.1 # s
+# ConstraintSolver
+conResTol: 1e-5 # residual
+conMaxIte: 100000 # max iteration
+conSolverChoice: 0 # 0 for BBPGD, 1 for APGD, etc
